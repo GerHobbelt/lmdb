@@ -289,7 +289,7 @@ typedef struct MDB_val {
 } MDB_val;
 
 /** @brief A callback function used to compare two keys in a database */
-typedef int  (MDB_cmp_func)(const MDB_val *a, const MDB_val *b);
+typedef int  (MDB_cmp_func)(const MDB_val *a, const MDB_val *b, void* ctx);
 
 /** @defgroup	mdb_env	Environment Flags
  *	@{
@@ -1249,6 +1249,66 @@ int  mdb_set_compare(MDB_txn *txn, MDB_dbi dbi, MDB_cmp_func *cmp);
 	 * </ul>
 	 */
 int  mdb_set_dupsort(MDB_txn *txn, MDB_dbi dbi, MDB_cmp_func *cmp);
+
+	/** @brief Set a context pointer for the compare function
+	 *
+	 * See #mdb_set_compare and #MDB_cmp_func for more details.
+	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
+	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
+	 * @param[in] ctx An arbitrary pointer for whatever the application needs.
+	 * It will be passed to the callback function set by mdb_set_compare
+	 * as its \b cmpctx parameter whenever the callback is invoked.
+	 * @return A non-zero error value on failure and 0 on success. Some possible
+	 * errors are:
+	 * <ul>
+	 *	<li>EINVAL - an invalid parameter was specified.
+	 * </ul>
+	 */
+int  mdb_set_cmpctx(MDB_txn *txn, MDB_dbi dbi, void *ctx);
+
+	/** @brief Set a context pointer for the duplicate sort function
+	 *
+	 * See #mdb_set_dupsort and #MDB_cmp_func for more details.
+	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
+	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
+	 * @param[in] ctx An arbitrary pointer for whatever the application needs.
+	 * It will be passed to the callback function set by mdb_set_dupsort
+	 * as its \b cmpctx parameter whenever the callback is invoked.
+	 * @return A non-zero error value on failure and 0 on success. Some possible
+	 * errors are:
+	 * <ul>
+	 *	<li>EINVAL - an invalid parameter was specified.
+	 * </ul>
+	 */
+int  mdb_set_dcmpctx(MDB_txn *txn, MDB_dbi dbi, void *ctx);
+
+	/** @brief Get the context pointer for the compare function
+	 *
+	 * See #mdb_set_compare,#mdb_set_cmpctx and #MDB_cmp_func for more details.
+	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
+	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
+	 * @param[in] ctx A pointer to an arbitrary pointer to store the ctx
+	 * @return A non-zero error value on failure and 0 on success. Some possible
+	 * errors are:
+	 * <ul>
+	 *	<li>EINVAL - an invalid parameter was specified.
+	 * </ul>
+	 */
+int  mdb_get_cmpctx(MDB_txn *txn, MDB_dbi dbi, void **ctx);
+
+	/** @brief Get the context pointer for the duplicate sort function
+	 *
+	 * See #mdb_set_dupsort,mdb_set_dcmpctx and #MDB_cmp_func for more details.
+	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
+	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
+	 * @param[in] ctx A pointer to an arbitrary pointer to store the ctx
+	 * @return A non-zero error value on failure and 0 on success. Some possible
+	 * errors are:
+	 * <ul>
+	 *	<li>EINVAL - an invalid parameter was specified.
+	 * </ul>
+	 */
+int  mdb_get_dcmpctx(MDB_txn *txn, MDB_dbi dbi, void **ctx);
 
 	/** @brief Get items from a database.
 	 *
