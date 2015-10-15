@@ -38,6 +38,7 @@
 #ifdef _WIN32
 #include <malloc.h>
 #include <windows.h>
+#define strdup _strdup
 /** getpid() returns int; MinGW defines pid_t but MinGW64 typedefs it
  *  as int64 which is wrong. MSVC doesn't define it at all, so just
  *  don't use it.
