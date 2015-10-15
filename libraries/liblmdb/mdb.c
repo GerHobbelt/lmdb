@@ -4104,7 +4104,7 @@ mdb_fsize(HANDLE fd, size_t *size)
 	if (!GetFileSizeEx(fd, &fsize))
 		return ErrCode();
 
-	*size = fsize.QuadPart;
+	*size = (size_t)fsize.QuadPart;
 #else
 	struct stat st;
 
