@@ -2547,7 +2547,7 @@ fail:
 }
 
 int
-mdb_env_sync(MDB_env *env, int force)
+mdb_env_sync0(MDB_env *env, int force, pgno_t numpgs)
 {
 	int rc = 0;
 	if (env->me_flags & MDB_RDONLY)
@@ -2556,7 +2556,7 @@ mdb_env_sync(MDB_env *env, int force)
 		if (env->me_flags & MDB_WRITEMAP) {
 			int flags = ((env->me_flags & MDB_MAPASYNC) && !force)
 				? MS_ASYNC : MS_SYNC;
-			if (MDB_MSYNC(env->me_map, env->me_mapsize, flags))
+			if (MDB_MSYNC(env->me_map, env->me_psize * numpgs, flags))
 				rc = ErrCode();
 #ifdef _WIN32
 			else if (flags == MS_SYNC && MDB_FDATASYNC(env->me_fd))
@@ -2574,6 +2574,13 @@ mdb_env_sync(MDB_env *env, int force)
 		}
 	}
 	return rc;
+}
+
+int
+mdb_env_sync(MDB_env *env, int force)
+{
+	MDB_meta *m = mdb_env_pick_meta(env);
+	return mdb_env_sync0(env, force, m->mm_last_pg+1);
 }
 
 /** Back up parent txn's cursors, then grab the originals for tracking */
@@ -3665,7 +3672,7 @@ mdb_txn_commit(MDB_txn *txn)
 #endif
 
 	if ((rc = mdb_page_flush(txn, 0)) ||
-		(rc = mdb_env_sync(env, 0)) ||
+		(rc = mdb_env_sync0(env, 0, txn->mt_next_pgno)) ||
 		(rc = mdb_env_write_meta(txn)))
 		goto fail;
 	end_mode = MDB_END_COMMITTED|MDB_END_UPDATE;
