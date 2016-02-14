@@ -3985,6 +3985,19 @@ mdb_env_create(MDB_env **env)
 	return MDB_SUCCESS;
 }
 
+#ifdef _WIN32
+/** @brief Map a result from an NTAPI call to WIN32. */
+static DWORD
+mdb_nt2win32(NTSTATUS st)
+{
+       OVERLAPPED o = {0};
+       DWORD br;
+       o.Internal = st;
+       GetOverlappedResult(NULL, &o, &br, FALSE);
+       return GetLastError();
+}
+#endif
+
 static int ESECT
 mdb_env_map(MDB_env *env, void *addr)
 {
@@ -4014,12 +4027,12 @@ mdb_env_map(MDB_env *env, void *addr)
 
 	rc = NtCreateSection(&mh, access, NULL, NULL, secprot, SEC_RESERVE, env->me_fd);
 	if (rc)
-		return rc;
+		return mdb_nt2win32(rc);
 	map = addr;
 	rc = NtMapViewOfSection(mh, GetCurrentProcess(), &map, 0, 0, NULL, &msize, ViewUnmap, alloctype, pageprot);
 	NtClose(mh);
 	if (rc)
-		return rc;
+		return mdb_nt2win32(rc);
 	env->me_map = map;
 #else
 	int prot = PROT_READ;
