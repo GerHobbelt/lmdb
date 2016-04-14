@@ -12,10 +12,10 @@ set(LMDB_VERSION "${LMDB_MAJOR_VERSION}.${LMDB_MINOR_VERSION}.${LMDB_PATCH_VERSI
 
 project(lmdb)
 
-add_library(liblmdb STATIC mdb.c lmdb.h midl.c midl.h)
-set_target_properties(liblmdb PROPERTIES DEBUG_POSTFIX d)
+add_library(lmdb STATIC mdb.c lmdb.h midl.c midl.h)
+set_target_properties(lmdb PROPERTIES DEBUG_POSTFIX d)
 
-install(TARGET liblmdb DESTINATION lib)
+install(TARGET lmdb DESTINATION lib)
         EXPORT lmdb-targets
         DESTINATION lib)
 
