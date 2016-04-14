@@ -14,6 +14,7 @@ project(lmdb)
 
 add_library(lmdb STATIC mdb.c lmdb.h midl.c midl.h)
 set_target_properties(lmdb PROPERTIES DEBUG_POSTFIX d)
+target_link_libraries(lmdb PUBLIC ntdll.lib)
 
 install(TARGETS lmdb DESTINATION lib
         EXPORT lmdb-targets
