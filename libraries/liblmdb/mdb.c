@@ -6692,7 +6692,6 @@ mdb_cursor_set(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 						}
 					}
 					rc = 0;
-					mc->mc_flags &= ~C_EOF;
 					goto set2;
 				}
 			}
