@@ -1607,6 +1607,14 @@ int  mdb_cmp(MDB_txn *txn, MDB_dbi dbi, const MDB_val *a, const MDB_val *b);
 	 */
 int  mdb_dcmp(MDB_txn *txn, MDB_dbi dbi, const MDB_val *a, const MDB_val *b);
 
+	/** @brief Display a key in hexadecimal and return the address of the result.
+	 * Disabled if liblmdb is buillt with NDEBUG.
+	 * @param[in] key the key to display
+	 * @param[in] buf the buffer to write into. Should always be #DKBUF.
+	 * @return The key in hexadecimal form.
+	 */
+char *mdb_dkey(MDB_val *key, char *buf);
+
 	/** @brief A callback function used to print a message from the library.
 	 *
 	 * @param[in] msg The string to be printed.

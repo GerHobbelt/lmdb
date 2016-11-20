@@ -1,5 +1,7 @@
 mtest
+xmtest
 mtest[23456]
+xmtest[23456]
 testdb
 mdb_copy
 mdb_stat

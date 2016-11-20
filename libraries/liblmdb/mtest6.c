@@ -24,6 +24,11 @@
 #define CHECK(test, msg) ((test) ? (void)0 : ((void)fprintf(stderr, \
 	"%s:%d: %s: %s\n", __FILE__, __LINE__, msg, mdb_strerror(rc)), abort()))
 
+#ifndef NDEBUG
+#else
+#undef DEBUG
+#endif
+
 char dkbuf[1024];
 
 int main(int argc,char * argv[])
@@ -82,9 +87,11 @@ int main(int argc,char * argv[])
 	E(mdb_cursor_get(cursor, &key, &data, MDB_FIRST));
 
 	do {
+#ifdef DEBUG
 		printf("key: %p %s, data: %p %.*s\n",
 			key.mv_data,  mdb_dkey(&key, dkbuf),
 			data.mv_data, (int) data.mv_size, (char *) data.mv_data);
+#endif
 	} while ((rc = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0);
 	CHECK(rc == MDB_NOTFOUND, "mdb_cursor_get");
 	mdb_cursor_close(cursor);
