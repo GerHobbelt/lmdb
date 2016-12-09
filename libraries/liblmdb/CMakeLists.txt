@@ -12,15 +12,33 @@ set(LMDB_VERSION "${LMDB_MAJOR_VERSION}.${LMDB_MINOR_VERSION}.${LMDB_PATCH_VERSI
 
 project(lmdb)
 
-add_library(lmdb STATIC mdb.c lmdb.h midl.c midl.h)
+option(LMDB_BUILD_TOOLS "Build lmdb tools" ON)
+option(LMDB_BUILD_TESTS "Build lmdb tests" ON)
+set(LMDB_INCLUDE_INSTALL_DIR include CACHE PATH "Install directory for headers")
+set(LMDB_LIBRARY_INSTALL_DIR lib CACHE PATH "Install directory for library")
+set(LMDB_RUNTIME_INSTALL_DIR bin CACHE PATH "Install directory for binaries/dlls")
+set(LMDB_CONFIG_INSTALL_DIR cmake CACHE PATH "Install directory for cmake config files")
+
+set(SRCS lmdb mdb.c lmdb.h midl.c midl.h)
+add_library(lmdb ${SRCS})
+if(BUILD_SHARED_LIBS)
+  target_sources(lmdb PRIVATE $<$<CONFIG:Debug>:lmdbd.def> $<$<NOT:$<CONFIG:Debug>>:lmdb.def>)
+endif()
 set_target_properties(lmdb PROPERTIES DEBUG_POSTFIX d)
-target_link_libraries(lmdb PUBLIC ntdll.lib)
+if(BUILD_SHARED_LIBS)
+  target_link_libraries(lmdb PRIVATE ntdll.lib)
+else()
+  target_link_libraries(lmdb PUBLIC ntdll.lib)
+endif()
 
 install(TARGETS lmdb DESTINATION lib
         EXPORT lmdb-targets
-        DESTINATION lib)
+        RUNTIME DESTINATION ${LMDB_RUNTIME_INSTALL_DIR}
+        LIBRARY DESTINATION ${LMDB_LIBRARY_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LMDB_LIBRARY_INSTALL_DIR}
+        )
 
-install(FILES lmdb.h midl.h DESTINATION include)
+install(FILES lmdb.h midl.h DESTINATION ${LMDB_INCLUDE_INSTALL_DIR})
 
 include(CMakePackageConfigHelpers)
 
@@ -29,13 +47,32 @@ configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/package-config.c
                               INSTALL_DESTINATION CMake
                               PATH_VARS INSTALL_INCLUDE_DIR
                               )
-       
+
 write_basic_package_version_file( ${CMAKE_CURRENT_BINARY_DIR}/lmdb-config-version.cmake VERSION ${LMDB_VERSION} COMPATIBILITY SameMajorVersion )
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lmdb-config.cmake ${CMAKE_CURRENT_BINARY_DIR}/lmdb-config-version.cmake
-        DESTINATION CMake )
+        DESTINATION ${LMDB_CONFIG_INSTALL_DIR} )
 
 
-install(EXPORT lmdb-targets DESTINATION CMake)
+install(EXPORT lmdb-targets DESTINATION ${LMDB_CONFIG_INSTALL_DIR})
 
+if(LMDB_BUILD_TOOLS)
+  # don't build mdb_dump/load/stat since they will
+  # not build on windows
+  foreach(_tool mdb_copy)
+    add_executable(${_tool} ${_tool}.c)
+    target_link_libraries(${_tool} lmdb)
+  endforeach()
+endif()
 
+if(LMDB_BUILD_TESTS)
+  enable_testing()
+  # don't use mtest6 since it will only build in static
+  # build
+  foreach(_test mtest mtest2 mtest3 mtest4 mtest5)
+    add_executable(${_test} ${_test}.c)
+    target_link_libraries(${_test} lmdb)
+    add_test(NAME ${_test}
+             COMMAND ${CMAKE_COMMAND} -DTEST=$<TARGET_FILE:"${_test}" -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/runtest.cmake)
+  endforeach()
+endif()
