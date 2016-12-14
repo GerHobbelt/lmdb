@@ -41,6 +41,9 @@
 #ifdef _WIN32
 #include <malloc.h>
 #include <windows.h>
+#include <VersionHelpers.h>
+
+#define strdup _strdup
 
 /* We use native NT APIs to setup the memory map, so that we can
  * let the DB file grow incrementally instead of always preallocating
@@ -4374,7 +4377,11 @@ mdb_fsize(HANDLE fd, mdb_size_t *size)
 	if (!GetFileSizeEx(fd, &fsize))
 		return ErrCode();
 
+#	ifdef _WIN64
 	*size = fsize.QuadPart;
+#	else
+	*size = fsize.LowPart;
+#	endif
 #else
 	struct stat st;
 
@@ -4402,11 +4409,23 @@ mdb_env_open2(MDB_env *env)
 
 #ifdef _WIN32
 	/* See if we should use QueryLimited */
-	rc = GetVersion();
-	if ((rc & 0xff) > 5)
-		env->me_pidquery = MDB_PROCESS_QUERY_LIMITED_INFORMATION;
-	else
+	OSVERSIONINFOEXW osvi = { sizeof(osvi), 0, 0, 0, 0,{ 0 }, 0, 0 };
+	DWORDLONG        const dwlConditionMask = VerSetConditionMask(
+		VerSetConditionMask(
+			VerSetConditionMask(
+				0, VER_MAJORVERSION, VER_LESS_EQUAL),
+			VER_MINORVERSION, VER_LESS_EQUAL),
+		VER_SERVICEPACKMAJOR, VER_LESS_EQUAL);
+
+	osvi.dwMajorVersion = HIBYTE(_WIN32_WINNT_WINXP);
+	osvi.dwMinorVersion = LOBYTE(_WIN32_WINNT_WINXP);
+	osvi.wServicePackMajor = 3;
+
+	/* Is windows XP Sp 3 or lower */
+	if(VerifyVersionInfoW(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, dwlConditionMask) != FALSE)
 		env->me_pidquery = PROCESS_QUERY_INFORMATION;
+	else
+		env->me_pidquery = MDB_PROCESS_QUERY_LIMITED_INFORMATION;
 #endif /* _WIN32 */
 
 #ifdef BROKEN_FDATASYNC
@@ -7481,7 +7500,12 @@ current:
 						 * Copy end of page, adjusting alignment so
 						 * compiler may copy words instead of bytes.
 						 */
+						#ifdef _MSC_VER
+						off = (PAGEHDRSZ + data->mv_size) & -((int)sizeof(size_t));
+						#else
 						off = (PAGEHDRSZ + data->mv_size) & -sizeof(size_t);
+						#endif
+
 						memcpy((size_t *)((char *)np + off),
 							(size_t *)((char *)omp + off), sz - off);
 						sz = PAGEHDRSZ;
