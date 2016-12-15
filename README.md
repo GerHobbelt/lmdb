@@ -9,7 +9,11 @@ Following necessary GNU headers added to build lib as explain [here](https://ini
 ### usage
 Use `premake5` script at path `lmdb/libraries` with same folder of source files `liblmdb` to generate `VS2015` project;
 
-```premake5 vs2015```
+```
+premake5 vs2015
+```
+
+`release` folder will be generated after compiling.
 
 
 set your `ENV` variables to direct LMDB paths `release/include` and `release/lib`.
