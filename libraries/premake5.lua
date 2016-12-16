@@ -6,12 +6,18 @@ function mk_release_dir()
   end
 end
 
+--
+-- LMDB workspace
+--
 workspace "LMDB"
   configurations { "Debug", "Release" }
   platforms({"x64"})
   location("build/" .. _ACTION)
   startproject "liblmdb"
   targetdir "./bin/%{_ACTION}/%{cfg.buildcfg}"
+
+  -- generate release
+  mk_release_dir()
 
   filter "configurations:Debug"
     defines { "DEBUG" }
@@ -36,9 +42,14 @@ workspace "LMDB"
     files { "./%{prj.name}/*.c" }        
     includedirs { "./%{prj.name}" }
 
-    -- generate release
-    mk_release_dir()
-
+    -- target names
+    filter "configurations:Debug"
+      targetname "lmdb-d"
+    
+    filter "configurations:Release"
+      targetname "lmdb"
+  
+    -- postbuild commands
     postbuildcommands {
       "{COPY} \"../../%{prj.name}/lmdb.h\" \"../../release/include\"",
     }
