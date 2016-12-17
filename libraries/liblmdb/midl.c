@@ -30,6 +30,12 @@
  */
 #define CMP(x,y)	 ( (x) < (y) ? -1 : (x) > (y) )
 
+#ifdef __cplusplus
+#define TC(type) (type)
+#else
+#define TC(type)
+#endif
+
 unsigned mdb_midl_search( MDB_IDL ids, MDB_ID id )
 {
 	/*
@@ -102,7 +108,7 @@ int mdb_midl_insert( MDB_IDL ids, MDB_ID id )
 
 MDB_IDL mdb_midl_alloc(int num)
 {
-	MDB_IDL ids = malloc((num+2) * sizeof(MDB_ID));
+	MDB_IDL ids = TC(MDB_IDL) malloc((num+2) * sizeof(MDB_ID));
 	if (ids) {
 		*ids++ = num;
 		*ids = 0;
@@ -120,7 +126,7 @@ void mdb_midl_shrink( MDB_IDL *idp )
 {
 	MDB_IDL ids = *idp;
 	if (*(--ids) > MDB_IDL_UM_MAX &&
-		(ids = realloc(ids, (MDB_IDL_UM_MAX+2) * sizeof(MDB_ID))))
+		(ids = TC(MDB_IDL) realloc(ids, (MDB_IDL_UM_MAX+2) * sizeof(MDB_ID))))
 	{
 		*ids++ = MDB_IDL_UM_MAX;
 		*idp = ids;
@@ -131,7 +137,7 @@ static int mdb_midl_grow( MDB_IDL *idp, int num )
 {
 	MDB_IDL idn = *idp-1;
 	/* grow it */
-	idn = realloc(idn, (*idn + num + 2) * sizeof(MDB_ID));
+	idn = TC(MDB_IDL) realloc(idn, (*idn + num + 2) * sizeof(MDB_ID));
 	if (!idn)
 		return ENOMEM;
 	*idn++ += num;
@@ -145,7 +151,7 @@ int mdb_midl_need( MDB_IDL *idp, unsigned num )
 	num += ids[0];
 	if (num > ids[-1]) {
 		num = (num + num/4 + (256 + 2)) & -256;
-		if (!(ids = realloc(ids-1, num * sizeof(MDB_ID))))
+		if (!(ids = TC(MDB_IDL) realloc(ids-1, num * sizeof(MDB_ID))))
 			return ENOMEM;
 		*ids++ = num - 2;
 		*idp = ids;

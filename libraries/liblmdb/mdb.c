@@ -38,10 +38,21 @@
 #if defined(MDB_VL32) || defined(__WIN64__)
 #define _FILE_OFFSET_BITS	64
 #endif
+#ifdef __cplusplus
+#define TC(type) (type)
+#define EXTERN extern "C"
+#else
+#define TC(type)
+#define EXTERN "C"
+#endif
+
 #ifdef _WIN32
+
+#define _CRT_SECURE_NO_WARNINGS
 #include <malloc.h>
 #include <windows.h>
 #include <VersionHelpers.h>
+#undef  _CRT_SECURE_NO_WARNINGS
 
 #define strdup _strdup
 
@@ -53,7 +64,7 @@
  * declare them here. Using these APIs also means we must link to
  * ntdll.dll, which is not linked by default in user code.
  */
-NTSTATUS WINAPI
+EXTERN NTSTATUS WINAPI
 NtCreateSection(OUT PHANDLE sh, IN ACCESS_MASK acc,
   IN void * oa OPTIONAL,
   IN PLARGE_INTEGER ms OPTIONAL,
@@ -64,15 +75,85 @@ typedef enum _SECTION_INHERIT {
 	ViewUnmap = 2
 } SECTION_INHERIT;
 
-NTSTATUS WINAPI
+EXTERN NTSTATUS WINAPI
 NtMapViewOfSection(IN PHANDLE sh, IN HANDLE ph,
   IN OUT PVOID *addr, IN ULONG_PTR zbits,
   IN SIZE_T cs, IN OUT PLARGE_INTEGER off OPTIONAL,
   IN OUT PSIZE_T vs, IN SECTION_INHERIT ih,
   IN ULONG at, IN ULONG pp);
 
-NTSTATUS WINAPI
+EXTERN NTSTATUS WINAPI
 NtClose(HANDLE h);
+
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#define RMUTEX_NAME "Global\\MDBr%s"
+#define WMUTEX_NAME "Global\\MDBw%s"
+#else // UWP
+#define RMUTEX_NAME "Local\\MDBr%s"
+#define WMUTEX_NAME "Local\\MDBw%s"
+#define UWP
+
+/* Fake CreateFileW wrapper */
+static HANDLE WINAPI CreateFileW(
+	LPCWSTR               lpFileName,
+	DWORD                 dwDesiredAccess,
+	DWORD                 dwShareMode,
+	LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+	DWORD                 dwCreationDisposition,
+	DWORD                 dwFlagsAndAttributes,
+	HANDLE                hTemplateFile
+)
+{
+	CREATEFILE2_EXTENDED_PARAMETERS extendedParams = { 0 };
+	extendedParams.dwSize = sizeof(CREATEFILE2_EXTENDED_PARAMETERS);
+	extendedParams.dwFileFlags = dwFlagsAndAttributes & (
+		FILE_FLAG_BACKUP_SEMANTICS |
+		FILE_FLAG_DELETE_ON_CLOSE |
+		FILE_FLAG_NO_BUFFERING |
+		FILE_FLAG_OPEN_NO_RECALL |
+		FILE_FLAG_OPEN_REPARSE_POINT |
+		FILE_FLAG_OPEN_REQUIRING_OPLOCK |
+		FILE_FLAG_OVERLAPPED |
+		FILE_FLAG_POSIX_SEMANTICS |
+		FILE_FLAG_RANDOM_ACCESS |
+		FILE_FLAG_SESSION_AWARE |
+		FILE_FLAG_SEQUENTIAL_SCAN |
+		FILE_FLAG_WRITE_THROUGH
+		);
+
+	extendedParams.dwFileAttributes = dwFlagsAndAttributes & (
+		FILE_ATTRIBUTE_ARCHIVE |
+		FILE_ATTRIBUTE_ENCRYPTED |
+		FILE_ATTRIBUTE_HIDDEN |
+		FILE_ATTRIBUTE_INTEGRITY_STREAM |
+		FILE_ATTRIBUTE_NORMAL |
+		FILE_ATTRIBUTE_OFFLINE |
+		FILE_ATTRIBUTE_READONLY |
+		FILE_ATTRIBUTE_SYSTEM |
+		FILE_ATTRIBUTE_TEMPORARY
+		);
+
+	extendedParams.hTemplateFile = hTemplateFile;
+	extendedParams.lpSecurityAttributes = lpSecurityAttributes;
+	return CreateFile2(lpFileName, dwDesiredAccess, dwShareMode, dwCreationDisposition, &extendedParams);
+}
+
+/* Fake MapViewOfFileEx wrapper */
+LPVOID WINAPI MapViewOfFileEx(
+	_In_     HANDLE hFileMappingObject,
+	_In_     DWORD  dwDesiredAccess,
+	_In_     DWORD  dwFileOffsetHigh,
+	_In_     DWORD  dwFileOffsetLow,
+	_In_     SIZE_T dwNumberOfBytesToMap,
+	_In_opt_ LPVOID lpBaseAddress
+)
+{
+	ULARGE_INTEGER offset;
+	offset.HighPart = dwFileOffsetHigh;
+	offset.LowPart = dwFileOffsetLow;
+	return MapViewOfFileFromApp(hFileMappingObject, dwDesiredAccess, offset.QuadPart, dwNumberOfBytesToMap);
+}
+#endif //WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 
 /** getpid() returns int; MinGW defines pid_t but MinGW64 typedefs it
  *  as int64 which is wrong. MSVC doesn't define it at all, so just
@@ -341,7 +422,11 @@ typedef HANDLE mdb_mutex_t, mdb_mutexref_t;
 #define pthread_mutex_unlock(x)	ReleaseMutex(*x)
 #define pthread_mutex_lock(x)	WaitForSingleObject(*x, INFINITE)
 #define pthread_cond_signal(x)	SetEvent(*x)
+#ifdef UWP
+#define pthread_cond_wait(cond,mutex)	do{DWORD dwRet = WaitForSingleObject(*cond, INFINITE); if (WAIT_OBJECT_0 == dwRet) SetEvent(*mutex); } while(0)
+#else
 #define pthread_cond_wait(cond,mutex)	do{SignalObjectAndWait(*mutex, *cond, INFINITE, FALSE); WaitForSingleObject(*mutex, INFINITE);}while(0)
+#endif
 #define THREAD_CREATE(thr,start,arg) \
 	(((thr) = CreateThread(NULL, 0, start, arg, 0, NULL)) ? 0 : ErrCode())
 #define THREAD_FINISH(thr) \
@@ -1686,11 +1771,11 @@ mdb_dbg_pgno(MDB_page *mp)
  * @param[in] buf the buffer to write into. Should always be #DKBUF.
  * @return The key in hexadecimal form.
  */
-char *
+EXTERN char *
 mdb_dkey(MDB_val *key, char *buf)
 {
 	char *ptr = buf;
-	unsigned char *c = key->mv_data;
+	unsigned char *c = TC(unsigned char*) key->mv_data;
 	unsigned int i;
 
 	if (!key)
@@ -1737,20 +1822,20 @@ mdb_page_list(MDB_page *mp)
 	case P_LEAF|P_LEAF2:        type = "LEAF2 page";		break;
 	case P_LEAF|P_LEAF2|P_SUBP: type = "LEAF2 sub-page";	break;
 	case P_OVERFLOW:
-		fprintf(stderr, "Overflow page %"Yu" pages %u%s\n",
+		fprintf(stderr, "Overflow page %" Yu" pages %u%s\n",
 			pgno, mp->mp_pages, state);
 		return;
 	case P_META:
-		fprintf(stderr, "Meta-page %"Yu" txnid %"Yu"\n",
+		fprintf(stderr, "Meta-page %" Yu" txnid %" Yu"\n",
 			pgno, ((MDB_meta *)METADATA(mp))->mm_txnid);
 		return;
 	default:
-		fprintf(stderr, "Bad page %"Yu" flags 0x%X\n", pgno, mp->mp_flags);
+		fprintf(stderr, "Bad page %" Yu" flags 0x%X\n", pgno, mp->mp_flags);
 		return;
 	}
 
 	nkeys = NUMKEYS(mp);
-	fprintf(stderr, "%s %"Yu" numkeys %d%s\n", type, pgno, nkeys, state);
+	fprintf(stderr, "%s %" Yu" numkeys %d%s\n", type, pgno, nkeys, state);
 
 	for (i=0; i<nkeys; i++) {
 		if (IS_LEAF2(mp)) {	/* LEAF2 pages have no mp_ptrs[] or node headers */
@@ -1765,7 +1850,7 @@ mdb_page_list(MDB_page *mp)
 		key.mv_data = node->mn_data;
 		nsize = NODESIZE + key.mv_size;
 		if (IS_BRANCH(mp)) {
-			fprintf(stderr, "key %d: page %"Yu", %s\n", i, NODEPGNO(node),
+			fprintf(stderr, "key %d: page %" Yu", %s\n", i, NODEPGNO(node),
 				DKEY(&key));
 			total += nsize;
 		} else {
@@ -1861,7 +1946,7 @@ static void mdb_audit(MDB_txn *txn)
 		}
 	}
 	if (freecount + count + NUM_METAS != txn->mt_next_pgno) {
-		fprintf(stderr, "audit: %"Yu" freecount: %"Yu" count: %"Yu" total: %"Yu" next_pgno: %"Yu"\n",
+		fprintf(stderr, "audit: %" Yu" freecount: %" Yu" count: %" Yu" total: %" Yu" next_pgno: %" Yu"\n",
 			txn->mt_txnid, freecount, count+NUM_METAS,
 			freecount+count+NUM_METAS, txn->mt_next_pgno);
 	}
@@ -1909,7 +1994,7 @@ mdb_page_malloc(MDB_txn *txn, unsigned num)
 		sz *= num;
 		off = sz - psize;
 	}
-	if ((ret = malloc(sz)) != NULL) {
+	if ((ret = TC(MDB_page*)malloc(sz)) != NULL) {
 		VGMEMP_ALLOC(env, ret, sz);
 		if (!(env->me_flags & MDB_NOMEMINIT)) {
 			memset((char *)ret + off, 0, psize);
@@ -1954,7 +2039,7 @@ mdb_dlist_free(MDB_txn *txn)
 	unsigned i, n = dl[0].mid;
 
 	for (i = 1; i <= n; i++) {
-		mdb_dpage_free(env, dl[i].mptr);
+		mdb_dpage_free(env, TC(MDB_page*)dl[i].mptr);
 	}
 	dl[0].mid = 0;
 }
@@ -2219,7 +2304,7 @@ mdb_page_spill(MDB_cursor *m0, MDB_val *key, MDB_val *data)
 	/* flush from the tail forward, this saves a lot of shifting later on. */
 	for (i=dl[0].mid; i && need; i--) {
 		MDB_ID pn = dl[i].mid << 1;
-		dp = dl[i].mptr;
+		dp = TC(MDB_page*) dl[i].mptr;
 		if (dp->mp_flags & (P_LOOSE|P_KEEP))
 			continue;
 		/* Can't spill twice, make sure it's not already in a parent's
@@ -2686,7 +2771,7 @@ done:
 				{
 					MDB_node *leaf = NODEPTR(np, m2->mc_ki[mc->mc_top]);
 					if ((leaf->mn_flags & (F_DUPDATA|F_SUBDATA)) == F_DUPDATA)
-						m2->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(leaf);
+						m2->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(leaf);
 				}
 			}
 		}
@@ -2751,7 +2836,7 @@ mdb_cursor_shadow(MDB_txn *src, MDB_txn *dst)
 			if (mc->mc_xcursor)
 				size += sizeof(MDB_xcursor);
 			for (; mc; mc = bk->mc_next) {
-				bk = malloc(size);
+				bk = TC(MDB_cursor*)malloc(size);
 				if (!bk)
 					return ENOMEM;
 				*bk = *mc;
@@ -2890,7 +2975,7 @@ mdb_txn_renew0(MDB_txn *txn)
 			txn->mt_u.reader = NULL;
 		} else {
 			MDB_reader *r = (env->me_flags & MDB_NOTLS) ? txn->mt_u.reader :
-				pthread_getspecific(env->me_txkey);
+				TC(MDB_reader*) pthread_getspecific(env->me_txkey);
 			if (r) {
 				if (r->mr_pid != env->me_pid || r->mr_txnid != (txnid_t)-1)
 					return MDB_BAD_RSLOT;
@@ -3057,13 +3142,13 @@ mdb_txn_begin(MDB_env *env, MDB_txn *parent, unsigned int flags, MDB_txn **ret)
 		txn = env->me_txn0;
 		goto renew;
 	}
-	if ((txn = calloc(1, size)) == NULL) {
+	if ((txn = TC(MDB_txn*) calloc(1, size)) == NULL) {
 		DPRINTF(("calloc: %s", strerror(errno)));
 		return ENOMEM;
 	}
 #ifdef MDB_VL32
 	if (!parent) {
-		txn->mt_rpages = malloc(MDB_TRPAGE_SIZE * sizeof(MDB_ID3));
+		txn->mt_rpages = TC(MDB_ID3L) malloc(MDB_TRPAGE_SIZE * sizeof(MDB_ID3));
 		if (!txn->mt_rpages) {
 			free(txn);
 			return ENOMEM;
@@ -3082,7 +3167,7 @@ mdb_txn_begin(MDB_env *env, MDB_txn *parent, unsigned int flags, MDB_txn **ret)
 		unsigned int i;
 		txn->mt_cursors = (MDB_cursor **)(txn->mt_dbs + env->me_maxdbs);
 		txn->mt_dbiseqs = parent->mt_dbiseqs;
-		txn->mt_u.dirty_list = malloc(sizeof(MDB_ID2)*MDB_IDL_UM_SIZE);
+		txn->mt_u.dirty_list = TC(MDB_ID2L) malloc(sizeof(MDB_ID2)*MDB_IDL_UM_SIZE);
 		if (!txn->mt_u.dirty_list ||
 			!(txn->mt_free_pgs = mdb_midl_alloc(MDB_IDL_UM_MAX)))
 		{
@@ -3172,7 +3257,7 @@ mdb_dbis_update(MDB_txn *txn, int keep)
 			if (keep) {
 				env->me_dbflags[i] = txn->mt_dbs[i].md_flags | MDB_VALID;
 			} else {
-				char *ptr = env->me_dbxs[i].md_name.mv_data;
+				char *ptr = TC(char*) env->me_dbxs[i].md_name.mv_data;
 				if (ptr) {
 					env->me_dbxs[i].md_name.mv_data = NULL;
 					env->me_dbxs[i].md_name.mv_size = 0;
@@ -3536,7 +3621,7 @@ mdb_page_flush(MDB_txn *txn, int keep)
 	if (env->me_flags & MDB_WRITEMAP) {
 		/* Clear dirty flags */
 		while (++i <= pagecount) {
-			dp = dl[i].mptr;
+			dp = TC(MDB_page*) dl[i].mptr;
 			/* Don't flush this page yet */
 			if (dp->mp_flags & (P_LOOSE|P_KEEP)) {
 				dp->mp_flags &= ~P_KEEP;
@@ -3551,7 +3636,7 @@ mdb_page_flush(MDB_txn *txn, int keep)
 	/* Write the pages */
 	for (;;) {
 		if (++i <= pagecount) {
-			dp = dl[i].mptr;
+			dp = TC(MDB_page*) dl[i].mptr;
 			/* Don't flush this page yet */
 			if (dp->mp_flags & (P_LOOSE|P_KEEP)) {
 				dp->mp_flags &= ~P_KEEP;
@@ -3646,7 +3731,7 @@ retry_seek:
 	CACHEFLUSH(env->me_map, txn->mt_next_pgno * env->me_psize, DCACHE);
 
 	for (i = keep; ++i <= pagecount; ) {
-		dp = dl[i].mptr;
+		dp = TC(MDB_page*) dl[i].mptr;
 		/* This is a page we skipped above */
 		if (!dl[i].mid) {
 			dl[++j] = dl[i];
@@ -3941,7 +4026,7 @@ mdb_env_read_header(MDB_env *env, MDB_meta *meta)
 			return MDB_INVALID;
 		}
 
-		m = METADATA(p);
+		m = TC(MDB_meta*) METADATA(p);
 		if (m->mm_magic != MDB_MAGIC) {
 			DPUTS("meta has invalid magic");
 			return MDB_INVALID;
@@ -4004,7 +4089,7 @@ mdb_env_init_meta(MDB_env *env, MDB_meta *meta)
 
 	psize = env->me_psize;
 
-	p = calloc(NUM_METAS, psize);
+	p = TC(MDB_page*) calloc(NUM_METAS, psize);
 	if (!p)
 		return ENOMEM;
 	p->mp_pgno = 0;
@@ -4170,7 +4255,7 @@ mdb_env_create(MDB_env **env)
 {
 	MDB_env *e;
 
-	e = calloc(1, sizeof(MDB_env));
+	e = TC(MDB_env*) calloc(1, sizeof(MDB_env));
 	if (!e)
 		return ENOMEM;
 
@@ -4198,10 +4283,12 @@ mdb_env_create(MDB_env **env)
 static DWORD
 mdb_nt2win32(NTSTATUS st)
 {
-	OVERLAPPED o = {0};
+#ifndef UWP
+	OVERLAPPED o = { 0 };
 	DWORD br;
 	o.Internal = st;
 	GetOverlappedResult(NULL, &o, &br, FALSE);
+#endif
 	return GetLastError();
 }
 #endif
@@ -4240,7 +4327,7 @@ mdb_env_map(MDB_env *env, void *addr)
 #ifdef MDB_VL32
 	msize = NUM_METAS * env->me_psize;
 #endif
-	rc = NtMapViewOfSection(mh, GetCurrentProcess(), &map, 0, 0, NULL, &msize, ViewUnmap, alloctype, pageprot);
+	rc = NtMapViewOfSection(TC(PHANDLE)mh, GetCurrentProcess(), &map, 0, 0, NULL, &msize, ViewUnmap, alloctype, pageprot);
 #ifdef MDB_VL32
 	env->me_fmh = mh;
 #else
@@ -4248,7 +4335,7 @@ mdb_env_map(MDB_env *env, void *addr)
 #endif
 	if (rc)
 		return mdb_nt2win32(rc);
-	env->me_map = map;
+	env->me_map = TC(char*) map;
 #else
 #ifdef MDB_VL32
 	(void) flags;
@@ -4294,7 +4381,7 @@ mdb_env_map(MDB_env *env, void *addr)
 #endif
 
 	p = (MDB_page *)env->me_map;
-	env->me_metas[0] = METADATA(p);
+	env->me_metas[0] = TC(MDB_meta*) METADATA(p);
 	env->me_metas[1] = (MDB_meta *)((char *)env->me_metas[0] + env->me_psize);
 
 	return MDB_SUCCESS;
@@ -4408,9 +4495,12 @@ mdb_env_open2(MDB_env *env)
 	MDB_meta meta;
 
 #ifdef _WIN32
+	BOOL bLimitedQuery = TRUE;
+
+	#ifndef UWP
 	/* See if we should use QueryLimited */
 	OSVERSIONINFOEXW osvi = { sizeof(osvi), 0, 0, 0, 0,{ 0 }, 0, 0 };
-	DWORDLONG        const dwlConditionMask = VerSetConditionMask(
+	DWORDLONG const dwlConditionMask = VerSetConditionMask(
 		VerSetConditionMask(
 			VerSetConditionMask(
 				0, VER_MAJORVERSION, VER_LESS_EQUAL),
@@ -4421,11 +4511,14 @@ mdb_env_open2(MDB_env *env)
 	osvi.dwMinorVersion = LOBYTE(_WIN32_WINNT_WINXP);
 	osvi.wServicePackMajor = 3;
 
-	/* Is windows XP Sp 3 or lower */
-	if(VerifyVersionInfoW(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, dwlConditionMask) != FALSE)
-		env->me_pidquery = PROCESS_QUERY_INFORMATION;
-	else
+	/* If it's not winXP Sp3 or lower do limited query */
+	bLimitedQuery = VerifyVersionInfoW(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, dwlConditionMask) == FALSE;
+	#endif /* not UWP */
+
+	if (bLimitedQuery)
 		env->me_pidquery = MDB_PROCESS_QUERY_LIMITED_INFORMATION;
+	else
+		env->me_pidquery = PROCESS_QUERY_INFORMATION;
 #endif /* _WIN32 */
 
 #ifdef BROKEN_FDATASYNC
@@ -4580,7 +4673,7 @@ mdb_env_open2(MDB_env *env)
 static void
 mdb_env_reader_dest(void *ptr)
 {
-	MDB_reader *reader = ptr;
+	MDB_reader *reader = TC(MDB_reader*) ptr;
 
 	reader->mr_pid = 0;
 }
@@ -4605,7 +4698,7 @@ static void NTAPI mdb_tls_callback(PVOID module, DWORD reason, PVOID ptr)
 	case DLL_THREAD_ATTACH: break;
 	case DLL_THREAD_DETACH:
 		for (i=0; i<mdb_tls_nkeys; i++) {
-			MDB_reader *r = pthread_getspecific(mdb_tls_keys[i]);
+			MDB_reader *r = TC(MDB_reader*) pthread_getspecific(mdb_tls_keys[i]);
 			if (r) {
 				mdb_env_reader_dest(r);
 			}
@@ -4621,7 +4714,7 @@ const PIMAGE_TLS_CALLBACK mdb_tls_cbp __attribute__((section (".CRT$XLB"))) = md
 PIMAGE_TLS_CALLBACK mdb_tls_cbp __attribute__((section (".CRT$XLB"))) = mdb_tls_callback;
 #endif
 #else
-#ifdef _WIN64
+#if defined(_WIN64) || defined(_M_ARM)
 /* Force some symbol references.
  *	_tls_used forces the linker to create the TLS directory if not already done
  *	mdb_tls_cbp prevents whole-program-optimizer from dropping the symbol.
@@ -4629,6 +4722,7 @@ PIMAGE_TLS_CALLBACK mdb_tls_cbp __attribute__((section (".CRT$XLB"))) = mdb_tls_
 #pragma comment(linker, "/INCLUDE:_tls_used")
 #pragma comment(linker, "/INCLUDE:mdb_tls_cbp")
 #pragma const_seg(".CRT$XLB")
+EXTERN
 extern const PIMAGE_TLS_CALLBACK mdb_tls_cbp;
 const PIMAGE_TLS_CALLBACK mdb_tls_cbp = mdb_tls_callback;
 #pragma const_seg()
@@ -4636,6 +4730,7 @@ const PIMAGE_TLS_CALLBACK mdb_tls_cbp = mdb_tls_callback;
 #pragma comment(linker, "/INCLUDE:__tls_used")
 #pragma comment(linker, "/INCLUDE:_mdb_tls_cbp")
 #pragma data_seg(".CRT$XLB")
+EXTERN
 PIMAGE_TLS_CALLBACK mdb_tls_cbp = mdb_tls_callback;
 #pragma data_seg()
 #endif	/* WIN 32/64 */
@@ -4661,7 +4756,7 @@ mdb_env_share_locks(MDB_env *env, int *excl)
 		if (!LockFileEx(env->me_lfd, 0, 0, 1, 0, &ov)) {
 			rc = ErrCode();
 		} else {
-			UnlockFile(env->me_lfd, 0, 0, 1, 0);
+			UnlockFileEx(env->me_lfd, 0, 1, 0, &ov);
 			*excl = 0;
 		}
 	}
@@ -4691,14 +4786,15 @@ mdb_env_excl_lock(MDB_env *env, int *excl)
 {
 	int rc = 0;
 #ifdef _WIN32
-	if (LockFile(env->me_lfd, 0, 0, 1, 0)) {
+	OVERLAPPED ov;
+	memset(&ov, 0, sizeof(ov));
+	if (LockFileEx(env->me_lfd, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &ov)) {
 		*excl = 1;
 	} else {
-		OVERLAPPED ov;
-		memset(&ov, 0, sizeof(ov));
-		if (LockFileEx(env->me_lfd, 0, 0, 1, 0, &ov)) {
+		if (LockFileEx(env->me_lfd, LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &ov)) {
 			*excl = 0;
 		} else {
+			*excl = -1;
 			rc = ErrCode();
 		}
 	}
@@ -4894,7 +4990,9 @@ mdb_env_setup_locks(MDB_env *env, char *lpath, int mode, int *excl)
 	if ((rc = mdb_env_excl_lock(env, excl))) goto fail;
 
 #ifdef _WIN32
-	size = GetFileSize(env->me_lfd, NULL);
+	LARGE_INTEGER fSize;
+	if(!GetFileSizeEx(env->me_lfd, &fSize)) goto fail_errno;
+	size = fSize.LowPart;
 #else
 	size = lseek(env->me_lfd, 0, SEEK_END);
 	if (size == -1) goto fail_errno;
@@ -4919,7 +5017,7 @@ mdb_env_setup_locks(MDB_env *env, char *lpath, int mode, int *excl)
 		mh = CreateFileMapping(env->me_lfd, NULL, PAGE_READWRITE,
 			0, 0, NULL);
 		if (!mh) goto fail_errno;
-		env->me_txns = MapViewOfFileEx(mh, FILE_MAP_WRITE, 0, 0, rsize, NULL);
+		env->me_txns = TC(MDB_txninfo*) MapViewOfFileEx(mh, FILE_MAP_WRITE, 0, 0, rsize, NULL);
 		CloseHandle(mh);
 		if (!env->me_txns) goto fail_errno;
 #else
@@ -4931,15 +5029,16 @@ mdb_env_setup_locks(MDB_env *env, char *lpath, int mode, int *excl)
 	}
 	if (*excl > 0) {
 #ifdef _WIN32
+
+		MDB_val val;
+		char encbuf[11];
+		#ifndef UWP
 		BY_HANDLE_FILE_INFORMATION stbuf;
 		struct {
 			DWORD volume;
 			DWORD nhigh;
 			DWORD nlow;
 		} idbuf;
-		MDB_val val;
-		char encbuf[11];
-
 		if (!mdb_sec_inited) {
 			InitializeSecurityDescriptor(&mdb_null_sd,
 				SECURITY_DESCRIPTOR_REVISION);
@@ -4955,9 +5054,18 @@ mdb_env_setup_locks(MDB_env *env, char *lpath, int mode, int *excl)
 		idbuf.nlow   = stbuf.nFileIndexLow;
 		val.mv_data = &idbuf;
 		val.mv_size = sizeof(idbuf);
+		#else // UWP
+		if (!mdb_sec_inited) {
+			mdb_sec_inited = 1;
+		}
+
+		val.mv_data = env->me_path;
+		val.mv_size = strlen(env->me_path);
+		#endif // not UWP
+
 		mdb_hash_enc(&val, encbuf);
-		sprintf(env->me_txns->mti_rmname, "Global\\MDBr%s", encbuf);
-		sprintf(env->me_txns->mti_wmname, "Global\\MDBw%s", encbuf);
+		sprintf(env->me_txns->mti_rmname, RMUTEX_NAME, encbuf);
+		sprintf(env->me_txns->mti_wmname, WMUTEX_NAME, encbuf);
 		env->me_rmutex = CreateMutexA(&mdb_all_sa, FALSE, env->me_txns->mti_rmname);
 		if (!env->me_rmutex) goto fail_errno;
 		env->me_wmutex = CreateMutexA(&mdb_all_sa, FALSE, env->me_txns->mti_wmname);
@@ -5102,10 +5210,16 @@ fail:
 	return rc;
 }
 
+#ifdef _WIN32
+#define PATH_SEP "\\"
+#else
+#define PATH_SEP "/"
+#endif
+
 	/** The name of the lock file in the DB environment */
-#define LOCKNAME	"/lock.mdb"
+#define LOCKNAME	PATH_SEP "lock.mdb"
 	/** The name of the data file in the DB environment */
-#define DATANAME	"/data.mdb"
+#define DATANAME	PATH_SEP "data.mdb"
 	/** The suffix of the lock file when no subdir is used */
 #define LOCKSUFF	"-lock"
 	/** Only a subset of the @ref mdb_env flags can be changed
@@ -5149,7 +5263,7 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 	} else {
 		rc = len + sizeof(LOCKNAME) + len + sizeof(DATANAME);
 	}
-	lpath = malloc(rc);
+	lpath = TC(char*) malloc(rc);
 	if (!lpath)
 		return ENOMEM;
 	if (flags & MDB_NOSUBDIR) {
@@ -5169,12 +5283,12 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 		flags &= ~MDB_WRITEMAP;
 	} else {
 		if (!((env->me_free_pgs = mdb_midl_alloc(MDB_IDL_UM_MAX)) &&
-			  (env->me_dirty_list = calloc(MDB_IDL_UM_SIZE, sizeof(MDB_ID2)))))
+              (env->me_dirty_list = TC(MDB_ID2*) calloc(MDB_IDL_UM_SIZE, sizeof(MDB_ID2)))))
 			rc = ENOMEM;
 	}
 #ifdef MDB_VL32
 	if (!rc) {
-		env->me_rpages = malloc(MDB_ERPAGE_SIZE * sizeof(MDB_ID3));
+		env->me_rpages = TC(MDB_ID3L) malloc(MDB_ERPAGE_SIZE * sizeof(MDB_ID3));
 		if (!env->me_rpages) {
 			rc = ENOMEM;
 			goto leave;
@@ -5188,9 +5302,9 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 		goto leave;
 
 	env->me_path = strdup(path);
-	env->me_dbxs = calloc(env->me_maxdbs, sizeof(MDB_dbx));
-	env->me_dbflags = calloc(env->me_maxdbs, sizeof(uint16_t));
-	env->me_dbiseqs = calloc(env->me_maxdbs, sizeof(unsigned int));
+	env->me_dbxs = TC(MDB_dbx*) calloc(env->me_maxdbs, sizeof(MDB_dbx));
+	env->me_dbflags = TC(uint16_t*) calloc(env->me_maxdbs, sizeof(uint16_t));
+	env->me_dbiseqs = TC(unsigned int*) calloc(env->me_maxdbs, sizeof(unsigned int));
 	if (!(env->me_dbxs && env->me_path && env->me_dbflags && env->me_dbiseqs)) {
 		rc = ENOMEM;
 		goto leave;
@@ -5274,7 +5388,7 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 			int tsize = sizeof(MDB_txn), size = tsize + env->me_maxdbs *
 				(sizeof(MDB_db)+sizeof(MDB_cursor *)+sizeof(unsigned int)+1);
 			if ((env->me_pbuf = calloc(1, env->me_psize)) &&
-				(txn = calloc(1, size)))
+				(txn = TC(MDB_txn*) calloc(1, size)))
 			{
 				txn->mt_dbs = (MDB_db *)((char *)txn + tsize);
 				txn->mt_cursors = (MDB_cursor **)(txn->mt_dbs + env->me_maxdbs);
@@ -5282,7 +5396,7 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 				txn->mt_dbflags = (unsigned char *)(txn->mt_dbiseqs + env->me_maxdbs);
 				txn->mt_env = env;
 #ifdef MDB_VL32
-				txn->mt_rpages = malloc(MDB_TRPAGE_SIZE * sizeof(MDB_ID3));
+				txn->mt_rpages = TC(MDB_ID3L) malloc(MDB_TRPAGE_SIZE * sizeof(MDB_ID3));
 				if (!txn->mt_rpages) {
 					free(txn);
 					rc = ENOMEM;
@@ -5419,7 +5533,9 @@ mdb_env_close0(MDB_env *env, int excl)
 			/* Unlock the lockfile.  Windows would have unlocked it
 			 * after closing anyway, but not necessarily at once.
 			 */
-			UnlockFile(env->me_lfd, 0, 0, 1, 0);
+			OVERLAPPED ov;
+			memset(&ov, 0, sizeof(ov));
+			UnlockFileEx(env->me_lfd, 0, 1, 0, &ov);
 		}
 #endif
 		(void) close(env->me_lfd);
@@ -5765,7 +5881,7 @@ mdb_rpage_get(MDB_txn *txn, pgno_t pg0, MDB_page **ret)
 #define SET_OFF(off,val)	off.QuadPart = val
 #define MAP(rc,env,addr,len,off)	\
 	addr = NULL; \
-	rc = NtMapViewOfSection(env->me_fmh, GetCurrentProcess(), &addr, 0, \
+	rc = NtMapViewOfSection(TC(PHANDLE)env->me_fmh, GetCurrentProcess(), &addr, 0, \
 		len, &off, &len, ViewUnmap, (env->me_flags & MDB_RDONLY) ? 0 : MEM_RESERVE, PAGE_READONLY); \
 	if (rc) rc = mdb_nt2win32(rc)
 #else
@@ -6021,7 +6137,7 @@ mdb_page_get(MDB_cursor *mc, pgno_t pgno, MDB_page **ret, int *lvl)
 			if (dl[0].mid) {
 				unsigned x = mdb_mid2l_search(dl, pgno);
 				if (x <= dl[0].mid && dl[x].mid == pgno) {
-					p = dl[x].mptr;
+					p = TC(MDB_page*) dl[x].mptr;
 					goto done;
 				}
 			}
@@ -7278,7 +7394,7 @@ mdb_cursor_put(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 			 * "old sub-page" for prep_subDB to expand to a full page.
 			 */
 			fp_flags = P_LEAF|P_DIRTY;
-			fp = env->me_pbuf;
+			fp = TC(MDB_page*) env->me_pbuf;
 			fp->mp_pad = data->mv_size; /* used if MDB_DUPFIXED */
 			fp->mp_lower = fp->mp_upper = (PAGEHDRSZ-PAGEBASE);
 			olddata.mv_size = PAGEHDRSZ;
@@ -7329,7 +7445,8 @@ more:
 			 * size.  xdata: node data with new page or DB.
 			 */
 			unsigned	i, offset = 0;
-			mp = fp = xdata.mv_data = env->me_pbuf;
+			xdata.mv_data = env->me_pbuf;
+			mp = fp = TC(MDB_page*) env->me_pbuf;
 			mp->mp_pgno = mc->mc_pg[mc->mc_top]->mp_pgno;
 
 			/* Was a single item before, must convert now */
@@ -7373,7 +7490,7 @@ more:
 				goto put_sub;
 			} else {
 				/* Data is on sub-page */
-				fp = olddata.mv_data;
+				fp = TC(MDB_page*) olddata.mv_data;
 				switch (flags) {
 				default:
 					if (!(mc->mc_db->md_flags & MDB_DUPFIXED)) {
@@ -7574,7 +7691,7 @@ new_sub:
 				if (m3->mc_xcursor && (m3->mc_xcursor->mx_cursor.mc_flags & C_INITIALIZED)) {
 					MDB_node *n2 = NODEPTR(mp, m3->mc_ki[i]);
 					if ((n2->mn_flags & (F_SUBDATA|F_DUPDATA)) == F_DUPDATA)
-						m3->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(n2);
+						m3->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(n2);
 				}
 			}
 		}
@@ -7628,7 +7745,7 @@ put_sub:
 						} else if (!insert_key && m2->mc_ki[i] < nkeys) {
 							MDB_node *n2 = NODEPTR(mp, m2->mc_ki[i]);
 							if ((n2->mn_flags & (F_SUBDATA|F_DUPDATA)) == F_DUPDATA)
-								m2->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(n2);
+								m2->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(n2);
 						}
 					}
 				}
@@ -7711,7 +7828,7 @@ mdb_cursor_del(MDB_cursor *mc, unsigned int flags)
 			mc->mc_xcursor->mx_cursor.mc_flags &= ~C_INITIALIZED;
 		} else {
 			if (!F_ISSET(leaf->mn_flags, F_SUBDATA)) {
-				mc->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(leaf);
+				mc->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(leaf);
 			}
 			rc = mdb_cursor_del(&mc->mc_xcursor->mx_cursor, MDB_NOSPILL);
 			if (rc)
@@ -7727,18 +7844,18 @@ mdb_cursor_del(MDB_cursor *mc, unsigned int flags)
 					/* shrink fake page */
 					mdb_node_shrink(mp, mc->mc_ki[mc->mc_top]);
 					leaf = NODEPTR(mp, mc->mc_ki[mc->mc_top]);
-					mc->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(leaf);
+					mc->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(leaf);
 					/* fix other sub-DB cursors pointed at fake pages on this page */
 					for (m2 = mc->mc_txn->mt_cursors[mc->mc_dbi]; m2; m2=m2->mc_next) {
 						if (m2 == mc || m2->mc_snum < mc->mc_snum) continue;
 						if (!(m2->mc_flags & C_INITIALIZED)) continue;
 						if (m2->mc_pg[mc->mc_top] == mp) {
 							if (m2->mc_ki[mc->mc_top] == mc->mc_ki[mc->mc_top]) {
-								m2->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(leaf);
+								m2->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(leaf);
 							} else {
 								MDB_node *n2 = NODEPTR(mp, m2->mc_ki[mc->mc_top]);
 								if (!(n2->mn_flags & F_SUBDATA))
-									m2->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(n2);
+									m2->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(n2);
 							}
 						}
 					}
@@ -8156,7 +8273,7 @@ mdb_xcursor_init1(MDB_cursor *mc, MDB_node *node)
 		mx->mx_cursor.mc_snum = 0;
 		mx->mx_cursor.mc_top = 0;
 	} else {
-		MDB_page *fp = NODEDATA(node);
+		MDB_page *fp = TC(MDB_page*) NODEDATA(node);
 		mx->mx_db.md_pad = 0;
 		mx->mx_db.md_flags = 0;
 		mx->mx_db.md_depth = 1;
@@ -8263,7 +8380,7 @@ mdb_cursor_open(MDB_txn *txn, MDB_dbi dbi, MDB_cursor **ret)
 	if (txn->mt_dbs[dbi].md_flags & MDB_DUPSORT)
 		size += sizeof(MDB_xcursor);
 
-	if ((mc = malloc(size)) != NULL) {
+	if ((mc = TC(MDB_cursor*) malloc(size)) != NULL) {
 		mdb_cursor_init(mc, txn, dbi, (MDB_xcursor *)(mc + 1));
 		if (txn->mt_cursors) {
 			mc->mc_next = txn->mt_cursors[dbi];
@@ -8583,7 +8700,7 @@ mdb_node_move(MDB_cursor *csrc, MDB_cursor *cdst, int fromleft)
 					IS_LEAF(mps)) {
 					MDB_node *node = NODEPTR(m3->mc_pg[csrc->mc_top], m3->mc_ki[csrc->mc_top]);
 					if ((node->mn_flags & (F_DUPDATA|F_SUBDATA)) == F_DUPDATA)
-						m3->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(node);
+						m3->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(node);
 				}
 			}
 		} else
@@ -8609,7 +8726,7 @@ mdb_node_move(MDB_cursor *csrc, MDB_cursor *cdst, int fromleft)
 						IS_LEAF(mps)) {
 						MDB_node *node = NODEPTR(m3->mc_pg[csrc->mc_top], m3->mc_ki[csrc->mc_top]);
 						if ((node->mn_flags & (F_DUPDATA|F_SUBDATA)) == F_DUPDATA)
-							m3->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(node);
+							m3->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(node);
 					}
 				}
 			}
@@ -8815,7 +8932,7 @@ mdb_page_merge(MDB_cursor *csrc, MDB_cursor *cdst)
 				IS_LEAF(psrc)) {
 				MDB_node *node = NODEPTR(m3->mc_pg[top], m3->mc_ki[top]);
 				if ((node->mn_flags & (F_DUPDATA|F_SUBDATA)) == F_DUPDATA)
-					m3->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(node);
+					m3->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(node);
 			}
 		}
 	}
@@ -9077,7 +9194,7 @@ mdb_cursor_del0(MDB_cursor *mc)
 				if (m3->mc_xcursor && (m3->mc_xcursor->mx_cursor.mc_flags & C_INITIALIZED)) {
 					MDB_node *node = NODEPTR(m3->mc_pg[mc->mc_top], m3->mc_ki[mc->mc_top]);
 					if ((node->mn_flags & (F_DUPDATA|F_SUBDATA)) == F_DUPDATA)
-						m3->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(node);
+						m3->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(node);
 				}
 			}
 		}
@@ -9606,7 +9723,7 @@ mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno
 				IS_LEAF(mp)) {
 				MDB_node *node = NODEPTR(m3->mc_pg[mc->mc_top], m3->mc_ki[mc->mc_top]);
 				if ((node->mn_flags & (F_DUPDATA|F_SUBDATA)) == F_DUPDATA)
-					m3->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(node);
+					m3->mc_xcursor->mx_cursor.mc_pg[0] = TC(MDB_page*) NODEDATA(node);
 			}
 		}
 	}
@@ -9671,7 +9788,7 @@ typedef struct mdb_copy {
 static THREAD_RET ESECT CALL_CONV
 mdb_env_copythr(void *arg)
 {
-	mdb_copy *my = arg;
+	mdb_copy *my = TC(mdb_copy*) arg;
 	char *ptr;
 	int toggle = 0, wsize, rc;
 #ifdef _WIN32
@@ -9776,7 +9893,7 @@ mdb_env_cwalk(mdb_copy *my, pgno_t *pg, int flags)
 		return rc;
 
 	/* Make cursor pages writable */
-	buf = ptr = malloc(my->mc_env->me_psize * mc.mc_snum);
+	buf = ptr = TC(char*) malloc(my->mc_env->me_psize * mc.mc_snum);
 	if (buf == NULL)
 		return ENOMEM;
 
@@ -9924,7 +10041,7 @@ mdb_env_copyfd1(MDB_env *env, HANDLE fd)
 		rc = ErrCode();
 		goto done;
 	}
-	my.mc_wbuf[0] = _aligned_malloc(MDB_WBUF*2, env->me_os_psize);
+	my.mc_wbuf[0] = TC(char*) _aligned_malloc(MDB_WBUF * 2, env->me_os_psize);
 	if (my.mc_wbuf[0] == NULL) {
 		/* _aligned_malloc() sets errno, but we use Windows error codes */
 		rc = ERROR_NOT_ENOUGH_MEMORY;
@@ -10167,7 +10284,7 @@ mdb_env_copy2(MDB_env *env, const char *path, unsigned int flags)
 	} else {
 		len = strlen(path);
 		len += sizeof(DATANAME);
-		lpath = malloc(len);
+		lpath = TC(char*) malloc(len);
 		if (!lpath)
 			return ENOMEM;
 		sprintf(lpath, "%s" DATANAME, path);
@@ -10411,7 +10528,7 @@ int mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *db
 			continue;
 		}
 		if (len == txn->mt_dbxs[i].md_name.mv_size &&
-			!strncmp(name, txn->mt_dbxs[i].md_name.mv_data, len)) {
+			!strncmp(name, TC(const char*) txn->mt_dbxs[i].md_name.mv_data, len)) {
 			*dbi = i;
 			return MDB_SUCCESS;
 		}
@@ -10505,7 +10622,7 @@ void mdb_dbi_close(MDB_env *env, MDB_dbi dbi)
 	char *ptr;
 	if (dbi < CORE_DBS || dbi >= env->me_maxdbs)
 		return;
-	ptr = env->me_dbxs[dbi].md_name.mv_data;
+	ptr = TC(char*) env->me_dbxs[dbi].md_name.mv_data;
 	/* If there was no name, this was already closed */
 	if (ptr) {
 		env->me_dbxs[dbi].md_name.mv_data = NULL;
@@ -10743,7 +10860,7 @@ mdb_reader_list(MDB_env *env, MDB_msg_func *func, void *ctx)
 		if (mr[i].mr_pid) {
 			txnid_t	txnid = mr[i].mr_txnid;
 			sprintf(buf, txnid == (txnid_t)-1 ?
-				"%10d %"Z"x -\n" : "%10d %"Z"x %"Yu"\n",
+				"%10d %" Z"x -\n" : "%10d %" Z"x %" Yu"\n",
 				(int)mr[i].mr_pid, (size_t)mr[i].mr_tid, txnid);
 			if (first) {
 				first = 0;
@@ -10823,7 +10940,7 @@ mdb_reader_check0(MDB_env *env, int rlocked, int *dead)
 	int rc = MDB_SUCCESS, count = 0;
 
 	rdrs = env->me_txns->mti_numreaders;
-	pids = malloc((rdrs+1) * sizeof(MDB_PID_T));
+	pids = TC(int*) malloc((rdrs + 1) * sizeof(MDB_PID_T));
 	if (!pids)
 		return ENOMEM;
 	pids[0] = 0;
@@ -10927,7 +11044,7 @@ static int utf8_to_utf16(const char *src, int srcsize, wchar_t **dst, int *dstsi
 		return EILSEQ;
 	if (need == 0)
 		return EINVAL;
-	result = malloc(sizeof(wchar_t) * need);
+	result = TC(wchar_t*) malloc(sizeof(wchar_t) * need);
 	if (!result)
 		return ENOMEM;
 	MultiByteToWideChar(CP_UTF8, 0, src, srcsize, result, need);
