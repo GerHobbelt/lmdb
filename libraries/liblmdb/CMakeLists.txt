@@ -19,11 +19,14 @@ set(LMDB_LIBRARY_INSTALL_DIR lib CACHE PATH "Install directory for library")
 set(LMDB_RUNTIME_INSTALL_DIR bin CACHE PATH "Install directory for binaries/dlls")
 set(LMDB_CONFIG_INSTALL_DIR cmake CACHE PATH "Install directory for cmake config files")
 
-set(SRCS lmdb mdb.c lmdb.h midl.c midl.h)
-add_library(lmdb ${SRCS})
+
 if(BUILD_SHARED_LIBS)
-  target_sources(lmdb PRIVATE $<$<CONFIG:Debug>:lmdbd.def> $<$<NOT:$<CONFIG:Debug>>:lmdb.def>)
+set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /DEF:${CMAKE_CURRENT_SOURCE_DIR}/lmdbd.def")
+set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /DEF:${CMAKE_CURRENT_SOURCE_DIR}/lmdb.def")
 endif()
+
+set(SRCS lmdb mdb.c lmdb.h midl.c midl.h )
+add_library(lmdb ${SRCS})
 set_target_properties(lmdb PROPERTIES DEBUG_POSTFIX d)
 if(BUILD_SHARED_LIBS)
   target_link_libraries(lmdb PRIVATE ntdll.lib)
