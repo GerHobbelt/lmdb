@@ -14,6 +14,7 @@ project(lmdb)
 
 option(LMDB_BUILD_TOOLS "Build lmdb tools" ON)
 option(LMDB_BUILD_TESTS "Build lmdb tests" ON)
+option(LMDB_INSTALL_HEADERS "Install LMDB header files" ON)
 set(LMDB_INCLUDE_INSTALL_DIR include CACHE PATH "Install directory for headers")
 set(LMDB_LIBRARY_INSTALL_DIR lib CACHE PATH "Install directory for library")
 set(LMDB_RUNTIME_INSTALL_DIR bin CACHE PATH "Install directory for binaries/dlls")
@@ -41,13 +42,15 @@ install(TARGETS lmdb DESTINATION lib
         ARCHIVE DESTINATION ${LMDB_LIBRARY_INSTALL_DIR}
         )
 
-install(FILES lmdb.h midl.h DESTINATION ${LMDB_INCLUDE_INSTALL_DIR})
+if(LMDB_INSTALL_HEADERS)
+  install(FILES lmdb.h midl.h DESTINATION ${LMDB_INCLUDE_INSTALL_DIR})
+endif()
 
 include(CMakePackageConfigHelpers)
 
-set(INSTALL_INCLUDE_DIR include)
+set(INSTALL_INCLUDE_DIR ${LMDB_INCLUDE_INSTALL_DIR})
 configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/package-config.cmakein ${CMAKE_CURRENT_BINARY_DIR}/lmdb-config.cmake
-                              INSTALL_DESTINATION CMake
+                              INSTALL_DESTINATION ${LMDB_CONFIG_INSTALL_DIR}
                               PATH_VARS INSTALL_INCLUDE_DIR
                               )
 
