@@ -14,6 +14,7 @@
 # - MDB_FDATASYNC_WORKS
 # - MDB_USE_PWRITEV
 # - MDB_USE_ROBUST
+# - MDB_USE_JEMALLOC
 #
 # There may be other macros in mdb.c of interest. You should
 # read mdb.c before changing any of them.
@@ -24,8 +25,8 @@ W	= -W -Wall -Wno-unused-parameter -Wbad-function-cast -Wuninitialized
 THREADS = -pthread
 OPT = -O2 -g
 CFLAGS	= $(THREADS) $(OPT) $(W) $(XCFLAGS)
-LDLIBS	= 
-SOLIBS	= 
+LDLIBS	= $(XLDLIBS) # -lntdll # Windows needs ntdll
+SOLIBS	= $(XSOLIBS) # -lntdll
 SOEXT	= .so
 prefix	= /usr/local
 exec_prefix = $(prefix)
@@ -55,7 +56,7 @@ install: $(ILIBS) $(IPROGS) $(IHDRS)
 	for f in $(IDOCS); do cp $$f $(DESTDIR)$(mandir)/man1; done
 
 clean:
-	rm -rf $(PROGS) *.[ao] *.[ls]o *~ testdb
+	rm -rf $(PROGS) xm* *.[ao] *.[ls]o *~ testdb
 
 test:	all
 	rm -rf testdb && mkdir testdb
@@ -98,18 +99,18 @@ midl.lo: midl.c midl.h
 %.o:	%.c lmdb.h
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
 
-COV_FLAGS=-fprofile-arcs -ftest-coverage
+COV_FLAGS=-fprofile-arcs -ftest-coverage $(XCFLAGS)
 COV_OBJS=xmdb.o xmidl.o
 
 coverage: xmtest
 	for i in mtest*.c `ls [0-9]*.c`; do j=`basename \$$i .c`; $(MAKE) $$j.o; \
-		gcc -o x$$j $$j.o $(COV_OBJS) -pthread $(COV_FLAGS); \
+		gcc -o x$$j $$j.o $(COV_OBJS) -pthread $(COV_FLAGS) $(LDLIBS); \
 		rm -rf testdb; mkdir testdb; ./x$$j; done
 	gcov xmdb.c
 	gcov xmidl.c
 
 xmtest:	mtest.o xmdb.o xmidl.o
-	gcc -o xmtest mtest.o xmdb.o xmidl.o -pthread $(COV_FLAGS)
+	gcc -o xmtest mtest.o xmdb.o xmidl.o -pthread $(COV_FLAGS) $(LDLIBS)
 
 xmdb.o: mdb.c lmdb.h midl.h
 	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -O0 $(COV_FLAGS) -c mdb.c -o $@

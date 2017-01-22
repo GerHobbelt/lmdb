@@ -39,7 +39,9 @@
 #define _FILE_OFFSET_BITS	64
 #endif
 #ifdef _WIN32
+#ifndef MDB_USE_JEMALLOC
 #include <malloc.h>
+#endif
 #include <windows.h>
 #include <wchar.h>				/* get wcscpy() */
 
@@ -133,7 +135,12 @@ extern int cacheflush(char *addr, int nbytes, int cache);
 #include <stddef.h>
 #include <inttypes.h>
 #include <stdio.h>
+#ifdef MDB_USE_JEMALLOC
+#define JEMALLOC_MANGLE
+#include <jemalloc/jemalloc.h>
+#else
 #include <stdlib.h>
+#endif
 #include <string.h>
 #include <time.h>
 
@@ -147,10 +154,12 @@ typedef SSIZE_T	ssize_t;
 #if defined(__sun) || defined(ANDROID)
 /* Most platforms have posix_memalign, older may only have memalign */
 #define HAVE_MEMALIGN	1
+#ifndef MDB_USE_JEMALLOC
 #include <malloc.h>
 /* On Solaris, we need the POSIX sigwait function */
 #if defined (__sun)
 # define _POSIX_PTHREAD_SEMANTICS	1
+#endif
 #endif
 #endif
 
