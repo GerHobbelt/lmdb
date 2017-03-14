@@ -1,3 +1,6 @@
 build
 *.o
 z*
+cscope.*
+tags
+

@@ -23,9 +23,37 @@ ADD_LIBRARY(lmdb STATIC ${LMDB_SRC})
 
 #INCLUDE_DIRECTORIES(${LIBEV_LIBRARIES})
 
-ADD_EXECUTABLE(test ./tests/test.c)
-TARGET_LINK_LIBRARIES(test lmdb m ${LIBEV_LIBRARIES})
+ADD_EXECUTABLE(mdb_stat libraries/liblmdb/mdb_stat.c)
+TARGET_LINK_LIBRARIES(mdb_stat lmdb pthread m ${LIBEV_LIBRARIES})
+
+ADD_EXECUTABLE(mdb_copy libraries/liblmdb/mdb_copy.c)
+TARGET_LINK_LIBRARIES(mdb_copy lmdb pthread m ${LIBEV_LIBRARIES})
+
+ADD_EXECUTABLE(mdb_dump libraries/liblmdb/mdb_dump.c)
+TARGET_LINK_LIBRARIES(mdb_dump lmdb pthread m ${LIBEV_LIBRARIES})
+
+ADD_EXECUTABLE(mdb_load libraries/liblmdb/mdb_load.c)
+TARGET_LINK_LIBRARIES(mdb_load lmdb pthread m ${LIBEV_LIBRARIES})
 
 ADD_EXECUTABLE(mtest libraries/liblmdb/mtest.c)
 TARGET_LINK_LIBRARIES(mtest lmdb pthread m ${LIBEV_LIBRARIES})
+
+ADD_EXECUTABLE(mtest2 libraries/liblmdb/mtest2.c)
+TARGET_LINK_LIBRARIES(mtest2 lmdb pthread m ${LIBEV_LIBRARIES})
+
+ADD_EXECUTABLE(mtest3 libraries/liblmdb/mtest3.c)
+TARGET_LINK_LIBRARIES(mtest3 lmdb pthread m ${LIBEV_LIBRARIES})
+
+ADD_EXECUTABLE(mtest4 libraries/liblmdb/mtest4.c)
+TARGET_LINK_LIBRARIES(mtest4 lmdb pthread m ${LIBEV_LIBRARIES})
+
+ADD_EXECUTABLE(mtest5 libraries/liblmdb/mtest5.c)
+TARGET_LINK_LIBRARIES(mtest5 lmdb pthread m ${LIBEV_LIBRARIES})
+
+ADD_EXECUTABLE(mtest6 ${LMDB_SRC} libraries/liblmdb/mtest6.c)
+TARGET_LINK_LIBRARIES(mtest6 pthread m ${LIBEV_LIBRARIES})
+SET_TARGET_PROPERTIES(mtest6  PROPERTIES COMPILE_FLAGS " -DMDB_DEBUG=1 ")
+
+ADD_EXECUTABLE(test ./tests/test.c)
+TARGET_LINK_LIBRARIES(test lmdb m ${LIBEV_LIBRARIES})
 
