@@ -35,9 +35,9 @@ typedef struct _skipd_server {
 
     MDB_env *env;
     MDB_dbi dbi;
-    MDB_txn *writer_tx;
-    MDB_txn *reader_tx;
-    int to_commit;
+    MDB_txn *wtx;       /* the current writing transaction */
+    MDB_txn *cache_rtx; /* cache the last one of read transaction for optimising */
+    int to_commit;      /* is commit the wtx to database ? */
 
     int daemon;
     char db_path[SK_PATH_MAX];
