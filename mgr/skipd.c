@@ -37,7 +37,6 @@ typedef struct _skipd_server {
     MDB_dbi dbi;
     MDB_txn *wtx;       /* the current writing transaction */
     MDB_txn *cache_rtx; /* cache the last one of read transaction for optimising */
-    int to_commit;      /* is commit the wtx to database ? */
 
     int daemon;
     char db_path[SK_PATH_MAX];
@@ -814,7 +813,7 @@ static struct option options[] = {
 
 static void begin_write(EV_P_ skipd_client* client) {
     skipd_server *server = client->server;
-    if(!server->to_commit) {
+    if(NULL == server->wtx) {
         //release the cache rtx first
         if(NULL != server->cache_rtx) {
             mdb_txn_abort(server->cache_rtx);
@@ -822,7 +821,6 @@ static void begin_write(EV_P_ skipd_client* client) {
         }
         E(mdb_txn_begin(server->env, NULL, 0, &server->wtx));
         E(mdb_dbi_open(server->wtx, NULL, 0, &server->dbi));
-        server->to_commit = 1;
     }
 }
 
@@ -833,15 +831,26 @@ static void end_write(EV_P_ skipd_client* client) {
 
 static void begin_read(EV_P_ skipd_client* client) {
     skipd_server *server = client->server;
-    if(server->to_commit) {
-        //Do transaction before real read
-        server->to_commit = 0;
-
-        //fprintf(stderr, "do transaction\n");
+    //Do transaction before real read
+    if(NULL != server->wtx) {
+        E(mdb_txn_commit(server->wtx));
+        server->wtx = NULL;
     }
+    if(NULL != server->cache_rtx) {
+        //TODO renew
+    }
+    E(mdb_txn_begin(env, NULL, MDB_RDONLY, &client->rtx));
+
+    //fprintf(stderr, "do transaction\n");
 }
 
 static void end_read(EV_P_ skipd_client* client) {
+    skipd_server *server = client->server;
+    if(NULL == server->cache_rtx) {
+        server->cache_rtx = client->rtx;
+        //TODO reset
+        client->rtx = NULL;
+    }
 }
 
 static void server_sync_tick(EV_P_ ev_timer *w, int revents) {
