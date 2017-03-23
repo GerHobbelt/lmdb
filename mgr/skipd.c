@@ -142,14 +142,14 @@ void sys_script(char *cmd) {
 }
 
 int log_level = LOG_ERR;
-void emit_log(int level, char* line) {
+static void emit_log(int level, char* line) {
     //TODO for level
     int syslog_level = LOG_ERR;
-    syslog(syslog_level, "%s", line);
-    //printf("%s", line);
+    //syslog(syslog_level, "%s", line);
+    printf("%s", line);
 }
 
-void _skipd_logv(int filter, const char *format, va_list vl)
+static void _skipd_logv(int filter, const char *format, va_list vl)
 {
 	char buf[256];
 
@@ -164,7 +164,7 @@ void _skipd_logv(int filter, const char *format, va_list vl)
 	emit_log(filter, buf);
 }
 
-void skipd_log(int filter, const char *format, ...)
+static void skipd_log(int filter, const char *format, ...)
 {
 	va_list ap;
 
@@ -172,6 +172,8 @@ void skipd_log(int filter, const char *format, ...)
 	_skipd_logv(filter, format, ap);
 	va_end(ap);
 }
+
+#define E(expr) do { if((expr) != MDB_SUCCESS) {skipd_log("%s#%d error: %s\n", __FUNCTION__, __LINE__, abort()); } }
 
 static void client_release(EV_P_ skipd_client* client) {
     //skipd_log(SKIPD_DEBUG, "closing client\n");
@@ -811,22 +813,29 @@ static struct option options[] = {
 };
 
 static void begin_write(EV_P_ skipd_client* client) {
-    if(!client->server->to_commit) {
-        SkipDB_beginTransaction(client->server->db);
-        client->server->to_commit = 1;
+    skipd_server *server = client->server;
+    if(!server->to_commit) {
+        //release the cache rtx first
+        if(NULL != server->cache_rtx) {
+            mdb_txn_abort(server->cache_rtx);
+            server->cache_rtx = NULL;
+        }
+        E(mdb_txn_begin(server->env, NULL, 0, &server->wtx));
+        E(mdb_dbi_open(server->wtx, NULL, 0, &server->dbi));
+        server->to_commit = 1;
     }
 }
 
 static void end_write(EV_P_ skipd_client* client) {
+    //wait for 1s to commit
     ev_timer_again(EV_A_ &client->server->watcher);
-    SkipDB_sync(client->server->db);
 }
 
 static void begin_read(EV_P_ skipd_client* client) {
-    if(client->server->to_commit) {
+    skipd_server *server = client->server;
+    if(server->to_commit) {
         //Do transaction before real read
-        SkipDB_commitTransaction(client->server->db);
-        client->server->to_commit = 0;
+        server->to_commit = 0;
 
         //fprintf(stderr, "do transaction\n");
     }
@@ -884,7 +893,7 @@ int main(int argc, char **argv)
     int syslog_options = LOG_PID | LOG_PERROR | LOG_DEBUG;
     skipd_server *server;
     //struct ev_periodic every_few_seconds;
-    ev_timer init_watcher = {0};
+    //ev_timer init_watcher = {0};
     EV_P  = ev_default_loop(0);
 
     global_server = (skipd_server*)calloc(1, sizeof(skipd_server));
@@ -956,8 +965,8 @@ int main(int argc, char **argv)
     // To be sure that we aren't actually blocking
     //ev_periodic_init(&every_few_seconds, not_blocked, 0, 5, 0);
     //ev_periodic_start(EV_A_ &every_few_seconds);
-    ev_timer_init(EV_A_ &init_watcher, server_cmd_init, 5.0, 0.0);
-    ev_timer_start(EV_A_ &init_watcher);
+    //ev_timer_init(EV_A_ &init_watcher, server_cmd_init, 5.0, 0.0);
+    //ev_timer_start(EV_A_ &init_watcher);
     //update at 2s after write
     ev_timer_init(EV_A_ &server->watcher, server_sync_tick, 0.0, 1.0);
     //ev_timer_start(EV_A_ &server->watcher);
@@ -973,8 +982,9 @@ int main(int argc, char **argv)
         SkipDB_commitTransaction(server->db);
         server->to_commit = 0;
     }
-    SkipDB_close(server->db);
-    skipd_log(SKIPD_DEBUG, "exit..\n");
+    mdb_dbi_close(server->env, server->dbi);
+    mdb_env_close(server->env);
+    //skipd_log(SKIPD_DEBUG, "skipd exited\n");
 
     // This point is only ever reached if the loop is manually exited
     close(server->fd);
