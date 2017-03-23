@@ -181,6 +181,11 @@ static void client_release(EV_P_ skipd_client* client) {
     ev_io_stop(EV_A_ &client->io_write);
     close(client->fd);
 
+    if(NULL != client->rtx) {
+        mdb_txn_abort(client->rtx);
+        client->rtx = NULL;
+    }
+
     if(NULL != client->send) {
         free(client->send);
     }
@@ -399,7 +404,7 @@ static int client_run_command(EV_P_ skipd_client* client)
     time_t t1, t2, epoch;
     int tmpi, tmp2;
     struct tm tm1, tm2, *tnow;
-    Datum dkey, dvalue;
+    MDB_val dkey, dvalue;
     struct ccrContextTag* ctx = &client->ccr_read;
 
     //stack
@@ -431,10 +436,12 @@ static int client_run_command(EV_P_ skipd_client* client)
         p1 = p2+1;
 
         dkey = Datum_FromCString_(client->key);
-        dvalue = Datum_FromData_length_((unsigned char*)p1, client->data_len - (p1 - client->origin));
-
+        dkey.mv_data = client->key;
+        dkey.mv_size = strlen(client->key);
+        dvalue.mv_data = p1;
+        dvalue.mv_size = (client->data_len - (p1 - client->origin));
         begin_write(EV_A_ client);
-        SkipDB_at_put_(client->server->db, dkey, dvalue);
+        mdb_put(client->server->wtx, client->server->dbi, &dkey, &dvalue, 0);
         end_write(EV_A_ client);
 
         p1 = "ok\n";
@@ -446,9 +453,12 @@ static int client_run_command(EV_P_ skipd_client* client)
         p1 = p2+1;
 
         dkey = Datum_FromCString_(client->key);
+        dkey.mv_data = client->key;
+        dkey.mv_size = strlen(client->key);
+        memset(&dvalue, 0, sizeof(dvalue));
 
         begin_read(EV_A_ client);
-        dvalue = SkipDB_at_(client->server->db, dkey);
+        mdb_get(client->rtx, client->server->dbi, &dkey, &dvalue);
         end_read(EV_A_ client);
 
         if(NULL == dvalue.data) {
@@ -465,18 +475,16 @@ static int client_run_command(EV_P_ skipd_client* client)
         client->key = p1;
         p1 = p2+1;
 
-        client->server->in_doing++;
+        //TODO support for list
         CS->skey = Datum_FromCString_(client->key);
         begin_read(EV_A_ client);
         CS->record = SkipDB_list_first(client->server->db, CS->skey, &CS->cursor);
         while(NULL != CS->record) {
             dkey = SkipDBRecord_keyDatum(CS->record);
             dvalue = SkipDBRecord_valueDatum(CS->record);
-            end_read(EV_A_ client);
             client_send_key(EV_A_ client, client->command, (char*)dkey.data, (char*)dvalue.data, dvalue.size);
             ccrReturn(ctx, ccr_error_ok);
 
-            begin_read(EV_A_ client);
             CS->record = SkipDB_list_next(client->server->db, CS->skey, CS->cursor);
         }
         end_read(EV_A_ client);
@@ -488,8 +496,6 @@ static int client_run_command(EV_P_ skipd_client* client)
         p1 = "__end__\n";
         client_send(EV_A_ client, p1, strlen(p1));
         ccrReturn(ctx, ccr_error_ok);
-
-        client->server->in_doing--;
 
         ccrReturn(ctx, ccr_error_ok1);
     } else if(!strcmp(client->command, "remove")) {
@@ -833,13 +839,19 @@ static void begin_read(EV_P_ skipd_client* client) {
     skipd_server *server = client->server;
     //Do transaction before real read
     if(NULL != server->wtx) {
+        //free the write tx
         E(mdb_txn_commit(server->wtx));
         server->wtx = NULL;
     }
     if(NULL != server->cache_rtx) {
-        //TODO renew
+        // use cached rtx
+        client->rtx = server->cache_rtx;
+        server->cache_rtx = NULL;
+        mdb_txn_renew(client->rtx);
+    } else {
+        // create a new rtx
+        E(mdb_txn_begin(env, NULL, MDB_RDONLY, &client->rtx));
     }
-    E(mdb_txn_begin(env, NULL, MDB_RDONLY, &client->rtx));
 
     //fprintf(stderr, "do transaction\n");
 }
@@ -847,28 +859,23 @@ static void begin_read(EV_P_ skipd_client* client) {
 static void end_read(EV_P_ skipd_client* client) {
     skipd_server *server = client->server;
     if(NULL == server->cache_rtx) {
+        //cache the rtx
         server->cache_rtx = client->rtx;
-        //TODO reset
         client->rtx = NULL;
+        mdb_txn_reset(server->cache_rtx);
+    } else {
+        //free the client rtx
+        mdb_txn_abort(client->rtx);
     }
 }
 
 static void server_sync_tick(EV_P_ ev_timer *w, int revents) {
     skipd_server *server = global_server;
     ev_timer_stop(EV_A_ w);
-
-    if(server->to_commit) {
-        //skipd_log(SKIPD_DEBUG, "sync tick\n");
-        //fprintf(stderr, "sync tick\n");
-
-        //Do transaction
-        SkipDB_commitTransaction(server->db);
-        server->to_commit = 0;
-    }
-
-    //fprintf(stderr, "in_doing=%d pos=%d\n", server->in_doing, (int)SkipDB_maxPos(server->db));
-    if((0 == server->in_doing) && (SkipDB_maxPos(server->db) > server->switch_mark)) {
-        server_switch(server);
+    if(NULL != server->wtx) {
+        //free and commit the write tx
+        E(mdb_txn_commit(server->wtx));
+        server->wtx = NULL;
     }
 }
 
