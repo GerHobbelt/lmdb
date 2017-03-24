@@ -410,9 +410,9 @@ static int client_run_command(EV_P_ skipd_client* client)
     //stack
     ccrBeginContext
     int n;
-    SkipDBCursor* cursor;
-    SkipDBRecord* record;
-    Datum skey;
+    MDB_cursor* cursor;
+    MDB_val skey;
+    MDB_val svalue;
     ccrEndContext(ctx);
 
     ccrBegin(ctx);
@@ -475,22 +475,19 @@ static int client_run_command(EV_P_ skipd_client* client)
         client->key = p1;
         p1 = p2+1;
 
-        //TODO support for list
-        CS->skey = Datum_FromCString_(client->key);
+        CS->skey.mv_size = strlen(client->key);
+        CS->skey.mv_data = client->key;
         begin_read(EV_A_ client);
-        CS->record = SkipDB_list_first(client->server->db, CS->skey, &CS->cursor);
-        while(NULL != CS->record) {
-            dkey = SkipDBRecord_keyDatum(CS->record);
-            dvalue = SkipDBRecord_valueDatum(CS->record);
-            client_send_key(EV_A_ client, client->command, (char*)dkey.data, (char*)dvalue.data, dvalue.size);
+        E(mdb_cursor_open(client->rtx, client->server->dbi, &CS->cursor));
+        while((rc = mdb_cursor_get(CS->cursor, &CS->skey, &CS->svalue, MDB_NEXT)) == 0) {
+            client_send_key(EV_A_ client, client->command, (char*)CS->dkey.mv_data
+                    , (char*)CS->dvalue.mv_data, CS->dvalue.mv_size);
             ccrReturn(ctx, ccr_error_ok);
-
-            CS->record = SkipDB_list_next(client->server->db, CS->skey, CS->cursor);
+        }
+        if(NULL != CS->cursor) {
+            mdb_cursor_close(CS->cursor);
         }
         end_read(EV_A_ client);
-        if(NULL != CS->cursor) {
-            SkipDBCursor_release(CS->cursor);
-        }
 
         //send end
         p1 = "__end__\n";
