@@ -5,7 +5,7 @@
 #  cd build/
 #  cmake .. -DCMAKE_TOOLCHAIN_FILE=../cross-arm-linux-gnueabihf.cmake
 #
-#cmake28 -DCMAKE_TOOLCHAIN_FILE=../cross-arm-linux-gnueabihf.cmake -DLIBEV_LIBRARIES=/projects/arm/lib/libev.a -DLIBEV_INCLUDE_DIRS=/projects/arm/include ..
+# cmake -DCMAKE_TOOLCHAIN_FILE=../cross-arm-linux-gnueabihf.cmake -DLIBEV_LIBRARIES=/projects/arm/lib/libev.a -DLIBEV_INCLUDE_DIRS=/projects/arm/include ..
 
 set(CROSS_PATH /opt/brcm-arm)
 

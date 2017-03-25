@@ -959,7 +959,7 @@ int main(int argc, char **argv)
 
 #if 1
     strcpy(server->pid_path, "/tmp/.skipd_pid");
-    strcpy(server->db_path, "/koolshare/tmp/db");
+    strcpy(server->db_path, "/jffs/db");
     daemon = 1;
 #endif
 
