@@ -861,7 +861,7 @@ static void begin_write(EV_P_ skipd_client* client) {
     skipd_server *server = client->server;
 
     //make a flush
-    if(server->writing >= 200) {
+    if(server->writing >= 500) {
         db_flush(server);
     }
 
@@ -1041,8 +1041,17 @@ int main(int argc, char **argv)
     mdb_env_close(server->env);
     //skipd_log(SKIPD_DEBUG, "skipd exited\n");
 
-    // This point is only ever reached if the loop is manually exited
+    // TODO free the ev
+    //ev_signal_stop(EV_A_ &signal_watcher);
+    //ev_signal_stop(EV_A_ &signal_watcher2);
+    //ev_timer_stop(EV_A_ &server->watcher);
+    //ev_io_stop(EV_A_ &server->io);
+    //free(EV_DEFAULT);
+
     close(server->fd);
+    if(NULL != server) {
+        free(server);
+    }
     return EXIT_SUCCESS;
 }
 

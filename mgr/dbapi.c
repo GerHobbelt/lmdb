@@ -138,7 +138,6 @@ int dbclient_start(dbclient* client) {
     }
 
     setnonblock(client->remote_fd);
-    fprintf(stderr, "setnoblock");
     return 0;
 }
 
@@ -349,8 +348,7 @@ int dbclient_json(dbclient* client, char* prefix) {
     return 0;
 }
 
-int main(int argc, char **argv)
-{
+static void test_normal_1(void) {
     dbclient client;
     dbclient_start(&client);
     dbclient_bulk(&client, "set", "hello1", 0, "value-new-value", 0);
@@ -359,9 +357,53 @@ int main(int argc, char **argv)
     dbclient_bulk(&client, "set", "hello1112", 0, "value-new-value", 0);
     dbclient_bulk(&client, "set", "hello13", 0, "value-new-value", 0);
     dbclient_bulk(&client, "set", "hello15", 0, "value-new-value", 0);
+    dbclient_end(&client);
+}
 
+static void test_list_2(void) {
+    dbclient client;
+    dbclient_start(&client);
     //dbclient_list(&client, "hello1", NULL, myprint);
     dbclient_json(&client, "hello1");
     dbclient_end(&client);
+}
+
+static void test_loop_3(void) {
+    int i;
+    char buf1[512], buf2[512];
+
+    dbclient client;
+    dbclient_start(&client);
+
+    for(i = 0; i < 5000; i++) {
+        sprintf(buf1, "hello%d", i);
+        sprintf(buf2, "new-value%d", i);
+        dbclient_bulk(&client, "set", buf1, 0, buf2, 0);
+        dbclient_bulk(&client, "set", buf1, 0, "", 0); //mark as remove
+    }
+    dbclient_end(&client);
+}
+
+static void test_multi_4(void) {
+    dbclient client1;
+    dbclient client2;
+    dbclient_start(&client1);
+    dbclient_start(&client2);
+
+    dbclient_bulk(&client1, "set", "hello1", 0, "value-new-value", 0);
+    dbclient_bulk(&client2, "set", "hello2", 0, "value-new-value", 0);
+
+    dbclient_list(&client2, "hello", NULL, myprint);
+    dbclient_bulk(&client1, "set", "hello3", 0, "value-new-value", 0);
+    dbclient_list(&client1, "hello", NULL, myprint);
+
+    dbclient_end(&client1);
+    dbclient_end(&client2);
+}
+
+int main(int argc, char **argv)
+{
+    test_loop_3();
+    test_multi_4();
     return 0;
 }
