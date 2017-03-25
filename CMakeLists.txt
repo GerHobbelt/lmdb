@@ -1,6 +1,6 @@
 PROJECT(skipdbv2)
 CMAKE_MINIMUM_REQUIRED (VERSION 2.8)
-ADD_DEFINITIONS(-Os -g -Wstrict-prototypes -Wall  -falign-loops=16 -DBUILDING_SKIPDB_DLL)
+ADD_DEFINITIONS(-Os -g -Wstrict-prototypes -Wall)
 #ADD_DEFINITIONS(-O0 -g -Wstrict-prototypes -Wall  -falign-loops=16 -DBUILDING_SKIPDB_DLL)
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
@@ -56,4 +56,13 @@ SET_TARGET_PROPERTIES(mtest6  PROPERTIES COMPILE_FLAGS " -DMDB_DEBUG=1 ")
 
 ADD_EXECUTABLE(test ./tests/test.c)
 TARGET_LINK_LIBRARIES(test lmdb pthread m ${LIBEV_LIBRARIES})
+
+ADD_EXECUTABLE(skipd ${LMDB_SRC} mgr/skipd.c mgr/daemonize.c)
+TARGET_LINK_LIBRARIES(skipd pthread m ${LIBEV_LIBRARIES})
+
+ADD_EXECUTABLE(dbus mgr/dbus.c)
+TARGET_LINK_LIBRARIES(dbus ${LIBEV_LIBRARIES})
+
+ADD_EXECUTABLE(dbtest mgr/dbapi.c)
+TARGET_LINK_LIBRARIES(dbapi)
 

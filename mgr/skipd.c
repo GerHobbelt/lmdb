@@ -1,7 +1,8 @@
-#define _XOPEN_SOURCE
+//#define _XOPEN_SOURCE
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <limits.h> // [LONG|INT][MIN|MAX]
@@ -37,6 +38,7 @@ typedef struct _skipd_server {
     MDB_dbi dbi;
     MDB_txn *wtx;       /* the current writing transaction */
     MDB_txn *cache_rtx; /* cache the last one of read transaction for optimising */
+    int writing;
 
     int daemon;
     char db_path[SK_PATH_MAX];
@@ -91,14 +93,10 @@ typedef struct _skipd_client {
 } skipd_client;
 
 /* declare */
-extern int SkipDB_maxPos(SkipDB* self);
-extern SkipDBRecord* SkipDB_list_first(SkipDB* self, Datum k, SkipDBCursor** pcur);
-extern SkipDBRecord* SkipDB_list_next(SkipDB* self, Datum k, SkipDBCursor* cursor);
 static void begin_write(EV_P_ skipd_client* client);
 static void end_write(EV_P_ skipd_client* client);
 static void begin_read(EV_P_ skipd_client* client);
 static void end_read(EV_P_ skipd_client* client);
-static void server_switch(skipd_server* server);
 
 void skipd_daemonize(char * path);
 static int setnonblock(int fd);
@@ -143,7 +141,7 @@ void sys_script(char *cmd) {
 int log_level = LOG_ERR;
 static void emit_log(int level, char* line) {
     //TODO for level
-    int syslog_level = LOG_ERR;
+    //int syslog_level = LOG_ERR;
     //syslog(syslog_level, "%s", line);
     printf("%s", line);
 }
@@ -172,7 +170,26 @@ static void skipd_log(int filter, const char *format, ...)
 	va_end(ap);
 }
 
-#define E(expr) do { if((expr) != MDB_SUCCESS) {skipd_log("%s#%d error: %s\n", __FUNCTION__, __LINE__, abort()); } }
+#define E(expr) do { if((expr) != MDB_SUCCESS) {skipd_log(0, "%s#%d error: %s\n", __FUNCTION__, __LINE__, abort()); } }
+
+//MDB_cmp_func
+//mdb_set_compare
+static int mdb_cmp_prefix(const MDB_val *a, const MDB_val *b)
+{
+	int diff;
+	ssize_t len_diff;
+	unsigned int len;
+
+	len = a->mv_size;
+	len_diff = (ssize_t) a->mv_size - (ssize_t) b->mv_size;
+	if (len_diff > 0) {
+		len = b->mv_size;
+		len_diff = 1;
+	}
+
+	diff = memcmp(a->mv_data, b->mv_data, len);
+	return diff ? diff : len_diff<0 ? -1 : len_diff;
+}
 
 static void client_release(EV_P_ skipd_client* client) {
     //skipd_log(SKIPD_DEBUG, "closing client\n");
@@ -195,6 +212,13 @@ static void client_release(EV_P_ skipd_client* client) {
     }
 
     free(client);
+}
+
+static void db_flush(skipd_server *server) {
+    mdb_txn_commit(server->wtx);
+    server->wtx = NULL;
+    fprintf(stderr, "do transaction writing=%d\n", server->writing);
+    server->writing = 0;
 }
 
 static void client_read_inner(EV_P_ skipd_client* client, int revents) {
@@ -255,14 +279,17 @@ static void client_write(EV_P_ ev_io *w, int revents) {
     }
 }
 
-static int client_send_key(EV_P_ skipd_client* client, char* cmd, char* key, char* buf, int len) {
+static int client_send_key(EV_P_ skipd_client* client, char* cmd, char* key, int klen, char* buf, int len) {
     char pref_buf[HEADER_PREFIX+1];
     int n, resp_len = (len + 2);
 
     memcpy(pref_buf, global_magic, MAGIC_LEN);
 
     resp_len += strlen(cmd);
-    resp_len += strlen(key);
+    if(0 == klen) {
+        klen = strlen(key);
+    }
+    resp_len += klen;
 
     sprintf(pref_buf + MAGIC_LEN, "%07d ", resp_len);
     resp_len += HEADER_PREFIX;
@@ -281,7 +308,7 @@ static int client_send_key(EV_P_ skipd_client* client, char* cmd, char* key, cha
     }
 
     memcpy(client->send, pref_buf, HEADER_PREFIX);
-    n = sprintf(client->send + HEADER_PREFIX, "%s %s ", cmd, key);
+    n = sprintf(client->send + HEADER_PREFIX, "%s %.*s ", cmd, klen, key);
     memcpy(client->send + HEADER_PREFIX + n, buf, len);
     client->send[resp_len] = '\0';
     client->send_len = resp_len;
@@ -299,6 +326,7 @@ static int client_send(EV_P_ skipd_client* client, char* buf, int len) {
     return client_send_key(EV_A_ client
             , (NULL == client->command ? "errcmd": client->command)
             , (NULL == client->key ? "errkey": client->key)
+            , 0
             , buf, len);
 }
 
@@ -401,9 +429,7 @@ static int client_ccr_read_util(skipd_client* client, int step_len) {
 static int client_run_command(EV_P_ skipd_client* client)
 {
     char *p1, *p2;
-    time_t t1, t2, epoch;
-    int tmpi, tmp2;
-    struct tm tm1, tm2, *tnow;
+    int rc, tmpi, tmp2;
     MDB_val dkey, dvalue;
     struct ccrContextTag* ctx = &client->ccr_read;
 
@@ -435,7 +461,6 @@ static int client_run_command(EV_P_ skipd_client* client)
         client->key = p1;
         p1 = p2+1;
 
-        dkey = Datum_FromCString_(client->key);
         dkey.mv_data = client->key;
         dkey.mv_size = strlen(client->key);
         dvalue.mv_data = p1;
@@ -452,22 +477,21 @@ static int client_run_command(EV_P_ skipd_client* client)
         client->key = p1;
         p1 = p2+1;
 
-        dkey = Datum_FromCString_(client->key);
         dkey.mv_data = client->key;
         dkey.mv_size = strlen(client->key);
         memset(&dvalue, 0, sizeof(dvalue));
 
         begin_read(EV_A_ client);
-        mdb_get(client->rtx, client->server->dbi, &dkey, &dvalue);
+        rc = mdb_get(client->rtx, client->server->dbi, &dkey, &dvalue);
         end_read(EV_A_ client);
 
-        if(NULL == dvalue.data) {
+        if(MDB_NOTFOUND == rc || NULL == dvalue.mv_data) {
             //fprintf(stderr, "get none\n");
             p1 = "none\n";
             client_send(EV_A_ client, p1, strlen(p1));
         } else {
-            //fprintf(stderr, "get result dvalue=%.*s\n", dvalue.size, dvalue.data);
-            client_send(EV_A_ client, (char*)dvalue.data, dvalue.size);
+            //fprintf(stderr, "get result dvalue=%.*s\n", dvalue.size, dvalue.mv_data);
+            client_send(EV_A_ client, (char*)dvalue.mv_data, dvalue.mv_size);
         }
         ccrReturn(ctx, ccr_error_ok1);
     } else if(!strcmp(client->command, "list")) {
@@ -475,14 +499,27 @@ static int client_run_command(EV_P_ skipd_client* client)
         client->key = p1;
         p1 = p2+1;
 
-        CS->skey.mv_size = strlen(client->key);
+        CS->n = strlen(client->key);
+        CS->skey.mv_size = CS->n;
         CS->skey.mv_data = client->key;
         begin_read(EV_A_ client);
-        E(mdb_cursor_open(client->rtx, client->server->dbi, &CS->cursor));
-        while((rc = mdb_cursor_get(CS->cursor, &CS->skey, &CS->svalue, MDB_NEXT)) == 0) {
-            client_send_key(EV_A_ client, client->command, (char*)CS->dkey.mv_data
-                    , (char*)CS->dvalue.mv_data, CS->dvalue.mv_size);
-            ccrReturn(ctx, ccr_error_ok);
+        mdb_cursor_open(client->rtx, client->server->dbi, &CS->cursor);
+        if((rc = mdb_cursor_get(CS->cursor, &CS->skey, &CS->svalue, MDB_SET_RANGE)) == 0) {
+            //fprintf(stderr, "list:%.*s:%.*s\n", CS->skey.mv_size, CS->skey.mv_data, CS->svalue.mv_size, (char*)CS->svalue.mv_data);
+            while(rc == 0) {
+                if((int)CS->skey.mv_size < CS->n) {
+                    break;
+                }
+                if(0 != memcmp(CS->skey.mv_data, client->key, CS->n)) {
+                    break;
+                }
+                client_send_key(EV_A_ client
+                        , client->command
+                        , (char*)CS->skey.mv_data, (int)CS->skey.mv_size
+                        , (char*)CS->svalue.mv_data, (int)CS->svalue.mv_size);
+                ccrReturn(ctx, ccr_error_ok);
+                rc = mdb_cursor_get(CS->cursor, &CS->skey, &CS->svalue, MDB_NEXT);
+            }
         }
         if(NULL != CS->cursor) {
             mdb_cursor_close(CS->cursor);
@@ -500,10 +537,11 @@ static int client_run_command(EV_P_ skipd_client* client)
         client->key = p1;
         p1 = p2+1;
 
-        dkey = Datum_FromCString_(client->key);
+        dkey.mv_data = client->key;
+        dkey.mv_size = strlen(client->key);
 
         begin_write(EV_A_ client);
-        SkipDB_removeAt_(client->server->db, dkey);
+        mdb_del(client->server->wtx, client->server->dbi, &dkey, NULL);
         end_write(EV_A_ client);
 
         p1 = "ok\n";
@@ -519,7 +557,8 @@ static int client_run_command(EV_P_ skipd_client* client)
         client->key = p1;
         p1 = p2+1;
 
-        dkey = Datum_FromCString_(client->key);
+        dkey.mv_data = client->key;
+        dkey.mv_size = strlen(client->key);
 
         if(S2ISUCCESS != str2int(&tmpi, p1, 10)) {
             p1 = "error\n";
@@ -529,11 +568,11 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
 
         begin_read(EV_A_ client);
-        dvalue = SkipDB_at_(client->server->db, dkey);
-        if(NULL == dvalue.data) {
+        rc = mdb_get(client->rtx, client->server->dbi, &dkey, &dvalue);
+        if(MDB_NOTFOUND == rc || NULL == dvalue.mv_data) {
             tmp2 = 0;
         } else {
-            if(S2ISUCCESS != str2int(&tmp2, (char*)dvalue.data, 10)) {
+            if(S2ISUCCESS != str2int(&tmp2, (char*)dvalue.mv_data, 10)) {
                 end_read(EV_A_ client);
 
                 p1 = "error\n";
@@ -549,13 +588,14 @@ static int client_run_command(EV_P_ skipd_client* client)
         } else {
             sprintf(static_buffer, "%d", tmp2-tmpi);
         }
-        dvalue = Datum_FromCString_(static_buffer);
+        dvalue.mv_data = static_buffer;
+        dvalue.mv_size = strlen(static_buffer);
 
         begin_write(EV_A_ client);
-        SkipDB_at_put_(client->server->db, dkey, dvalue);
+        mdb_put(client->server->wtx, client->server->dbi, &dkey, &dvalue, 0);
         end_write(EV_A_ client);
 
-        client_send(EV_A_ client, (char*)dvalue.data, dvalue.size);;
+        client_send(EV_A_ client, (char*)dvalue.mv_data, dvalue.mv_size);;
         ccrReturn(ctx, ccr_error_ok1);
     }
 
@@ -764,9 +804,9 @@ int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path, int max_que
 }
 
 static int server_open(skipd_server* server) {
-    int n, sf;
     struct stat st = {0};
     if(stat(server->db_path, &st) == -1) {
+        fprintf(stderr, "create db_path\n");
         mkdir(server->db_path, 0700);
     }
     if(MDB_SUCCESS != mdb_env_create(&server->env)) {
@@ -781,6 +821,9 @@ static int server_open(skipd_server* server) {
     if(MDB_SUCCESS != mdb_env_open(server->env, server->db_path, MDB_FIXEDMAP|MDB_NOMETASYNC, 0664)) {
         return -4;
     }
+    mdb_txn_begin(server->env, NULL, 0, &server->wtx);
+    mdb_dbi_open(server->wtx, NULL, 0, &server->dbi);
+    mdb_set_compare(server->wtx, server->dbi, mdb_cmp_prefix);
 
     return 0;
 }
@@ -816,15 +859,21 @@ static struct option options[] = {
 
 static void begin_write(EV_P_ skipd_client* client) {
     skipd_server *server = client->server;
+
+    //make a flush
+    if(server->writing >= 200) {
+        db_flush(server);
+    }
+
     if(NULL == server->wtx) {
         //release the cache rtx first
         if(NULL != server->cache_rtx) {
             mdb_txn_abort(server->cache_rtx);
             server->cache_rtx = NULL;
         }
-        E(mdb_txn_begin(server->env, NULL, 0, &server->wtx));
-        E(mdb_dbi_open(server->wtx, NULL, 0, &server->dbi));
+        mdb_txn_begin(server->env, NULL, 0, &server->wtx);
     }
+    server->writing++;
 }
 
 static void end_write(EV_P_ skipd_client* client) {
@@ -836,9 +885,7 @@ static void begin_read(EV_P_ skipd_client* client) {
     skipd_server *server = client->server;
     //Do transaction before real read
     if(NULL != server->wtx) {
-        //free the write tx
-        E(mdb_txn_commit(server->wtx));
-        server->wtx = NULL;
+        db_flush(server);
     }
     if(NULL != server->cache_rtx) {
         // use cached rtx
@@ -847,10 +894,8 @@ static void begin_read(EV_P_ skipd_client* client) {
         mdb_txn_renew(client->rtx);
     } else {
         // create a new rtx
-        E(mdb_txn_begin(env, NULL, MDB_RDONLY, &client->rtx));
+        mdb_txn_begin(server->env, NULL, MDB_RDONLY, &client->rtx);
     }
-
-    //fprintf(stderr, "do transaction\n");
 }
 
 static void end_read(EV_P_ skipd_client* client) {
@@ -870,9 +915,7 @@ static void server_sync_tick(EV_P_ ev_timer *w, int revents) {
     skipd_server *server = global_server;
     ev_timer_stop(EV_A_ w);
     if(NULL != server->wtx) {
-        //free and commit the write tx
-        E(mdb_txn_commit(server->wtx));
-        server->wtx = NULL;
+        db_flush(server);
     }
 }
 
@@ -987,13 +1030,12 @@ int main(int argc, char **argv)
     // Run our loop, ostensibly forever
     ev_loop(EV_A_ 0);
 
-    //sync at exit
-    //SkipDB_beginTransaction(server->db);
-    //SkipDB_commitTransaction(server->db);
-
-    if(server->to_commit) {
-        SkipDB_commitTransaction(server->db);
-        server->to_commit = 0;
+    if(NULL != server->cache_rtx) {
+        mdb_txn_abort(server->cache_rtx);
+        server->cache_rtx = NULL;
+    }
+    if(NULL != server->wtx) {
+        db_flush(server);
     }
     mdb_dbi_close(server->env, server->dbi);
     mdb_env_close(server->env);

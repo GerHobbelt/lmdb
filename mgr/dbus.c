@@ -47,11 +47,16 @@ static void print_time(char* prefix)
 static int create_client_fd(char* sock_path) {
     int len, remote_fd;
     struct sockaddr_un remote;
+    struct timeval tv;
+
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
 
     if(-1 == (remote_fd = socket(PF_UNIX, SOCK_STREAM, 0))) {
         //perror("socket");
         return -1;
     }
+    setsockopt(remote_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
     remote.sun_family = AF_UNIX;
     strcpy(remote.sun_path, sock_path);
@@ -439,7 +444,7 @@ int main(int argc, char **argv, char * envp[])
 
     remote_fd = create_client_fd("/tmp/.skipd_server_sock");
     if(-1 == remote_fd) {
-#if 1
+#if 0
         //Try to restart skipd
         system("service start_skipd >/dev/null 2>&1 &");
         sleep(1);

@@ -14,21 +14,18 @@
 #include <limits.h> // [LONG|INT][MIN|MAX]
 #include <errno.h>  // errno
 #include <unistd.h>
-#include "skipd.h"
+#include "dbapi.h"
 
 //"list "
 #define LIST_LEN 5
 
-typedef struct _dbclient {
-    int remote_fd;
+typedef enum {
+    S2ISUCCESS = 0,
+    S2IOVERFLOW,
+    S2IUNDERFLOW,
+    S2IINCONVERTIBLE
+} STR2INT_ERROR;
 
-    char* buf;
-    int buf_max;
-    int buf_len;
-    int buf_pos;
-} dbclient;
-
-typedef int (*fn_db_parse)(dbclient* client, void* o, char* prefix, char* key, char* value);
 static int ignore_result(dbclient *client);
 
 static int write_util(dbclient* client, int len, unsigned int delay) {
@@ -66,11 +63,16 @@ static int write_util(dbclient* client, int len, unsigned int delay) {
 static int create_client_fd(char* sock_path) {
     int len, remote_fd;
     struct sockaddr_un remote;
+    struct timeval tv;
+
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
 
     if(-1 == (remote_fd = socket(PF_UNIX, SOCK_STREAM, 0))) {
         //perror("socket");
         return -1;
     }
+    setsockopt(remote_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
     remote.sun_family = AF_UNIX;
     strcpy(remote.sun_path, sock_path);
@@ -106,6 +108,25 @@ static int setnonblock(int fd) {
     return fcntl(fd, F_SETFL, flags);
 }
 
+static STR2INT_ERROR str2int(int *i, char *s, int base) {
+  char *end;
+  long  l;
+  errno = 0;
+  l = strtol(s, &end, base);
+
+  if ((errno == ERANGE && l == LONG_MAX) || l > INT_MAX) {
+    return S2IOVERFLOW;
+  }
+  if ((errno == ERANGE && l == LONG_MIN) || l < INT_MIN) {
+    return S2IUNDERFLOW;
+  }
+  if (*s == '\0' || *end != '\0') {
+    return S2IINCONVERTIBLE;
+  }
+  *i = l;
+  return S2ISUCCESS;
+}
+
 int dbclient_start(dbclient* client) {
     char* socket_path = "/tmp/.skipd_server_sock";
 
@@ -113,29 +134,48 @@ int dbclient_start(dbclient* client) {
 
     client->remote_fd = create_client_fd(socket_path);
     if(-1 == client->remote_fd) {
-        system("service start_skipd >/dev/null 2>&1 &");
-        sleep(1);
-
-        client->remote_fd = create_client_fd(socket_path);
-        if(-1 == client->remote_fd) {
-            return -1;
-        }
+        return -1;
     }
 
     setnonblock(client->remote_fd);
+    fprintf(stderr, "setnoblock");
     return 0;
 }
 
-int dbclient_bulk(dbclient* client, char* command, char* key, char* value) {
-    int n1,n2,nc,nk,nv;
+int dbclient_bulk(dbclient* client, const char* command, const char* key, int nk, const char* value, int nv) {
+    int n1,n2,nc;
+
+    if(-1 == client->remote_fd) {
+        return -1;
+    }
 
     nc = strlen(command);
-    nk = strlen(key);
-    nv = strlen(value);
+    if(nk == 0) {
+        nk = strlen(key);
+    }
+    if(nv == 0) {
+        nv = strlen(value);
+    }
 
-    n1 = nc + nk + nv + 3;// replace key value\n
-    check_buf(client, n1 + HEADER_PREFIX);
-    n2 = sprintf(client->buf, "%s%07d %s %s %s\n", MAGIC, n1, command, key, value);
+    if(!strcmp(command, "set") && nv == 0) {
+        n1 = strlen("remove") + nk + 2;// remove key\n
+        check_buf(client, n1 + HEADER_PREFIX);
+        n2 = sprintf(client->buf, "%s%07d remove %.*s\n", MAGIC, n1, nk, key);
+    } else {
+        n1 = nc + nk + nv + 3;// replace key value\n
+        check_buf(client, n1 + HEADER_PREFIX);
+        n2 = sprintf(client->buf, "%s%07d %s ", MAGIC, n1, command);
+
+        memcpy(client->buf + n2, key, nk);
+        client->buf[n2+nk] = ' ';
+        n2 += nk + 1;
+
+        memcpy(client->buf + n2, value, nv);
+        client->buf[n2+nv] = '\n';
+        n2 += nv + 1;
+
+        client->buf[n2] = '\0';
+    }
 
     if(0 == write_util(client, n1 + HEADER_PREFIX, 200)) {
         ignore_result(client);
@@ -267,6 +307,10 @@ static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_pars
 int dbclient_list(dbclient* client, char* prefix, void* o, fn_db_parse fn) {
     int n1, n2;
 
+    if(-1 == client->remote_fd) {
+        return -1;
+    }
+
     n1 = strlen("list") + strlen(prefix) + 2;//list prefix\n
     check_buf(client, n1 + HEADER_PREFIX);
     n2 = sprintf(client->buf, "%s%07d list %s\n", MAGIC, n1, prefix);
@@ -309,12 +353,12 @@ int main(int argc, char **argv)
 {
     dbclient client;
     dbclient_start(&client);
-    dbclient_bulk(&client, "set", "hello1", "value-new-value");
-    dbclient_bulk(&client, "set", "hello11", "value-new-value");
-    dbclient_bulk(&client, "set", "hello111", "value-new-value");
-    dbclient_bulk(&client, "set", "hello1112", "value-new-value");
-    dbclient_bulk(&client, "set", "hello13", "value-new-value");
-    dbclient_bulk(&client, "set", "hello15", "value-new-value");
+    dbclient_bulk(&client, "set", "hello1", 0, "value-new-value", 0);
+    dbclient_bulk(&client, "set", "hello11", 0, "value-new-value", 0);
+    dbclient_bulk(&client, "set", "hello111", 0, "value-new-value", 0);
+    dbclient_bulk(&client, "set", "hello1112", 0, "value-new-value", 0);
+    dbclient_bulk(&client, "set", "hello13", 0, "value-new-value", 0);
+    dbclient_bulk(&client, "set", "hello15", 0, "value-new-value", 0);
 
     //dbclient_list(&client, "hello1", NULL, myprint);
     dbclient_json(&client, "hello1");
