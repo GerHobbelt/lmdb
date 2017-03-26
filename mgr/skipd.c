@@ -1023,12 +1023,27 @@ int main(int argc, char **argv)
         skipd_daemonize(server->pid_path);
     }
 
-    //if(!daemon) {
-    //    skipd_savepid(server->pid_path);
-    //}
-
     setlogmask(LOG_UPTO (LOG_DEBUG));
     openlog("skipd", syslog_options, LOG_DAEMON);
+
+    int pid_file = open(server->pid_path, O_CREAT|O_RDWR, 0666);
+    struct flock f1 = {0}, f2 = {0};
+    f1.l_type = F_WRLCK;
+    f1.l_whence = SEEK_SET;
+    f1.l_start = 0;
+    f1.l_len = 0;
+    f2 = f1;
+
+    if (fcntl(pid_file, F_GETLK, &f1) == -1) {  
+        perror("fcntl");
+        exit(1);
+    }
+    if (f1.l_type == F_WRLCK) {
+        printf("Process %ld has a write lock already!\n", f1.l_pid);
+        exit(1);
+    } else {
+        fcntl(pid_file, F_SETLK, &f2);
+    }
 
     //kill -SIGUSR2 22459
     signal(SIGPIPE, SIG_IGN);
