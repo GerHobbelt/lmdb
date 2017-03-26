@@ -20,31 +20,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <syslog.h>
-#include <ev.h>
-#include <lmdb.h>
 
 #include "coroutine.h"
 #include "skipd.h"
-
-typedef struct _skipd_server {
-    ev_io io;
-    int fd;
-    struct sockaddr_un socket;
-    int socket_len;
-
-    ev_timer watcher;
-
-    MDB_env *env;
-    MDB_dbi dbi;
-    MDB_txn *wtx;       /* the current writing transaction */
-    MDB_txn *cache_rtx; /* cache the last one of read transaction for optimising */
-    int writing;
-
-    int daemon;
-    char db_path[SK_PATH_MAX];
-    char sock_path[SK_PATH_MAX];
-    char pid_path[SK_PATH_MAX];
-} skipd_server;
 
 enum ccr_break_state {
     ccr_break_continue = 0,
@@ -804,6 +782,7 @@ int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path, int max_que
 }
 
 static int server_open(skipd_server* server) {
+    int rc = 0;
     struct stat st = {0};
     if(stat(server->db_path, &st) == -1) {
         fprintf(stderr, "create db_path\n");
@@ -812,14 +791,14 @@ static int server_open(skipd_server* server) {
     if(MDB_SUCCESS != mdb_env_create(&server->env)) {
         return -1;
     }
-    if(MDB_SUCCESS != mdb_env_set_maxreaders(server->env, 1)) {
+    if(MDB_SUCCESS != mdb_env_set_maxreaders(server->env, 32)) {
         return -2;
     }
     if(MDB_SUCCESS != mdb_env_set_mapsize(server->env, 4*1024*1024)) {
         return -3;
     }
-    if(MDB_SUCCESS != mdb_env_open(server->env, server->db_path, MDB_FIXEDMAP|MDB_NOMETASYNC, 0664)) {
-        return -4;
+    if(MDB_SUCCESS != (rc = mdb_env_open(server->env, server->db_path, MDB_CREATE|MDB_FIXEDMAP|MDB_WRITEMAP|MDB_NOSYNC, 0664))) {
+        return -rc;
     }
     mdb_txn_begin(server->env, NULL, 0, &server->wtx);
     mdb_dbi_open(server->wtx, NULL, 0, &server->dbi);
@@ -829,8 +808,9 @@ static int server_open(skipd_server* server) {
 }
 
 int server_init(skipd_server* server, int max_queue) {
-    if(0 != server_open(server)) {
-        fprintf(stderr, "Load database=%s error\n", server->db_path);
+    int rc;
+    if(0 != (rc = server_open(server))) {
+        fprintf(stderr, "Load database=%s error=%d\n", server->db_path, rc);
         exit(EXIT_FAILURE);
     }
 
@@ -959,7 +939,7 @@ int main(int argc, char **argv)
 
 #if 1
     strcpy(server->pid_path, "/tmp/.skipd_pid");
-    strcpy(server->db_path, "/jffs/db");
+    strcpy(server->db_path, "/tmp/.skdb");
     daemon = 1;
 #endif
 

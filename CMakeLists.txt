@@ -1,6 +1,6 @@
 PROJECT(skipdbv2)
 CMAKE_MINIMUM_REQUIRED (VERSION 2.8)
-ADD_DEFINITIONS(-Os -g -Wstrict-prototypes -Wall)
+ADD_DEFINITIONS(-Os -g -Wstrict-prototypes -Wall -std=gnu99)
 #ADD_DEFINITIONS(-O0 -g -Wstrict-prototypes -Wall  -falign-loops=16 -DBUILDING_SKIPDB_DLL)
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
@@ -14,7 +14,7 @@ if ("${LIBEV_INCLUDE_DIRS}" STREQUAL "")
 set(LIBEV_LIBRARIES ev)
 endif()
 
-INCLUDE_DIRECTORIES(${LIBEV_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/libraries/liblmdb)
+INCLUDE_DIRECTORIES(${LIBEV_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/libraries/liblmdb ${PROJECT_SOURCE_DIR}/sqlite)
 FILE(GLOB_RECURSE LMDB_SRC libraries/liblmdb/mdb.c libraries/liblmdb/midl.c)
 
 #set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} /opt/brcm-arm/usr/lib)
@@ -59,6 +59,7 @@ TARGET_LINK_LIBRARIES(test lmdb pthread m ${LIBEV_LIBRARIES})
 
 ADD_EXECUTABLE(skipd ${LMDB_SRC} mgr/skipd.c mgr/daemonize.c)
 TARGET_LINK_LIBRARIES(skipd pthread m ${LIBEV_LIBRARIES})
+SET_TARGET_PROPERTIES(skipd PROPERTIES COMPILE_FLAGS " -DMDB_USE_SYSV_SEM ")
 
 ADD_EXECUTABLE(dbus mgr/dbus.c)
 TARGET_LINK_LIBRARIES(dbus ${LIBEV_LIBRARIES})
@@ -66,3 +67,11 @@ TARGET_LINK_LIBRARIES(dbus ${LIBEV_LIBRARIES})
 ADD_EXECUTABLE(dbtest mgr/dbapi.c)
 TARGET_LINK_LIBRARIES(dbtest)
 
+ADD_EXECUTABLE(mmap_test tests/mmap_test.c)
+TARGET_LINK_LIBRARIES(mmap_test)
+
+ADD_EXECUTABLE(sqlite_shell sqlite/sqlite3.c sqlite/shell.c)
+TARGET_LINK_LIBRARIES(sqlite_shell pthread dl)
+
+ADD_EXECUTABLE(sqlite_test2 sqlite/sqlite3.c tests/sqlite_blob2.c)
+TARGET_LINK_LIBRARIES(sqlite_test2 pthread dl)
