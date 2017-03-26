@@ -80,6 +80,9 @@ void skipd_daemonize(char * path);
 static int setnonblock(int fd);
 static int client_ccr_process(EV_P_ skipd_client* client);
 static int client_ccr_write(EV_P_ skipd_client* client);
+int commit_create(skipd_server *skipdb);
+int commit_log(skipd_server* server, int status, char* key, int klen, char* value, int vlen);
+int commit_flush(skipd_server* server);
 
 char* global_magic = MAGIC;
 skipd_server* global_server;
@@ -111,7 +114,7 @@ void sys_script(char *cmd) {
         return;
     }
 
-    snprintf(static_buffer, STATIC_BUF_LEN, "%s > /tmp/skipd.log 2>&1 &\n", cmd);
+    snprintf(static_buffer, STATIC_BUF_LEN, "%s > /tmp/.skipd/log 2>&1 &\n", cmd);
     system(static_buffer);
     strcpy(static_buffer, ""); // Ensure we don't re-execute it again
 }
@@ -193,6 +196,12 @@ static void client_release(EV_P_ skipd_client* client) {
 }
 
 static void db_flush(skipd_server *server) {
+    sqlite3_exec(server->sqlite_db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+    if(NULL != server->stmt) {
+        sqlite3_finalize(server->stmt);
+        server->stmt = NULL;
+    }
+
     mdb_txn_commit(server->wtx);
     server->wtx = NULL;
     fprintf(stderr, "do transaction writing=%d\n", server->writing);
@@ -444,6 +453,7 @@ static int client_run_command(EV_P_ skipd_client* client)
         dvalue.mv_data = p1;
         dvalue.mv_size = (client->data_len - (p1 - client->origin));
         begin_write(EV_A_ client);
+        commit_log(client->server, 1, dkey.mv_data, dkey.mv_size, dvalue.mv_data, dvalue.mv_size); 
         mdb_put(client->server->wtx, client->server->dbi, &dkey, &dvalue, 0);
         end_write(EV_A_ client);
 
@@ -482,21 +492,32 @@ static int client_run_command(EV_P_ skipd_client* client)
         CS->skey.mv_data = client->key;
         begin_read(EV_A_ client);
         mdb_cursor_open(client->rtx, client->server->dbi, &CS->cursor);
-        if((rc = mdb_cursor_get(CS->cursor, &CS->skey, &CS->svalue, MDB_SET_RANGE)) == 0) {
-            //fprintf(stderr, "list:%.*s:%.*s\n", CS->skey.mv_size, CS->skey.mv_data, CS->svalue.mv_size, (char*)CS->svalue.mv_data);
-            while(rc == 0) {
-                if((int)CS->skey.mv_size < CS->n) {
-                    break;
+        if(strcmp(client->key, "__all__")) {
+            if((rc = mdb_cursor_get(CS->cursor, &CS->skey, &CS->svalue, MDB_SET_RANGE)) == 0) {
+                //fprintf(stderr, "list:%.*s:%.*s\n", CS->skey.mv_size, CS->skey.mv_data, CS->svalue.mv_size, (char*)CS->svalue.mv_data);
+                while(rc == 0) {
+                    if((int)CS->skey.mv_size < CS->n) {
+                        break;
+                    }
+                    if(0 != memcmp(CS->skey.mv_data, client->key, CS->n)) {
+                        break;
+                    }
+                    client_send_key(EV_A_ client
+                            , client->command
+                            , (char*)CS->skey.mv_data, (int)CS->skey.mv_size
+                            , (char*)CS->svalue.mv_data, (int)CS->svalue.mv_size);
+                    ccrReturn(ctx, ccr_error_ok);
+                    rc = mdb_cursor_get(CS->cursor, &CS->skey, &CS->svalue, MDB_NEXT);
                 }
-                if(0 != memcmp(CS->skey.mv_data, client->key, CS->n)) {
-                    break;
-                }
+            }
+        } else {
+            //list __all__ implement
+            while ((rc = mdb_cursor_get(CS->cursor, &CS->skey, &CS->svalue, MDB_NEXT)) == 0) {
                 client_send_key(EV_A_ client
                         , client->command
                         , (char*)CS->skey.mv_data, (int)CS->skey.mv_size
                         , (char*)CS->svalue.mv_data, (int)CS->svalue.mv_size);
                 ccrReturn(ctx, ccr_error_ok);
-                rc = mdb_cursor_get(CS->cursor, &CS->skey, &CS->svalue, MDB_NEXT);
             }
         }
         if(NULL != CS->cursor) {
@@ -519,6 +540,7 @@ static int client_run_command(EV_P_ skipd_client* client)
         dkey.mv_size = strlen(client->key);
 
         begin_write(EV_A_ client);
+        commit_log(client->server, 0, dkey.mv_data, dkey.mv_size, NULL, 0); 
         mdb_del(client->server->wtx, client->server->dbi, &dkey, NULL);
         end_write(EV_A_ client);
 
@@ -570,6 +592,7 @@ static int client_run_command(EV_P_ skipd_client* client)
         dvalue.mv_size = strlen(static_buffer);
 
         begin_write(EV_A_ client);
+        commit_log(client->server, 1, dkey.mv_data, dkey.mv_size, dvalue.mv_data, dvalue.mv_size); 
         mdb_put(client->server->wtx, client->server->dbi, &dkey, &dvalue, 0);
         end_write(EV_A_ client);
 
@@ -784,9 +807,14 @@ int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path, int max_que
 static int server_open(skipd_server* server) {
     int rc = 0;
     struct stat st = {0};
+    char *lmdb_path = "/tmp/.skipd";
     if(stat(server->db_path, &st) == -1) {
         fprintf(stderr, "create db_path\n");
         mkdir(server->db_path, 0700);
+    }
+    if(stat(lmdb_path, &st) == -1) {
+        fprintf(stderr, "create lmdb\n");
+        mkdir(lmdb_path, 0700);
     }
     if(MDB_SUCCESS != mdb_env_create(&server->env)) {
         return -1;
@@ -797,12 +825,18 @@ static int server_open(skipd_server* server) {
     if(MDB_SUCCESS != mdb_env_set_mapsize(server->env, 4*1024*1024)) {
         return -3;
     }
-    if(MDB_SUCCESS != (rc = mdb_env_open(server->env, server->db_path, MDB_CREATE|MDB_FIXEDMAP|MDB_WRITEMAP|MDB_NOSYNC, 0664))) {
+    if(MDB_SUCCESS != (rc = mdb_env_open(server->env, lmdb_path, MDB_CREATE|MDB_FIXEDMAP|MDB_WRITEMAP|MDB_NOSYNC, 0664))) {
         return -rc;
     }
     mdb_txn_begin(server->env, NULL, 0, &server->wtx);
     mdb_dbi_open(server->wtx, NULL, 0, &server->dbi);
     mdb_set_compare(server->wtx, server->dbi, mdb_cmp_prefix);
+
+    if(0 != (rc = commit_create(server))) {
+        return rc;
+    }
+    //do once flush
+    db_flush(server);
 
     return 0;
 }
@@ -841,7 +875,7 @@ static void begin_write(EV_P_ skipd_client* client) {
     skipd_server *server = client->server;
 
     //make a flush
-    if(server->writing >= 500) {
+    if(server->writing >= 200) {
         db_flush(server);
     }
 
@@ -852,6 +886,13 @@ static void begin_write(EV_P_ skipd_client* client) {
             server->cache_rtx = NULL;
         }
         mdb_txn_begin(server->env, NULL, 0, &server->wtx);
+        sqlite3_exec(server->sqlite_db, "BEGIN TRANSACTION", NULL, NULL, NULL);
+
+        char sql[1024];
+        snprintf(sql, sizeof(sql), "INSERT INTO data_%d (st, k, v) VALUES (?1, ?2, ?3);", server->data_num);
+        if(SQLITE_OK != sqlite3_prepare_v2(server->sqlite_db, sql, -1, &server->stmt, NULL)) {
+            fprintf(stderr, "ERROR prepare data: %s\n", sqlite3_errmsg(server->sqlite_db));
+        }
     }
     server->writing++;
 }
@@ -897,6 +938,10 @@ static void server_sync_tick(EV_P_ ev_timer *w, int revents) {
     if(NULL != server->wtx) {
         db_flush(server);
     }
+    if(server->dirty > 1500) {
+        fprintf(stderr, "dirty=%d flush\n", server->dirty);
+        commit_flush(server);
+    }
 }
 
 static int check_dbpath(skipd_server* server)
@@ -939,7 +984,7 @@ int main(int argc, char **argv)
 
 #if 1
     strcpy(server->pid_path, "/tmp/.skipd_pid");
-    strcpy(server->db_path, "/tmp/.skdb");
+    strcpy(server->db_path, "/jffs/db");
     daemon = 1;
 #endif
 
@@ -1019,6 +1064,7 @@ int main(int argc, char **argv)
     }
     mdb_dbi_close(server->env, server->dbi);
     mdb_env_close(server->env);
+    sqlite3_close(server->sqlite_db);
     //skipd_log(SKIPD_DEBUG, "skipd exited\n");
 
     // TODO free the ev

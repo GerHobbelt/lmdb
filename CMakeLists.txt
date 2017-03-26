@@ -57,8 +57,8 @@ SET_TARGET_PROPERTIES(mtest6  PROPERTIES COMPILE_FLAGS " -DMDB_DEBUG=1 ")
 ADD_EXECUTABLE(test ./tests/test.c)
 TARGET_LINK_LIBRARIES(test lmdb pthread m ${LIBEV_LIBRARIES})
 
-ADD_EXECUTABLE(skipd ${LMDB_SRC} mgr/skipd.c mgr/daemonize.c)
-TARGET_LINK_LIBRARIES(skipd pthread m ${LIBEV_LIBRARIES})
+ADD_EXECUTABLE(skipd ${LMDB_SRC} sqlite/sqlite3.c mgr/skipd.c mgr/commit_log.c mgr/daemonize.c)
+TARGET_LINK_LIBRARIES(skipd pthread m dl ${LIBEV_LIBRARIES})
 SET_TARGET_PROPERTIES(skipd PROPERTIES COMPILE_FLAGS " -DMDB_USE_SYSV_SEM ")
 
 ADD_EXECUTABLE(dbus mgr/dbus.c)

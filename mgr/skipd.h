@@ -4,6 +4,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <errno.h>  // errno
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/un.h>
 #include <ev.h>
 #include <lmdb.h>
 #include <sqlite3.h>
@@ -80,6 +87,8 @@ typedef struct _skipd_server {
     // jffs2 not support mmap, so must use sqlite to save the commit log
     // then replay the commit log to LMDB
     sqlite3 *sqlite_db; 
+    sqlite3_stmt *stmt;
+    int data_num;
     int dirty;
 
     int daemon;
