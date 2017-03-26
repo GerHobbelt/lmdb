@@ -816,6 +816,8 @@ static int server_open(skipd_server* server) {
         fprintf(stderr, "create lmdb\n");
         mkdir(lmdb_path, 0700);
     }
+    unlink("/tmp/.skipd/data.mdb");
+    unlink("/tmp/.skipd/lock.mdb");
     if(MDB_SUCCESS != mdb_env_create(&server->env)) {
         return -1;
     }
