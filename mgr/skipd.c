@@ -23,6 +23,8 @@
 
 #include "coroutine.h"
 #include "skipd.h"
+#define SWITCH_FLUSH 20000
+#define COMMIT_CNT 200
 
 enum ccr_break_state {
     ccr_break_continue = 0,
@@ -877,7 +879,7 @@ static void begin_write(EV_P_ skipd_client* client) {
     skipd_server *server = client->server;
 
     //make a flush
-    if(server->writing >= 200) {
+    if(server->writing >= COMMIT_CNT) {
         db_flush(server);
     }
 
@@ -940,7 +942,7 @@ static void server_sync_tick(EV_P_ ev_timer *w, int revents) {
     if(NULL != server->wtx) {
         db_flush(server);
     }
-    if(server->dirty > 1500) {
+    if(server->dirty > SWITCH_FLUSH) {
         fprintf(stderr, "dirty=%d flush\n", server->dirty);
         commit_flush(server);
     }
@@ -987,7 +989,6 @@ int main(int argc, char **argv)
 #if 1
     strcpy(server->pid_path, "/tmp/.skipd_pid");
     strcpy(server->db_path, "/jffs/db");
-    daemon = 1;
 #endif
 
     while (n >= 0) {
@@ -998,7 +999,7 @@ int main(int argc, char **argv)
             case 'D':
                 //TODO fix me if optarg is bigger than PATH_MAX
                 //strcpy(server->pid_path, optarg);
-                daemon = 0;
+                daemon = 1;
                 break;
             case 'd':
                 strcpy(server->db_path, optarg);
@@ -1039,7 +1040,7 @@ int main(int argc, char **argv)
         exit(1);
     }
     if (f1.l_type == F_WRLCK) {
-        printf("Process %ld has a write lock already!\n", f1.l_pid);
+        skipd_log(SKIPD_DEBUG, "Process %ld has a write lock already!\n", (long)f1.l_pid);
         exit(1);
     } else {
         fcntl(pid_file, F_SETLK, &f2);
