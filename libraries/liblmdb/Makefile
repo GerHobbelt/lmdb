@@ -39,8 +39,8 @@ mandir = $(datarootdir)/man
 
 IHDRS	= lmdb.h
 ILIBS	= liblmdb.a liblmdb$(SOEXT)
-IPROGS	= mdb_stat mdb_copy mdb_dump mdb_load
-IDOCS	= mdb_stat.1 mdb_copy.1 mdb_dump.1 mdb_load.1
+IPROGS	= mdb_stat mdb_copy mdb_dump mdb_load mdb_from_db
+IDOCS	= mdb_stat.1 mdb_copy.1 mdb_dump.1 mdb_load.1 mdb_from_db.1
 PROGS	= $(IPROGS) mtest mtest2 mtest3 mtest4 mtest5
 all:	$(ILIBS) $(PROGS)
 
@@ -65,13 +65,15 @@ liblmdb.a:	mdb.o midl.o
 	$(AR) rs $@ mdb.o midl.o
 
 liblmdb$(SOEXT):	mdb.lo midl.lo
-#	$(CC) $(LDFLAGS) -pthread -shared -Wl,-Bsymbolic -o $@ mdb.o midl.o $(SOLIBS)
-	$(CC) $(LDFLAGS) -pthread -shared -o $@ mdb.lo midl.lo $(SOLIBS)
+#	$(CC) $(LDFLAGS) $(THREADS) -shared -Wl,-Bsymbolic -o $@ mdb.o midl.o $(SOLIBS)
+	$(CC) $(LDFLAGS) $(THREADS) -shared -o $@ mdb.lo midl.lo $(SOLIBS)
 
 mdb_stat: mdb_stat.o liblmdb.a
 mdb_copy: mdb_copy.o liblmdb.a
 mdb_dump: mdb_dump.o liblmdb.a
 mdb_load: mdb_load.o liblmdb.a
+mdb_from_db: mdb_from_db.o liblmdb.a
+	$(CC) $(THREADS) $(LDFLAGS) -ldb $^ $(LDLIBS) -o $@
 mtest:    mtest.o    liblmdb.a
 mtest2:	mtest2.o liblmdb.a
 mtest3:	mtest3.o liblmdb.a
@@ -102,13 +104,13 @@ COV_OBJS=xmdb.o xmidl.o
 
 coverage: xmtest
 	for i in mtest*.c [0-9]*.c; do j=`basename \$$i .c`; $(MAKE) $$j.o; \
-		gcc -o x$$j $$j.o $(COV_OBJS) -pthread $(COV_FLAGS); \
+		gcc -o x$$j $$j.o $(COV_OBJS) $(THREADS) $(COV_FLAGS); \
 		rm -rf testdb; mkdir testdb; ./x$$j; done
 	gcov xmdb.c
 	gcov xmidl.c
 
 xmtest:	mtest.o xmdb.o xmidl.o
-	gcc -o xmtest mtest.o xmdb.o xmidl.o -pthread $(COV_FLAGS)
+	gcc -o xmtest mtest.o xmdb.o xmidl.o $(THREADS) $(COV_FLAGS)
 
 xmdb.o: mdb.c lmdb.h midl.h
 	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -O0 $(COV_FLAGS) -c mdb.c -o $@
