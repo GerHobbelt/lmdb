@@ -39,6 +39,8 @@
 #define _FILE_OFFSET_BITS	64
 #endif
 #ifdef _WIN32
+#pragma warning ( disable : 4146 )
+#pragma warning ( disable : 4996 )
 #include <malloc.h>
 #include <windows.h>
 #include <wchar.h>				/* get wcscpy() */
