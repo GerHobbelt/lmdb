@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
 			goto env_close;
 		}
 
-		rc = mdb_open(txn, subname, flags|MDB_CREATE, &dbi);
+		rc = mdb_open(txn, subname, flags|MDB_CREATE|MDB_INTEGERKEY, &dbi);
 		if (rc) {
 			fprintf(stderr, "mdb_open failed, error %d %s\n", rc, mdb_strerror(rc));
 			goto txn_abort;
