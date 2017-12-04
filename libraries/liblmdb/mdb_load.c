@@ -16,7 +16,7 @@
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
-#include <unistd.h>
+#include "unistd.h"
 #include "lmdb.h"
 
 #define PRINT	1
