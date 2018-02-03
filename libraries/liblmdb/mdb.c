@@ -620,7 +620,7 @@ static txnid_t mdb_debug_start;
 	 *	There's nothing special about this value other than that it is easily
 	 *	recognizable, and it will reflect any byte order mismatches.
 	 */
-#define MDB_MAGIC	 0xBEEFC0DE
+#define MDB_MAGIC	 0x4A4C4D4E
 
 	/**	The version number for a database's datafile format. */
 #define MDB_DATA_VERSION	 ((MDB_DEVEL) ? 999 : 1)
