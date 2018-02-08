@@ -1,0 +1,1 @@
+/usr/bin/c++   -g -O0 -fPIC -g   CMakeFiles/imgDB.dir/main.cpp.o CMakeFiles/imgDB.dir/lmdb/mdb.c.o CMakeFiles/imgDB.dir/lmdb/midl.c.o  -o ../bin/imgDB -lopencv_contrib -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_ml -lopencv_objdetect -lpthread 

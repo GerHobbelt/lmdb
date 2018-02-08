@@ -1,0 +1,30 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../lmdb/lmdb.h
+sys/types.h
+-
+inttypes.h
+-
+limits.h
+-
+
+/home/devin/MyHiGit/lmdb/myLmdb/main.cpp
+stdio.h
+-
+sys/stat.h
+-
+dirent.h
+-
+iostream
+-
+opencv2/opencv.hpp
+/home/devin/MyHiGit/lmdb/myLmdb/opencv2/opencv.hpp
+lmdb.h
+/home/devin/MyHiGit/lmdb/myLmdb/lmdb.h
+
