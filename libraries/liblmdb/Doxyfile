@@ -582,7 +582,7 @@ WARN_LOGFILE           =
 # directories like "/usr/src/myproject". Separate the files or directories
 # with spaces.
 
-INPUT                  = lmdb.h midl.h mdb.c midl.c intro.doc
+INPUT                  = rzdb.h midl.h rxdb.c midl.c intro.doc
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding, which is
@@ -1292,13 +1292,13 @@ GENERATE_AUTOGEN_DEF   = NO
 # feature is still experimental and incomplete at the
 # moment.
 
-GENERATE_PERLMOD       = NO
+GENERATE_PERLMOD       = YES
 
 # If the PERLMOD_LATEX tag is set to YES Doxygen will generate
 # the necessary Makefile rules, Perl scripts and LaTeX code to be able
 # to generate PDF and DVI output from the Perl module output.
 
-PERLMOD_LATEX          = NO
+PERLMOD_LATEX          = YES
 
 # If the PERLMOD_PRETTY tag is set to YES the Perl module output will be
 # nicely formatted so it can be parsed by a human reader.

@@ -18,7 +18,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <signal.h>
-#include "lmdb.h"
+#include "rzdb.h"
 
 #define Yu	MDB_PRIy(u)
 

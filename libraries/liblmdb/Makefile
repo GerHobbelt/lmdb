@@ -1,4 +1,4 @@
-# Makefile for liblmdb (Lightning memory-mapped database library).
+# Makefile for liblrzdb (Lightning memory-mapped database library).
 
 ########################################################################
 # Configuration. The compiler options must enable threaded compilation.
@@ -6,7 +6,7 @@
 # Preprocessor macros (for CPPFLAGS) of interest...
 # Note that the defaults should already be correct for most
 # platforms; you should not need to change any of these.
-# Read their descriptions in mdb.c if you do:
+# Read their descriptions in rzdb.c if you do:
 #
 # - MDB_USE_POSIX_MUTEX, MDB_USE_POSIX_SEM, MDB_USE_SYSV_SEM
 # - MDB_DSYNC
@@ -15,8 +15,8 @@
 # - MDB_USE_PWRITEV
 # - MDB_USE_ROBUST
 #
-# There may be other macros in mdb.c of interest. You should
-# read mdb.c before changing any of them.
+# There may be other macros in rzdb.c of interest. You should
+# read rzdb.c before changing any of them.
 #
 CC	= gcc
 AR	= ar
@@ -37,11 +37,11 @@ mandir = $(datarootdir)/man
 
 ########################################################################
 
-LIBNAME = liblmdb
-IHDRS	= lmdb.h
+LIBNAME = librzdb
+IHDRS	= rzdb.h
 ILIBS	= $(LIBNAME).a $(LIBNAME)$(SOEXT)
-IPROGS	= mdb_stat mdb_copy mdb_dump mdb_load mdb_drop 
-IDOCS	= mdb_stat.1 mdb_copy.1 mdb_dump.1 mdb_load.1 mdb_drop.1
+IPROGS	= rzdb_stat rzdb_copy rzdb_dump rzdb_load rzdb_drop
+IDOCS	= rzdb_stat.1 rzdb_copy.1 rzdb_dump.1 rzdb_load.1
 PROGS	= $(IPROGS) mtest mtest2 mtest3 mtest4 mtest5
 all:	$(ILIBS) $(PROGS)
 
@@ -60,19 +60,19 @@ clean:
 
 test:	all
 	rm -rf testdb && mkdir testdb
-	./mtest && ./mdb_stat testdb
+	./mtest && ./rzdb_stat testdb
 
-$(LIBNAME).a:	mdb.o midl.o
-	$(AR) rs $@ mdb.o midl.o
+$(LIBNAME).a:	rzdb.o midl.o
+	$(AR) rs $@ rzdb.o midl.o
 
-$(LIBNAME)$(SOEXT):	mdb.lo midl.lo
-#	$(CC) $(LDFLAGS) -pthread -shared -Wl,-Bsymbolic -o $@ mdb.o midl.o $(SOLIBS)
-	$(CC) $(LDFLAGS) -pthread -shared -o $@ mdb.lo midl.lo $(SOLIBS)
+$(LIBNAME)$(SOEXT):	rzdb.lo midl.lo
+#	$(CC) $(LDFLAGS) -pthread -shared -Wl,-Bsymbolic -o $@ rzdb.o midl.o $(SOLIBS)
+	$(CC) $(LDFLAGS) -pthread -shared -o $@ rzdb.lo midl.lo $(SOLIBS)
 
-mdb_stat: mdb_stat.o $(LIBNAME).a
-mdb_copy: mdb_copy.o $(LIBNAME).a
-mdb_dump: mdb_dump.o $(LIBNAME).a
-mdb_load: mdb_load.o $(LIBNAME).a
+rzdb_stat: rzdb_stat.o $(LIBNAME).a
+rzdb_copy: rzdb_copy.o $(LIBNAME).a
+rzdb_dump: rzdb_dump.o $(LIBNAME).a
+rzdb_load: rzdb_load.o $(LIBNAME).a
 mtest:    mtest.o    $(LIBNAME).a
 mdb_drop: mdb_drop.o $(LIBNAME).a
 mtest2:	mtest2.o $(LIBNAME).a
@@ -81,14 +81,14 @@ mtest4:	mtest4.o $(LIBNAME).a
 mtest5:	mtest5.o $(LIBNAME).a
 mtest6:	mtest6.o $(LIBNAME).a
 
-mdb.o: mdb.c lmdb.h midl.h
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c mdb.c
+rzdb.o: rzdb.c rzdb.h midl.h
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c rzdb.c
 
 midl.o: midl.c midl.h
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c midl.c
 
-mdb.lo: mdb.c lmdb.h midl.h
-	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -c mdb.c -o $@
+rzdb.lo: rzdb.c rzdb.h midl.h
+	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -c rzdb.c -o $@
 
 midl.lo: midl.c midl.h
 	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -c midl.c -o $@
@@ -96,24 +96,24 @@ midl.lo: midl.c midl.h
 %:	%.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
-%.o:	%.c lmdb.h
+%.o:	%.c rzdb.h
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
 
 COV_FLAGS=-fprofile-arcs -ftest-coverage
-COV_OBJS=xmdb.o xmidl.o
+COV_OBJS=xrzdb.o xmidl.o
 
 coverage: xmtest
 	for i in mtest*.c [0-9]*.c; do j=`basename \$$i .c`; $(MAKE) $$j.o; \
 		gcc -o x$$j $$j.o $(COV_OBJS) -pthread $(COV_FLAGS); \
 		rm -rf testdb; mkdir testdb; ./x$$j; done
-	gcov xmdb.c
+	gcov xrzdb.c
 	gcov xmidl.c
 
-xmtest:	mtest.o xmdb.o xmidl.o
-	gcc -o xmtest mtest.o xmdb.o xmidl.o -pthread $(COV_FLAGS)
+xmtest:	mtest.o xrzdb.o xmidl.o
+	gcc -o xmtest mtest.o xrzdb.o xmidl.o -pthread $(COV_FLAGS)
 
-xmdb.o: mdb.c lmdb.h midl.h
-	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -O0 $(COV_FLAGS) -c mdb.c -o $@
+xrzdb.o: rzdb.c rzdb.h midl.h
+	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -O0 $(COV_FLAGS) -c rzdb.c -o $@
 
 xmidl.o: midl.c midl.h
 	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -O0 $(COV_FLAGS) -c midl.c -o $@

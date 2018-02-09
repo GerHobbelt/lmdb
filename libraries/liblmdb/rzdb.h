@@ -1,4 +1,4 @@
-/** @file lmdb.h
+/** @file rzdb.h
  *	@brief Lightning memory-mapped database library
  *
  *	@mainpage	Lightning Memory-Mapped Database Manager (LMDB)
@@ -344,7 +344,7 @@ typedef void (MDB_rel_func)(MDB_val *item, void *oldptr, void *newptr, void *rel
 	/** use sorted duplicates */
 #define MDB_DUPSORT		0x04
 	/** numeric keys in native byte order, either unsigned int or #mdb_size_t.
-	 *	(lmdb expects 32-bit int <= size_t <= 32/64-bit mdb_size_t.)
+	 *	(rzdb expects 32-bit int <= size_t <= 32/64-bit mdb_size_t.)
 	 *  The keys must all be of the same size. */
 #define MDB_INTEGERKEY	0x08
 	/** with #MDB_DUPSORT, sorted dup items have fixed size */
@@ -966,8 +966,8 @@ void *mdb_env_get_userctx(MDB_env *env);
 typedef void MDB_assert_func(MDB_env *env, const char *msg);
 
 	/** Set or reset the assert() callback of the environment.
-	 * Disabled if liblmdb is buillt with NDEBUG.
-	 * @note This hack should become obsolete as lmdb's error handling matures.
+	 * Disabled if librzdb is buillt with NDEBUG.
+	 * @note This hack should become obsolete as rzdb's error handling matures.
 	 * @param[in] env An environment handle returned by #mdb_env_create().
 	 * @param[in] func An #MDB_assert_func function, or 0.
 	 * @return A non-zero error value on failure and 0 on success.
@@ -1140,7 +1140,7 @@ int  mdb_txn_renew(MDB_txn *txn);
 	 *	<li>#MDB_INTEGERKEY
 	 *		Keys are binary integers in native byte order, either unsigned int
 	 *		or #mdb_size_t, and will be sorted as such.
-	 *		(lmdb expects 32-bit int <= size_t <= 32/64-bit mdb_size_t.)
+	 *		(rzdb expects 32-bit int <= size_t <= 32/64-bit mdb_size_t.)
 	 *		The keys must all be of the same size.
 	 *	<li>#MDB_DUPFIXED
 	 *		This flag may only be used in combination with #MDB_DUPSORT. This option
