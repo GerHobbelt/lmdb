@@ -14,6 +14,8 @@ mdb_dump \- LMDB environment export tool
 [\c
 .BR \-n ]
 [\c
+.BR \-L ]
+[\c
 .BR \-p ]
 [\c
 .BR \-a \ |
@@ -41,6 +43,10 @@ names will be listed, no data will be output.
 .TP
 .BR \-n
 Dump an LMDB database which does not use subdirectories.
+.TP
+.BR \-L
+Dump an LMDB database without any locking. If concurrent access is
+anticipated, the caller must manage all concurrency itself.
 .TP
 .BR \-p
 If characters in either the key or data items are printing characters (as

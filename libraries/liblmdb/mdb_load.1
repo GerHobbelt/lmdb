@@ -12,6 +12,8 @@ mdb_load \- LMDB environment import tool
 [\c
 .BR \-n ]
 [\c
+.BR \-L ]
+[\c
 .BI \-s \ subdb\fR]
 [\c
 .BR \-N ]
@@ -42,6 +44,10 @@ Read from the specified file instead of from the standard input.
 .TP
 .BR \-n
 Load an LMDB database which does not use subdirectories.
+.TP
+.BR \-L
+Load an LMDB database without any locking. If concurrent access is
+anticipated, the caller must manage all concurrency itself.
 .TP
 .BR \-s \ subdb
 Load a specific subdatabase. If no database is specified, data is loaded into the main database.

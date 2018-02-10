@@ -14,6 +14,8 @@ mdb_stat \- LMDB environment status tool
 [\c
 .BR \-n ]
 [\c
+.BR \-L ]
+[\c
 .BR \-r [ r ]]
 [\c
 .BR \-a \ |
@@ -38,6 +40,10 @@ If \fB\-fff\fP is given, display the full list of page IDs in the freelist.
 .TP
 .BR \-n
 Display the status of an LMDB database which does not use subdirectories.
+.TP
+.BR \-L
+Display the status of an LMDB database without any locking. If concurrent
+access is anticipated, the caller must manage all concurrency itself.
 .TP
 .BR \-r
 Display information about the environment reader table.
