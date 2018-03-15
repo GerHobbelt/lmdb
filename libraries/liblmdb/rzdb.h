@@ -291,22 +291,6 @@ typedef struct MDB_val {
 /** @brief A callback function used to compare two keys in a database */
 typedef int  (MDB_cmp_func)(const MDB_val *a, const MDB_val *b);
 
-/** @brief A callback function used to relocate a position-dependent data item
- * in a fixed-address database.
- *
- * The \b newptr gives the item's desired address in
- * the memory map, and \b oldptr gives its previous address. The item's actual
- * data resides at the address in \b item.  This callback is expected to walk
- * through the fields of the record in \b item and modify any
- * values based at the \b oldptr address to be relative to the \b newptr address.
- * @param[in,out] item The item that is to be relocated.
- * @param[in] oldptr The previous address.
- * @param[in] newptr The new address to relocate to.
- * @param[in] relctx An application-provided context, set by #mdb_set_relctx().
- * @todo This feature is currently unimplemented.
- */
-typedef void (MDB_rel_func)(MDB_val *item, void *oldptr, void *newptr, void *relctx);
-
 /** @defgroup	mdb_env	Environment Flags
  *	@{
  */
@@ -1265,42 +1249,6 @@ int  mdb_set_compare(MDB_txn *txn, MDB_dbi dbi, MDB_cmp_func *cmp);
 	 * </ul>
 	 */
 int  mdb_set_dupsort(MDB_txn *txn, MDB_dbi dbi, MDB_cmp_func *cmp);
-
-	/** @brief Set a relocation function for a #MDB_FIXEDMAP database.
-	 *
-	 * @todo The relocation function is called whenever it is necessary to move the data
-	 * of an item to a different position in the database (e.g. through tree
-	 * balancing operations, shifts as a result of adds or deletes, etc.). It is
-	 * intended to allow address/position-dependent data items to be stored in
-	 * a database in an environment opened with the #MDB_FIXEDMAP option.
-	 * Currently the relocation feature is unimplemented and setting
-	 * this function has no effect.
-	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
-	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
-	 * @param[in] rel A #MDB_rel_func function
-	 * @return A non-zero error value on failure and 0 on success. Some possible
-	 * errors are:
-	 * <ul>
-	 *	<li>EINVAL - an invalid parameter was specified.
-	 * </ul>
-	 */
-int  mdb_set_relfunc(MDB_txn *txn, MDB_dbi dbi, MDB_rel_func *rel);
-
-	/** @brief Set a context pointer for a #MDB_FIXEDMAP database's relocation function.
-	 *
-	 * See #mdb_set_relfunc and #MDB_rel_func for more details.
-	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
-	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
-	 * @param[in] ctx An arbitrary pointer for whatever the application needs.
-	 * It will be passed to the callback function set by #mdb_set_relfunc
-	 * as its \b relctx parameter whenever the callback is invoked.
-	 * @return A non-zero error value on failure and 0 on success. Some possible
-	 * errors are:
-	 * <ul>
-	 *	<li>EINVAL - an invalid parameter was specified.
-	 * </ul>
-	 */
-int  mdb_set_relctx(MDB_txn *txn, MDB_dbi dbi, void *ctx);
 
 	/** @brief Get items from a database.
 	 *

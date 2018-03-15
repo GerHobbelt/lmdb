@@ -1244,8 +1244,6 @@ typedef struct MDB_dbx {
 	MDB_val		md_name;		/**< name of the database */
 	MDB_cmp_func	*md_cmp;	/**< function for comparing keys */
 	MDB_cmp_func	*md_dcmp;	/**< function for comparing data items */
-	MDB_rel_func	*md_rel;	/**< user relocate function */
-	void		*md_relctx;		/**< user-provided context for md_rel */
 } MDB_dbx;
 
 	/** A database transaction.
@@ -8384,7 +8382,6 @@ mdb_xcursor_init0(MDB_cursor *mc)
 	mx->mx_dbx.md_name.mv_data = NULL;
 	mx->mx_dbx.md_cmp = mc->mc_dbx->md_dcmp;
 	mx->mx_dbx.md_dcmp = NULL;
-	mx->mx_dbx.md_rel = mc->mc_dbx->md_rel;
 }
 
 /** Final setup of a sorted-dups cursor.
@@ -10700,7 +10697,6 @@ int mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *db
 		unsigned int slot = unused ? unused : txn->mt_numdbs;
 		txn->mt_dbxs[slot].md_name.mv_data = namedup;
 		txn->mt_dbxs[slot].md_name.mv_size = len;
-		txn->mt_dbxs[slot].md_rel = NULL;
 		txn->mt_dbflags[slot] = dbflag;
 		/* txn-> and env-> are the same in read txns, use
 		 * tmp variable to avoid undefined assignment
@@ -10934,24 +10930,6 @@ int mdb_set_dupsort(MDB_txn *txn, MDB_dbi dbi, MDB_cmp_func *cmp)
 		return EINVAL;
 
 	txn->mt_dbxs[dbi].md_dcmp = cmp;
-	return MDB_SUCCESS;
-}
-
-int mdb_set_relfunc(MDB_txn *txn, MDB_dbi dbi, MDB_rel_func *rel)
-{
-	if (!TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
-		return EINVAL;
-
-	txn->mt_dbxs[dbi].md_rel = rel;
-	return MDB_SUCCESS;
-}
-
-int mdb_set_relctx(MDB_txn *txn, MDB_dbi dbi, void *ctx)
-{
-	if (!TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
-		return EINVAL;
-
-	txn->mt_dbxs[dbi].md_relctx = ctx;
 	return MDB_SUCCESS;
 }
 
