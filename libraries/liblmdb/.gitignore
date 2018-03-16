@@ -1,10 +1,10 @@
 mtest
 mtest[23456]
 testdb
-mdb_copy
-mdb_stat
-mdb_dump
-mdb_load
+rzdb_copy
+rzdb_stat
+rzdb_dump
+rzdb_load
 *.lo
 *.[ao]
 *.so
