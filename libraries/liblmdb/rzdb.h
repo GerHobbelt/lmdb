@@ -479,6 +479,7 @@ typedef struct MDB_stat {
 	mdb_size_t		ms_leaf_pages;		/**< Number of leaf pages */
 	mdb_size_t		ms_overflow_pages;	/**< Number of overflow pages */
 	mdb_size_t		ms_entries;			/**< Number of data items */
+	uint64_t		ms_seq;				/**< Current sequence */
 } MDB_stat;
 
 /** @brief Information about the environment */
@@ -1153,6 +1154,52 @@ int  mdb_txn_renew(MDB_txn *txn);
 	 * </ul>
 	 */
 int  mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *dbi);
+
+	/** @brief Set a dbi's sequence
+	 *
+	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
+	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
+	 * @param[in] seq The integer to set the sequence too
+	 * @param[out] old The address to store the old sequence number
+	 * @return A non-zero error value on failure and 0 on success.
+     * The errors are:
+	 * <ul>
+	 *	<li>EINVAL - an invalid parameter was specified.
+	 * </ul>
+	 * <ul>
+	 *	<li>MDB_BAD_TXN - Transaction must abort, has a child, or is invalid
+	 * </ul>
+	 * <ul>
+	 *	<li>EACCES - Transaction must abort, has a child, or is invalid
+	 * </ul>
+	 * <ul>
+     *  <li>EACCES - an attempt was made to write in a read-only transaction.
+     * </ul>
+	 */
+int  mdb_dbi_set_seq(MDB_txn *txn, MDB_dbi dbi, uint64_t seq, uint64_t *old);
+
+	/** @brief Increment a dbi's sequence
+	 *
+	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
+	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
+	 * @param[in] incr The signed 64 integer to increment by. If zero it will just retrive the current value
+	 * @param[out] old The address to store the old sequence number
+	 * @return A non-zero error value on failure and 0 on success.
+     * The errors are:
+	 * <ul>
+	 *	<li>EINVAL - an invalid parameter was specified.
+	 * </ul>
+	 * <ul>
+	 *	<li>MDB_BAD_TXN - Transaction must abort, has a child, or is invalid
+	 * </ul>
+	 * <ul>
+	 *	<li>EACCES - Transaction must abort, has a child, or is invalid
+	 * </ul>
+	 * <ul>
+     *  <li>EACCES - an attempt was made to write in a read-only transaction.
+     * </ul>
+	 */
+int  mdb_dbi_incr_seq(MDB_txn *txn, MDB_dbi dbi, int64_t incr, uint64_t *old);
 
 	/** @brief Retrieve statistics for a database.
 	 *

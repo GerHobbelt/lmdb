@@ -1173,6 +1173,7 @@ typedef struct MDB_db {
 	pgno_t		md_overflow_pages;	/**< number of overflow pages */
 	mdb_size_t	md_entries;		/**< number of data items */
 	pgno_t		md_root;		/**< the root page of this tree */
+	uint64_t	md_seq;	    	/**< current sequence */
 } MDB_db;
 
 #define MDB_VALID	0x8000		/**< DB handle is valid, for me_dbflags */
@@ -10542,6 +10543,7 @@ mdb_stat0(MDB_env *env, MDB_db *db, MDB_stat *arg)
 	arg->ms_leaf_pages = db->md_leaf_pages;
 	arg->ms_overflow_pages = db->md_overflow_pages;
 	arg->ms_entries = db->md_entries;
+	arg->ms_seq = db->md_seq;
 
 	return MDB_SUCCESS;
 }
@@ -10911,6 +10913,7 @@ int mdb_drop(MDB_txn *txn, MDB_dbi dbi, int del)
 		txn->mt_dbs[dbi].md_overflow_pages = 0;
 		txn->mt_dbs[dbi].md_entries = 0;
 		txn->mt_dbs[dbi].md_root = P_INVALID;
+		txn->mt_dbs[dbi].md_seq = 0;
 
 		txn->mt_flags |= MDB_TXN_DIRTY;
 	}
@@ -11170,6 +11173,67 @@ mdb_mutex_failed(MDB_env *env, mdb_mutexref_t mutex, int rc)
 	return rc;
 }
 #endif	/* MDB_ROBUST_SUPPORTED */
+
+int
+mdb_dbi_set_seq(MDB_txn *txn, MDB_dbi dbi, uint64_t seq, uint64_t *old)
+{
+	if (txn == NULL)
+		return EINVAL;
+
+	if (!TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
+		return EINVAL;
+
+	if (txn->mt_flags & MDB_TXN_BLOCKED)
+	  return MDB_BAD_TXN;
+
+	if (txn->mt_flags & MDB_TXN_RDONLY)
+	  return EACCES;
+
+	MDB_db *dbs = &txn->mt_dbs[dbi];
+
+	if (old != NULL)
+		*old = dbs->md_seq;
+
+	dbs->md_seq = seq;
+	txn->mt_flags |= MDB_TXN_DIRTY;
+	txn->mt_dbflags[dbi] |= DB_DIRTY;
+
+	return MDB_SUCCESS;
+}
+
+int
+mdb_dbi_inc_seq(MDB_txn *txn, MDB_dbi dbi, int64_t incr, uint64_t *old)
+{
+	uint64_t seq;
+	MDB_db *dbs;
+	if (txn == NULL)
+		return EINVAL;
+
+	if (incr == 0 && result == NULL)
+		return EINVAL;
+
+	if (!TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
+		return EINVAL;
+
+	dbs = &txn->mt_dbs[dbi];
+	seq = dbs->md_seq;
+	if (incr != 0) {
+		if (txn->mt_flags & MDB_TXN_BLOCKED)
+		  return MDB_BAD_TXN;
+
+		if (txn->mt_flags & MDB_TXN_RDONLY)
+		  return EACCES;
+
+		dbs->md_seq += incr;
+		txn->mt_flags |= MDB_TXN_DIRTY;
+		txn->mt_dbflags[dbi] |= DB_DIRTY;
+	}
+
+	if (old != NULL)
+		*old = seq;
+
+	return MDB_SUCCESS;
+}
 
 #if defined(_WIN32)
 /** Convert \b src to new wchar_t[] string with room for \b xtra extra chars */
