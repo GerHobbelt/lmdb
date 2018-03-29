@@ -52,31 +52,31 @@
  * NTDLL.DLL at runtime, to avoid buildtime dependencies on any
  * NTDLL import libraries.
  */
-typedef NTSTATUS WINAPI (NtCreateSectionFunc)
+typedef NTSTATUS (WINAPI* NtCreateSectionFunc)
   (OUT PHANDLE sh, IN ACCESS_MASK acc,
   IN void * oa OPTIONAL,
   IN PLARGE_INTEGER ms OPTIONAL,
   IN ULONG pp, IN ULONG aa, IN HANDLE fh OPTIONAL);
 
-static NtCreateSectionFunc *NtCreateSection;
+static NtCreateSectionFunc NtCreateSection;
 
 typedef enum _SECTION_INHERIT {
 	ViewShare = 1,
 	ViewUnmap = 2
 } SECTION_INHERIT;
 
-typedef NTSTATUS WINAPI (NtMapViewOfSectionFunc)
+typedef NTSTATUS (WINAPI* NtMapViewOfSectionFunc)
   (IN PHANDLE sh, IN HANDLE ph,
   IN OUT PVOID *addr, IN ULONG_PTR zbits,
   IN SIZE_T cs, IN OUT PLARGE_INTEGER off OPTIONAL,
   IN OUT PSIZE_T vs, IN SECTION_INHERIT ih,
   IN ULONG at, IN ULONG pp);
 
-static NtMapViewOfSectionFunc *NtMapViewOfSection;
+static NtMapViewOfSectionFunc NtMapViewOfSection;
 
-typedef NTSTATUS WINAPI (NtCloseFunc)(HANDLE h);
+typedef NTSTATUS (WINAPI* NtCloseFunc)(HANDLE h);
 
-static NtCloseFunc *NtClose;
+static NtCloseFunc NtClose;
 
 /** getpid() returns int; MinGW defines pid_t but MinGW64 typedefs it
  *  as int64 which is wrong. MSVC doesn't define it at all, so just
@@ -4701,13 +4701,13 @@ mdb_env_open2(MDB_env *env, int prev)
 		HMODULE h = GetModuleHandle("NTDLL.DLL");
 		if (!h)
 			return MDB_PROBLEM;
-		NtClose = (NtCloseFunc *)GetProcAddress(h, "NtClose");
+		NtClose = (NtCloseFunc)GetProcAddress(h, "NtClose");
 		if (!NtClose)
 			return MDB_PROBLEM;
-		NtMapViewOfSection = (NtMapViewOfSectionFunc *)GetProcAddress(h, "NtMapViewOfSection");
+		NtMapViewOfSection = (NtMapViewOfSectionFunc)GetProcAddress(h, "NtMapViewOfSection");
 		if (!NtMapViewOfSection)
 			return MDB_PROBLEM;
-		NtCreateSection = (NtCreateSectionFunc *)GetProcAddress(h, "NtCreateSection");
+		NtCreateSection = (NtCreateSectionFunc)GetProcAddress(h, "NtCreateSection");
 		if (!NtCreateSection)
 			return MDB_PROBLEM;
 	}
