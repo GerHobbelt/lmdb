@@ -51,15 +51,19 @@
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="lmdb.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="lmdb.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="lmdb.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="lmdb.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -109,11 +113,43 @@
     <ClCompile>
       <ProgramDataBaseFileName>$(IntDir)lib$(ProjectName).pdb</ProgramDataBaseFileName>
     </ClCompile>
+    <PostBuildEvent>
+      <Command>mkdir $(InstallRoot)\bin
+mkdir $(InstallRoot)\lib
+mkdir $(InstallRoot)\include
+
+for /f "usebackq delims=|" %%f in (`dir /b "$(Platform)\$(Configuration)\*.dll"`) do (
+  xcopy /d /y $(Platform)\$(Configuration)\%%f  $(InstallRoot)\bin
+)
+
+for /f "usebackq delims=|" %%f in (`dir /b "$(Platform)\$(Configuration)\*.lib"`) do (
+  xcopy /d /y $(Platform)\$(Configuration)\%%~nf.lib  $(InstallRoot)\lib
+  xcopy /d /y /c $(Platform)\$(Configuration)\%%~nf.pdb  $(InstallRoot)\lib
+)
+
+xcopy /d /y libraries\liblmdb\lmdb.h $(InstallRoot)\include\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <ProgramDataBaseFileName>$(IntDir)lib$(ProjectName)d.pdb</ProgramDataBaseFileName>
     </ClCompile>
+    <PostBuildEvent>
+      <Command>mkdir $(InstallRoot)\bin
+mkdir $(InstallRoot)\lib
+mkdir $(InstallRoot)\include
+
+for /f "usebackq delims=|" %%f in (`dir /b "$(Platform)\$(Configuration)\*.dll"`) do (
+  xcopy /d /y $(Platform)\$(Configuration)\%%f  $(InstallRoot)\bin
+)
+
+for /f "usebackq delims=|" %%f in (`dir /b "$(Platform)\$(Configuration)\*.lib"`) do (
+  xcopy /d /y $(Platform)\$(Configuration)\%%~nf.lib  $(InstallRoot)\lib
+  xcopy /d /y /c $(Platform)\$(Configuration)\%%~nf.pdb  $(InstallRoot)\lib
+)
+
+xcopy /d /y libraries\liblmdb\lmdb.h $(InstallRoot)\include\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="libraries\liblmdb\mdb.c" />
