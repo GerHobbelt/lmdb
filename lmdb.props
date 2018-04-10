@@ -4,8 +4,29 @@
   <PropertyGroup Label="UserMacros">
     <InstallRoot>..\..\msvc\$(Platform)</InstallRoot>
   </PropertyGroup>
-  <PropertyGroup />
-  <ItemDefinitionGroup />
+  <PropertyGroup>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <PostBuildEvent>
+      <Command>mkdir $(InstallRoot)\bin
+mkdir $(InstallRoot)\lib
+mkdir $(InstallRoot)\include
+
+for /f "usebackq delims=|" %%f in (`dir /b "$(Platform)\$(Configuration)\*.dll"`) do (
+  xcopy /d /y $(Platform)\$(Configuration)\%%f  $(InstallRoot)\bin
+)
+
+for /f "usebackq delims=|" %%f in (`dir /b "$(Platform)\$(Configuration)\*.lib"`) do (
+  xcopy /d /y $(Platform)\$(Configuration)\%%~nf.lib  $(InstallRoot)\lib
+  xcopy /d /y /c $(Platform)\$(Configuration)\%%~nf.pdb  $(InstallRoot)\lib
+)
+
+xcopy /d /y libraries\liblmdb\lmdb.h $(InstallRoot)\include\
+</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <BuildMacro Include="InstallRoot">
       <Value>$(InstallRoot)</Value>
