@@ -1,4 +1,8 @@
 # LMDB for Visual Studio
 
-To compile just compile. Binaries and headers will be installed to **..\\..\\msvc\\$(Platform)**.
+To compile just compile.
+
+lmdb.props has next settings by default:
+Install target installs binaries and headers to **..\\..\\msvc\\$(Platform)**.
 Debug binaries have **d** suffix.
+You can try to override them with **/p** msbuild option or via property manager.
