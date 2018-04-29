@@ -3,7 +3,7 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros">
     <InstallRoot>..\..\msvc\$(Platform)</InstallRoot>
-    <DebugSuffix>d</DebugSuffix>
+    <DebugPostfix>d</DebugPostfix>
   </PropertyGroup>
   <PropertyGroup>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
@@ -19,8 +19,8 @@
     <BuildMacro Include="InstallRoot">
       <Value>$(InstallRoot)</Value>
     </BuildMacro>
-    <BuildMacro Include="DebugSuffix">
-      <Value>$(DebugSuffix)</Value>
+    <BuildMacro Include="DebugPostfix">
+      <Value>$(DebugPostfix)</Value>
     </BuildMacro>
   </ItemGroup>
 </Project>
