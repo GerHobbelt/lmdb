@@ -775,6 +775,14 @@ int  mdb_env_sync(MDB_env *env, int force);
 	 */
 void mdb_env_close(MDB_env *env);
 
+	/** @brief Clear the environment's page cacge
+	 *
+	 * Only a single thread may call this function. All write transactions
+	 * must be closed before calling this function.
+	 * @param[in] env An environment handle returned by #mdb_env_create()
+	 */
+void mdb_env_clear_page_cache(MDB_env *env);
+
 	/** @brief Set environment flags.
 	 *
 	 * This may be used to set some flags in addition to those from

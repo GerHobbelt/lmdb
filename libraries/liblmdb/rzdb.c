@@ -5685,14 +5685,25 @@ mdb_env_close(MDB_env *env)
 		return;
 
 	VGMEMP_DESTROY(env);
+    mdb_env_clear_page_cache(env)
+	mdb_env_close0(env, 0);
+	free(env);
+}
+
+void ESECT
+mdb_env_clear_page_cache(MDB_env *env)
+{
+	MDB_page *dp;
+
+	if (env == NULL)
+		return;
+
 	while ((dp = env->me_dpages) != NULL) {
 		VGMEMP_DEFINED(&dp->mp_next, sizeof(dp->mp_next));
 		env->me_dpages = dp->mp_next;
 		free(dp);
 	}
 
-	mdb_env_close0(env, 0);
-	free(env);
 }
 
 /** Compare two items pointing at aligned #mdb_size_t's */
