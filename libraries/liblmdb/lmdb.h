@@ -1553,6 +1553,19 @@ int  mdb_cursor_put(MDB_cursor *cursor, MDB_val *key, MDB_val *data,
 	/** @brief Delete current key/data pair
 	 *
 	 * This function deletes the key/data pair to which the cursor refers.
+	 * This does not invalidate the cursor, so operations such as MDB_NEXT
+	 * can still be used on it.
+	 * Quoting Howard Chu in http://www.openldap.org/lists/openldap-devel/201502/msg00028.html
+	 * After a cursor_del, the cursor's position is unchanged - it points to the
+	 * same page and node slot as it did before. But, since the node it pointed to
+	 * was deleted, the actual data it points to changes. I.e., all nodes in the
+	 * page are moved down 1 slot to occupy the vacated slot, so it points to
+	 * whatever was the next item.
+	 * Both MDB_NEXT and MDB_GET_CURRENT will return the same record after cursor_del.
+	 * This simplifies loops where you just want to delete all the records in a range -
+	 * just use MDB_NEXT like any other loop iteration.
+	 * The cursor's actual position can change if the deletion causes a page merge.
+	 * But its relative position in the set of data will still be the same.
 	 * @param[in] cursor A cursor handle returned by #mdb_cursor_open()
 	 * @param[in] flags Options for this operation. This parameter
 	 * must be set to 0 or one of the values described here.
