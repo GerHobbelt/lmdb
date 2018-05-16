@@ -50,6 +50,7 @@ endif()
 if(BUILD_SHARED)
     add_library(lmdb SHARED ${mdb_SRCS})
     set(mdb_TARGETS ${mdb_TARGETS} lmdb)
+    target_link_libraries(lmdb ntdll)
 endif()
 
 if(BUILD_TOOLS)
