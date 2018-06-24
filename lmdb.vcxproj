@@ -120,17 +120,16 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>lib$(ProjectName)$(DebugPostfix)</TargetName>
     <TargetExt>.lib</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugDLL|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>$(ProjectName)$(DebugPostfix)</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>lib$(ProjectName)</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
     <TargetExt>.lib</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseDLL|Win32'">
@@ -140,15 +139,14 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <TargetExt>.lib</TargetExt>
-    <TargetName>lib$(ProjectName)$(DebugPostfix)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugDLL|x64'">
     <TargetExt>.dll</TargetExt>
-    <TargetName>$(ProjectName)$(DebugPostfix)</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetExt>.lib</TargetExt>
-    <TargetName>lib$(ProjectName)</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseDLL|x64'">
     <TargetExt>.dll</TargetExt>
