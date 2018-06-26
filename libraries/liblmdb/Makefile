@@ -74,7 +74,7 @@ rzdb_copy: rzdb_copy.o $(LIBNAME).a
 rzdb_dump: rzdb_dump.o $(LIBNAME).a
 rzdb_load: rzdb_load.o $(LIBNAME).a
 mtest:    mtest.o    $(LIBNAME).a
-mdb_drop: mdb_drop.o $(LIBNAME).a
+rzdb_drop: rzdb_drop.o $(LIBNAME).a
 mtest2:	mtest2.o $(LIBNAME).a
 mtest3:	mtest3.o $(LIBNAME).a
 mtest4:	mtest4.o $(LIBNAME).a
