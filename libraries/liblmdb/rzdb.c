@@ -5679,13 +5679,11 @@ mdb_env_close0(MDB_env *env, int excl)
 void ESECT
 mdb_env_close(MDB_env *env)
 {
-	MDB_page *dp;
-
 	if (env == NULL)
 		return;
 
 	VGMEMP_DESTROY(env);
-    mdb_env_clear_page_cache(env)
+	mdb_env_clear_page_cache(env);
 	mdb_env_close0(env, 0);
 	free(env);
 }
@@ -11220,7 +11218,7 @@ mdb_dbi_inc_seq(MDB_txn *txn, MDB_dbi dbi, int64_t incr, uint64_t *old)
 	if (txn == NULL)
 		return EINVAL;
 
-	if (incr == 0 && result == NULL)
+	if (incr == 0 && old == NULL)
 		return EINVAL;
 
 	if (!TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
