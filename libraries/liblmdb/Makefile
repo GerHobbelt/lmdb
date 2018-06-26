@@ -42,7 +42,7 @@ IHDRS	= rzdb.h
 ILIBS	= $(LIBNAME).a $(LIBNAME)$(SOEXT)
 IPROGS	= rzdb_stat rzdb_copy rzdb_dump rzdb_load rzdb_drop
 IDOCS	= rzdb_stat.1 rzdb_copy.1 rzdb_dump.1 rzdb_load.1
-PROGS	= $(IPROGS) mtest mtest2 mtest3 mtest4 mtest5
+PROGS	= $(IPROGS) rztest rztest2 rztest3 rztest4 rztest5
 all:	$(ILIBS) $(PROGS)
 
 install: $(ILIBS) $(IPROGS) $(IHDRS)
@@ -60,7 +60,7 @@ clean:
 
 test:	all
 	rm -rf testdb && mkdir testdb
-	./mtest && ./rzdb_stat testdb
+	./rztest && ./rzdb_stat testdb
 
 $(LIBNAME).a:	rzdb.o midl.o
 	$(AR) rs $@ rzdb.o midl.o
@@ -73,13 +73,13 @@ rzdb_stat: rzdb_stat.o $(LIBNAME).a
 rzdb_copy: rzdb_copy.o $(LIBNAME).a
 rzdb_dump: rzdb_dump.o $(LIBNAME).a
 rzdb_load: rzdb_load.o $(LIBNAME).a
-mtest:    mtest.o    $(LIBNAME).a
 rzdb_drop: rzdb_drop.o $(LIBNAME).a
-mtest2:	mtest2.o $(LIBNAME).a
-mtest3:	mtest3.o $(LIBNAME).a
-mtest4:	mtest4.o $(LIBNAME).a
-mtest5:	mtest5.o $(LIBNAME).a
-mtest6:	mtest6.o $(LIBNAME).a
+rztest:    rztest.o    $(LIBNAME).a
+rztest2:	rztest2.o $(LIBNAME).a
+rztest3:	rztest3.o $(LIBNAME).a
+rztest4:	rztest4.o $(LIBNAME).a
+rztest5:	rztest5.o $(LIBNAME).a
+rztest6:	rztest6.o $(LIBNAME).a
 
 rzdb.o: rzdb.c rzdb.h midl.h
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c rzdb.c
@@ -102,15 +102,15 @@ midl.lo: midl.c midl.h
 COV_FLAGS=-fprofile-arcs -ftest-coverage
 COV_OBJS=xrzdb.o xmidl.o
 
-coverage: xmtest
-	for i in mtest*.c [0-9]*.c; do j=`basename \$$i .c`; $(MAKE) $$j.o; \
+coverage: xrztest
+	for i in rztest*.c [0-9]*.c; do j=`basename \$$i .c`; $(MAKE) $$j.o; \
 		gcc -o x$$j $$j.o $(COV_OBJS) -pthread $(COV_FLAGS); \
 		rm -rf testdb; mkdir testdb; ./x$$j; done
 	gcov xrzdb.c
 	gcov xmidl.c
 
-xmtest:	mtest.o xrzdb.o xmidl.o
-	gcc -o xmtest mtest.o xrzdb.o xmidl.o -pthread $(COV_FLAGS)
+xrztest:	rztest.o xrzdb.o xmidl.o
+	gcc -o xrztest rztest.o xrzdb.o xmidl.o -pthread $(COV_FLAGS)
 
 xrzdb.o: rzdb.c rzdb.h midl.h
 	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -O0 $(COV_FLAGS) -c rzdb.c -o $@
