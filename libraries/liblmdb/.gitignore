@@ -1,10 +1,11 @@
-mtest
-mtest[23456]
+rztest
+rztest[23456]
 testdb
 rzdb_copy
 rzdb_stat
 rzdb_dump
 rzdb_load
+rzdb_drop
 *.lo
 *.[ao]
 *.so
