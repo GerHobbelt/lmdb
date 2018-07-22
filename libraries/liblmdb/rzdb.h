@@ -242,7 +242,7 @@ typedef int mdb_filehandle_t;
 #define RZDB_VERSION_DATE	"December 19, 2015"
 
 /** A stringifier for the version info */
-#define RZDB_VERSTR(a,b,c,d)	"LMDB " #a "." #b "." #c ": (" d ")"
+#define RZDB_VERSTR(a,b,c,d)	"RZDB " #a "." #b "." #c ": (" d ")"
 
 /** A helper for the stringifier macro */
 #define RZDB_VERFOO(a,b,c,d)	RZDB_VERSTR(a,b,c,d)
