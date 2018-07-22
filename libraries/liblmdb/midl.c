@@ -31,7 +31,7 @@
  */
 #define CMP(x,y)	 ( (x) < (y) ? -1 : (x) > (y) )
 
-unsigned mdb_midl_search( MDB_IDL ids, MDB_ID id )
+unsigned mdb_midl_search( RZDB_IDL ids, RZDB_ID id )
 {
 	/*
 	 * binary search of id in ids
@@ -66,9 +66,9 @@ unsigned mdb_midl_search( MDB_IDL ids, MDB_ID id )
 	return cursor;
 }
 
-MDB_IDL mdb_midl_alloc(int num)
+RZDB_IDL mdb_midl_alloc(int num)
 {
-	MDB_IDL ids = malloc((num+2) * sizeof(MDB_ID));
+	RZDB_IDL ids = malloc((num+2) * sizeof(RZDB_ID));
 	if (ids) {
 		*ids++ = num;
 		*ids = 0;
@@ -76,28 +76,28 @@ MDB_IDL mdb_midl_alloc(int num)
 	return ids;
 }
 
-void mdb_midl_free(MDB_IDL ids)
+void mdb_midl_free(RZDB_IDL ids)
 {
 	if (ids)
 		free(ids-1);
 }
 
-void mdb_midl_shrink( MDB_IDL *idp )
+void mdb_midl_shrink( RZDB_IDL *idp )
 {
-	MDB_IDL ids = *idp;
-	if (*(--ids) > MDB_IDL_UM_MAX &&
-		(ids = realloc(ids, (MDB_IDL_UM_MAX+2) * sizeof(MDB_ID))))
+	RZDB_IDL ids = *idp;
+	if (*(--ids) > RZDB_IDL_UM_MAX &&
+		(ids = realloc(ids, (RZDB_IDL_UM_MAX+2) * sizeof(RZDB_ID))))
 	{
-		*ids++ = MDB_IDL_UM_MAX;
+		*ids++ = RZDB_IDL_UM_MAX;
 		*idp = ids;
 	}
 }
 
-static int mdb_midl_grow( MDB_IDL *idp, int num )
+static int mdb_midl_grow( RZDB_IDL *idp, int num )
 {
-	MDB_IDL idn = *idp-1;
+	RZDB_IDL idn = *idp-1;
 	/* grow it */
-	idn = realloc(idn, (*idn + num + 2) * sizeof(MDB_ID));
+	idn = realloc(idn, (*idn + num + 2) * sizeof(RZDB_ID));
 	if (!idn)
 		return ENOMEM;
 	*idn++ += num;
@@ -105,13 +105,13 @@ static int mdb_midl_grow( MDB_IDL *idp, int num )
 	return 0;
 }
 
-int mdb_midl_need( MDB_IDL *idp, unsigned num )
+int mdb_midl_need( RZDB_IDL *idp, unsigned num )
 {
-	MDB_IDL ids = *idp;
+	RZDB_IDL ids = *idp;
 	num += ids[0];
 	if (num > ids[-1]) {
 		num = (num + num/4 + (256 + 2)) & -256;
-		if (!(ids = realloc(ids-1, num * sizeof(MDB_ID))))
+		if (!(ids = realloc(ids-1, num * sizeof(RZDB_ID))))
 			return ENOMEM;
 		*ids++ = num - 2;
 		*idp = ids;
@@ -119,12 +119,12 @@ int mdb_midl_need( MDB_IDL *idp, unsigned num )
 	return 0;
 }
 
-int mdb_midl_append( MDB_IDL *idp, MDB_ID id )
+int mdb_midl_append( RZDB_IDL *idp, RZDB_ID id )
 {
-	MDB_IDL ids = *idp;
+	RZDB_IDL ids = *idp;
 	/* Too big? */
 	if (ids[0] >= ids[-1]) {
-		if (mdb_midl_grow(idp, MDB_IDL_UM_MAX))
+		if (mdb_midl_grow(idp, RZDB_IDL_UM_MAX))
 			return ENOMEM;
 		ids = *idp;
 	}
@@ -133,26 +133,26 @@ int mdb_midl_append( MDB_IDL *idp, MDB_ID id )
 	return 0;
 }
 
-int mdb_midl_append_list( MDB_IDL *idp, MDB_IDL app )
+int mdb_midl_append_list( RZDB_IDL *idp, RZDB_IDL app )
 {
-	MDB_IDL ids = *idp;
+	RZDB_IDL ids = *idp;
 	/* Too big? */
 	if (ids[0] + app[0] >= ids[-1]) {
 		if (mdb_midl_grow(idp, app[0]))
 			return ENOMEM;
 		ids = *idp;
 	}
-	memcpy(&ids[ids[0]+1], &app[1], app[0] * sizeof(MDB_ID));
+	memcpy(&ids[ids[0]+1], &app[1], app[0] * sizeof(RZDB_ID));
 	ids[0] += app[0];
 	return 0;
 }
 
-int mdb_midl_append_range( MDB_IDL *idp, MDB_ID id, unsigned n )
+int mdb_midl_append_range( RZDB_IDL *idp, RZDB_ID id, unsigned n )
 {
-	MDB_ID *ids = *idp, len = ids[0];
+	RZDB_ID *ids = *idp, len = ids[0];
 	/* Too big? */
 	if (len + n > ids[-1]) {
-		if (mdb_midl_grow(idp, n | MDB_IDL_UM_MAX))
+		if (mdb_midl_grow(idp, n | RZDB_IDL_UM_MAX))
 			return ENOMEM;
 		ids = *idp;
 	}
@@ -163,10 +163,10 @@ int mdb_midl_append_range( MDB_IDL *idp, MDB_ID id, unsigned n )
 	return 0;
 }
 
-void mdb_midl_xmerge( MDB_IDL idl, MDB_IDL merge )
+void mdb_midl_xmerge( RZDB_IDL idl, RZDB_IDL merge )
 {
-	MDB_ID old_id, merge_id, i = merge[0], j = idl[0], k = i+j, total = k;
-	idl[0] = (MDB_ID)-1;		/* delimiter for idl scan below */
+	RZDB_ID old_id, merge_id, i = merge[0], j = idl[0], k = i+j, total = k;
+	idl[0] = (RZDB_ID)-1;		/* delimiter for idl scan below */
 	old_id = idl[j];
 	while (i) {
 		merge_id = merge[i--];
@@ -183,12 +183,12 @@ void mdb_midl_xmerge( MDB_IDL idl, MDB_IDL merge )
 #define	MIDL_SWAP(a,b)	{ itmp=(a); (a)=(b); (b)=itmp; }
 
 void
-mdb_midl_sort( MDB_IDL ids )
+mdb_midl_sort( RZDB_IDL ids )
 {
 	/* Max possible depth of int-indexed tree * 2 items/level */
 	int istack[sizeof(int)*CHAR_BIT * 2];
 	int i,j,k,l,ir,jstack;
-	MDB_ID a, itmp;
+	RZDB_ID a, itmp;
 
 	ir = (int)ids[0];
 	l = 1;
@@ -243,7 +243,7 @@ mdb_midl_sort( MDB_IDL ids )
 	}
 }
 
-unsigned mdb_mid2l_search( MDB_ID2L ids, MDB_ID id )
+unsigned mdb_mid2l_search( RZDB_ID2L ids, RZDB_ID id )
 {
 	/*
 	 * binary search of id in ids
@@ -278,7 +278,7 @@ unsigned mdb_mid2l_search( MDB_ID2L ids, MDB_ID id )
 	return cursor;
 }
 
-int mdb_mid2l_insert( MDB_ID2L ids, MDB_ID2 *id )
+int mdb_mid2l_insert( RZDB_ID2L ids, RZDB_ID2 *id )
 {
 	unsigned x, i;
 
@@ -294,7 +294,7 @@ int mdb_mid2l_insert( MDB_ID2L ids, MDB_ID2 *id )
 		return -1;
 	}
 
-	if ( ids[0].mid >= MDB_IDL_UM_MAX ) {
+	if ( ids[0].mid >= RZDB_IDL_UM_MAX ) {
 		/* too big */
 		return -2;
 
@@ -309,10 +309,10 @@ int mdb_mid2l_insert( MDB_ID2L ids, MDB_ID2 *id )
 	return 0;
 }
 
-int mdb_mid2l_append( MDB_ID2L ids, MDB_ID2 *id )
+int mdb_mid2l_append( RZDB_ID2L ids, RZDB_ID2 *id )
 {
 	/* Too big? */
-	if (ids[0].mid >= MDB_IDL_UM_MAX) {
+	if (ids[0].mid >= RZDB_IDL_UM_MAX) {
 		return -2;
 	}
 	ids[0].mid++;
@@ -320,8 +320,8 @@ int mdb_mid2l_append( MDB_ID2L ids, MDB_ID2 *id )
 	return 0;
 }
 
-#ifdef MDB_VL32
-unsigned mdb_mid3l_search( MDB_ID3L ids, MDB_ID id )
+#ifdef RZDB_VL32
+unsigned mdb_mid3l_search( RZDB_ID3L ids, RZDB_ID id )
 {
 	/*
 	 * binary search of id in ids
@@ -356,7 +356,7 @@ unsigned mdb_mid3l_search( MDB_ID3L ids, MDB_ID id )
 	return cursor;
 }
 
-int mdb_mid3l_insert( MDB_ID3L ids, MDB_ID3 *id )
+int mdb_mid3l_insert( RZDB_ID3L ids, RZDB_ID3 *id )
 {
 	unsigned x, i;
 
@@ -380,7 +380,7 @@ int mdb_mid3l_insert( MDB_ID3L ids, MDB_ID3 *id )
 
 	return 0;
 }
-#endif /* MDB_VL32 */
+#endif /* RZDB_VL32 */
 
 /** @} */
 /** @} */

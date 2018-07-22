@@ -24,8 +24,8 @@
  * <http://www.OpenLDAP.org/license.html>.
  */
 
-#ifndef _MDB_MIDL_H_
-#define _MDB_MIDL_H_
+#ifndef _RZDB_MIDL_H_
+#define _RZDB_MIDL_H_
 
 #include "rzdb.h"
 
@@ -43,7 +43,7 @@ extern "C" {
 	/** A generic unsigned ID number. These were entryIDs in back-bdb.
 	 *	Preferably it should have the same size as a pointer.
 	 */
-typedef mdb_size_t MDB_ID;
+typedef mdb_size_t RZDB_ID;
 
 	/** An IDL is an ID List, a sorted array of IDs. The first
 	 * element of the array is a counter for how many actual
@@ -51,34 +51,34 @@ typedef mdb_size_t MDB_ID;
 	 * sorted in ascending order. For libmdb IDLs are sorted in
 	 * descending order.
 	 */
-typedef MDB_ID *MDB_IDL;
+typedef RZDB_ID *RZDB_IDL;
 
 /* IDL sizes - likely should be even bigger
  *   limiting factors: sizeof(ID), thread stack size
  */
-#ifdef MDB_VL32
-#define	MDB_IDL_LOGN	14	/* DB_SIZE is 2^14, UM_SIZE is 2^15 */
+#ifdef RZDB_VL32
+#define	RZDB_IDL_LOGN	14	/* DB_SIZE is 2^14, UM_SIZE is 2^15 */
 #else
-#define	MDB_IDL_LOGN	16	/* DB_SIZE is 2^16, UM_SIZE is 2^17 */
+#define	RZDB_IDL_LOGN	16	/* DB_SIZE is 2^16, UM_SIZE is 2^17 */
 #endif
-#define MDB_IDL_DB_SIZE		(1<<MDB_IDL_LOGN)
-#define MDB_IDL_UM_SIZE		(1<<(MDB_IDL_LOGN+1))
+#define RZDB_IDL_DB_SIZE		(1<<RZDB_IDL_LOGN)
+#define RZDB_IDL_UM_SIZE		(1<<(RZDB_IDL_LOGN+1))
 
-#define MDB_IDL_DB_MAX		(MDB_IDL_DB_SIZE-1)
-#define MDB_IDL_UM_MAX		(MDB_IDL_UM_SIZE-1)
+#define RZDB_IDL_DB_MAX		(RZDB_IDL_DB_SIZE-1)
+#define RZDB_IDL_UM_MAX		(RZDB_IDL_UM_SIZE-1)
 
-#define MDB_IDL_SIZEOF(ids)		(((ids)[0]+1) * sizeof(MDB_ID))
-#define MDB_IDL_IS_ZERO(ids) ( (ids)[0] == 0 )
-#define MDB_IDL_CPY( dst, src ) (memcpy( dst, src, MDB_IDL_SIZEOF( src ) ))
-#define MDB_IDL_FIRST( ids )	( (ids)[1] )
-#define MDB_IDL_LAST( ids )		( (ids)[(ids)[0]] )
+#define RZDB_IDL_SIZEOF(ids)		(((ids)[0]+1) * sizeof(RZDB_ID))
+#define RZDB_IDL_IS_ZERO(ids) ( (ids)[0] == 0 )
+#define RZDB_IDL_CPY( dst, src ) (memcpy( dst, src, RZDB_IDL_SIZEOF( src ) ))
+#define RZDB_IDL_FIRST( ids )	( (ids)[1] )
+#define RZDB_IDL_LAST( ids )		( (ids)[(ids)[0]] )
 
 	/** Current max length of an #mdb_midl_alloc()ed IDL */
-#define MDB_IDL_ALLOCLEN( ids )	( (ids)[-1] )
+#define RZDB_IDL_ALLOCLEN( ids )	( (ids)[-1] )
 
 	/** Append ID to IDL. The IDL must be big enough. */
 #define mdb_midl_xappend(idl, id) do { \
-		MDB_ID *xidl = (idl), xlen = ++(xidl[0]); \
+		RZDB_ID *xidl = (idl), xlen = ++(xidl[0]); \
 		xidl[xlen] = (id); \
 	} while (0)
 
@@ -87,45 +87,45 @@ typedef MDB_ID *MDB_IDL;
 	 * @param[in] id	The ID to search for.
 	 * @return	The index of the first ID greater than or equal to \b id.
 	 */
-unsigned mdb_midl_search( MDB_IDL ids, MDB_ID id );
+unsigned mdb_midl_search( RZDB_IDL ids, RZDB_ID id );
 
 	/** Allocate an IDL.
 	 * Allocates memory for an IDL of the given size.
 	 * @return	IDL on success, NULL on failure.
 	 */
-MDB_IDL mdb_midl_alloc(int num);
+RZDB_IDL mdb_midl_alloc(int num);
 
 	/** Free an IDL.
 	 * @param[in] ids	The IDL to free.
 	 */
-void mdb_midl_free(MDB_IDL ids);
+void mdb_midl_free(RZDB_IDL ids);
 
 	/** Shrink an IDL.
 	 * Return the IDL to the default size if it has grown larger.
 	 * @param[in,out] idp	Address of the IDL to shrink.
 	 */
-void mdb_midl_shrink(MDB_IDL *idp);
+void mdb_midl_shrink(RZDB_IDL *idp);
 
 	/** Make room for num additional elements in an IDL.
 	 * @param[in,out] idp	Address of the IDL.
 	 * @param[in] num	Number of elements to make room for.
 	 * @return	0 on success, ENOMEM on failure.
 	 */
-int mdb_midl_need(MDB_IDL *idp, unsigned num);
+int mdb_midl_need(RZDB_IDL *idp, unsigned num);
 
 	/** Append an ID onto an IDL.
 	 * @param[in,out] idp	Address of the IDL to append to.
 	 * @param[in] id	The ID to append.
 	 * @return	0 on success, ENOMEM if the IDL is too large.
 	 */
-int mdb_midl_append( MDB_IDL *idp, MDB_ID id );
+int mdb_midl_append( RZDB_IDL *idp, RZDB_ID id );
 
 	/** Append an IDL onto an IDL.
 	 * @param[in,out] idp	Address of the IDL to append to.
 	 * @param[in] app	The IDL to append.
 	 * @return	0 on success, ENOMEM if the IDL is too large.
 	 */
-int mdb_midl_append_list( MDB_IDL *idp, MDB_IDL app );
+int mdb_midl_append_list( RZDB_IDL *idp, RZDB_IDL app );
 
 	/** Append an ID range onto an IDL.
 	 * @param[in,out] idp	Address of the IDL to append to.
@@ -133,39 +133,39 @@ int mdb_midl_append_list( MDB_IDL *idp, MDB_IDL app );
 	 * @param[in] n		Number of IDs to append.
 	 * @return	0 on success, ENOMEM if the IDL is too large.
 	 */
-int mdb_midl_append_range( MDB_IDL *idp, MDB_ID id, unsigned n );
+int mdb_midl_append_range( RZDB_IDL *idp, RZDB_ID id, unsigned n );
 
 	/** Merge an IDL onto an IDL. The destination IDL must be big enough.
 	 * @param[in] idl	The IDL to merge into.
 	 * @param[in] merge	The IDL to merge.
 	 */
-void mdb_midl_xmerge( MDB_IDL idl, MDB_IDL merge );
+void mdb_midl_xmerge( RZDB_IDL idl, RZDB_IDL merge );
 
 	/** Sort an IDL.
 	 * @param[in,out] ids	The IDL to sort.
 	 */
-void mdb_midl_sort( MDB_IDL ids );
+void mdb_midl_sort( RZDB_IDL ids );
 
 	/** An ID2 is an ID/pointer pair.
 	 */
-typedef struct MDB_ID2 {
-	MDB_ID mid;		/**< The ID */
+typedef struct RZDB_ID2 {
+	RZDB_ID mid;		/**< The ID */
 	void *mptr;		/**< The pointer */
-} MDB_ID2;
+} RZDB_ID2;
 
 	/** An ID2L is an ID2 List, a sorted array of ID2s.
 	 * The first element's \b mid member is a count of how many actual
 	 * elements are in the array. The \b mptr member of the first element is unused.
 	 * The array is sorted in ascending order by \b mid.
 	 */
-typedef MDB_ID2 *MDB_ID2L;
+typedef RZDB_ID2 *RZDB_ID2L;
 
 	/** Search for an ID in an ID2L.
 	 * @param[in] ids	The ID2L to search.
 	 * @param[in] id	The ID to search for.
 	 * @return	The index of the first ID2 whose \b mid member is greater than or equal to \b id.
 	 */
-unsigned mdb_mid2l_search( MDB_ID2L ids, MDB_ID id );
+unsigned mdb_mid2l_search( RZDB_ID2L ids, RZDB_ID id );
 
 
 	/** Insert an ID2 into a ID2L.
@@ -173,32 +173,32 @@ unsigned mdb_mid2l_search( MDB_ID2L ids, MDB_ID id );
 	 * @param[in] id	The ID2 to insert.
 	 * @return	0 on success, -1 if the ID was already present in the ID2L.
 	 */
-int mdb_mid2l_insert( MDB_ID2L ids, MDB_ID2 *id );
+int mdb_mid2l_insert( RZDB_ID2L ids, RZDB_ID2 *id );
 
 	/** Append an ID2 into a ID2L.
 	 * @param[in,out] ids	The ID2L to append into.
 	 * @param[in] id	The ID2 to append.
 	 * @return	0 on success, -2 if the ID2L is too big.
 	 */
-int mdb_mid2l_append( MDB_ID2L ids, MDB_ID2 *id );
+int mdb_mid2l_append( RZDB_ID2L ids, RZDB_ID2 *id );
 
-#ifdef MDB_VL32
-typedef struct MDB_ID3 {
-	MDB_ID mid;		/**< The ID */
+#ifdef RZDB_VL32
+typedef struct RZDB_ID3 {
+	RZDB_ID mid;		/**< The ID */
 	void *mptr;		/**< The pointer */
 	unsigned int mcnt;		/**< Number of pages */
 	unsigned int mref;		/**< Refcounter */
-} MDB_ID3;
+} RZDB_ID3;
 
-typedef MDB_ID3 *MDB_ID3L;
+typedef RZDB_ID3 *RZDB_ID3L;
 
-unsigned mdb_mid3l_search( MDB_ID3L ids, MDB_ID id );
-int mdb_mid3l_insert( MDB_ID3L ids, MDB_ID3 *id );
+unsigned mdb_mid3l_search( RZDB_ID3L ids, RZDB_ID id );
+int mdb_mid3l_insert( RZDB_ID3L ids, RZDB_ID3 *id );
 
-#endif /* MDB_VL32 */
+#endif /* RZDB_VL32 */
 /** @} */
 /** @} */
 #ifdef __cplusplus
 }
 #endif
-#endif	/* _MDB_MIDL_H_ */
+#endif	/* _RZDB_MIDL_H_ */

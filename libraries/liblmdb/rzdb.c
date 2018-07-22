@@ -35,7 +35,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE 1
 #endif
-#if defined(MDB_VL32) || defined(__WIN64__)
+#if defined(RZDB_VL32) || defined(__WIN64__)
 #define _FILE_OFFSET_BITS	64
 #endif
 #ifdef _WIN32
@@ -82,8 +82,8 @@ static NtCloseFunc *NtClose;
  *  as int64 which is wrong. MSVC doesn't define it at all, so just
  *  don't use it.
  */
-#define MDB_PID_T	int
-#define MDB_THR_T	DWORD
+#define RZDB_PID_T	int
+#define RZDB_THR_T	DWORD
 #include <sys/types.h>
 #include <sys/stat.h>
 #ifdef __GNUC__
@@ -99,8 +99,8 @@ static NtCloseFunc *NtClose;
 #else
 #include <sys/types.h>
 #include <sys/stat.h>
-#define MDB_PID_T	pid_t
-#define MDB_THR_T	pthread_t
+#define RZDB_PID_T	pid_t
+#define RZDB_THR_T	pthread_t
 #include <sys/param.h>
 #include <sys/uio.h>
 #include <sys/mman.h>
@@ -119,10 +119,10 @@ extern int cacheflush(char *addr, int nbytes, int cache);
 #define CACHEFLUSH(addr, bytes, cache)
 #endif
 
-#if defined(__linux) && !defined(MDB_FDATASYNC_WORKS)
+#if defined(__linux) && !defined(RZDB_FDATASYNC_WORKS)
 /** fdatasync is broken on ext3/ext4fs on older kernels, see
  *	description in #mdb_env_open2 comments. You can safely
- *	define MDB_FDATASYNC_WORKS if this code will only be run
+ *	define RZDB_FDATASYNC_WORKS if this code will only be run
  *	on kernels 3.6 and newer.
  */
 #define	BROKEN_FDATASYNC
@@ -160,21 +160,21 @@ typedef SSIZE_T	ssize_t;
 #endif
 
 #if defined(__APPLE__) || defined (BSD) || defined(__FreeBSD_kernel__)
-# if !(defined(MDB_USE_POSIX_MUTEX) || defined(MDB_USE_POSIX_SEM))
-# define MDB_USE_SYSV_SEM	1
+# if !(defined(RZDB_USE_POSIX_MUTEX) || defined(RZDB_USE_POSIX_SEM))
+# define RZDB_USE_SYSV_SEM	1
 # endif
-# define MDB_FDATASYNC		fsync
+# define RZDB_FDATASYNC		fsync
 #elif defined(ANDROID)
-# define MDB_FDATASYNC		fsync
+# define RZDB_FDATASYNC		fsync
 #endif
 
 #ifndef _WIN32
 #include <pthread.h>
 #include <signal.h>
-#ifdef MDB_USE_POSIX_SEM
-# define MDB_USE_HASH		1
+#ifdef RZDB_USE_POSIX_SEM
+# define RZDB_USE_HASH		1
 #include <semaphore.h>
-#elif defined(MDB_USE_SYSV_SEM)
+#elif defined(RZDB_USE_SYSV_SEM)
 #include <sys/ipc.h>
 #include <sys/sem.h>
 #ifdef _SEM_SEMUN_UNDEFINED
@@ -185,12 +185,12 @@ union semun {
 };
 #endif /* _SEM_SEMUN_UNDEFINED */
 #else
-#define MDB_USE_POSIX_MUTEX	1
-#endif /* MDB_USE_POSIX_SEM */
+#define RZDB_USE_POSIX_MUTEX	1
+#endif /* RZDB_USE_POSIX_SEM */
 #endif /* !_WIN32 */
 
-#if defined(_WIN32) + defined(MDB_USE_POSIX_SEM) + defined(MDB_USE_SYSV_SEM) \
-	+ defined(MDB_USE_POSIX_MUTEX) != 1
+#if defined(_WIN32) + defined(RZDB_USE_POSIX_SEM) + defined(RZDB_USE_SYSV_SEM) \
+	+ defined(RZDB_USE_POSIX_MUTEX) != 1
 # error "Ambiguous shared-lock implementation"
 #endif
 
@@ -240,7 +240,7 @@ union semun {
 
 #if (BYTE_ORDER == LITTLE_ENDIAN) == (BYTE_ORDER == BIG_ENDIAN)
 # error "Unknown or unsupported endianness (BYTE_ORDER)"
-#elif (-6 & 5) || CHAR_BIT!=8 || UINT_MAX!=0xffffffff || MDB_SIZE_MAX%UINT_MAX
+#elif (-6 & 5) || CHAR_BIT!=8 || UINT_MAX!=0xffffffff || RZDB_SIZE_MAX%UINT_MAX
 # error "Two's complement, reasonably sized integer types, please"
 #endif
 
@@ -273,8 +273,8 @@ union semun {
  */
 
 	/** Features under development */
-#ifndef MDB_DEVEL
-#define MDB_DEVEL 0
+#ifndef RZDB_DEVEL
+#define RZDB_DEVEL 0
 #endif
 
 	/** Wrapper around __func__, which is a C99 feature */
@@ -288,13 +288,13 @@ union semun {
 #endif
 
 /* Internal error codes, not exposed outside liblmdb */
-#define	MDB_NO_ROOT		(MDB_LAST_ERRCODE + 10)
+#define	RZDB_NO_ROOT		(RZDB_LAST_ERRCODE + 10)
 #ifdef _WIN32
-#define MDB_OWNERDEAD	((int) WAIT_ABANDONED)
-#elif defined MDB_USE_SYSV_SEM
-#define MDB_OWNERDEAD	(MDB_LAST_ERRCODE + 11)
-#elif defined(MDB_USE_POSIX_MUTEX) && defined(EOWNERDEAD)
-#define MDB_OWNERDEAD	EOWNERDEAD	/**< #LOCK_MUTEX0() result if dead owner */
+#define RZDB_OWNERDEAD	((int) WAIT_ABANDONED)
+#elif defined RZDB_USE_SYSV_SEM
+#define RZDB_OWNERDEAD	(RZDB_LAST_ERRCODE + 11)
+#elif defined(RZDB_USE_POSIX_MUTEX) && defined(EOWNERDEAD)
+#define RZDB_OWNERDEAD	EOWNERDEAD	/**< #LOCK_MUTEX0() result if dead owner */
 #endif
 
 #ifdef __GLIBC__
@@ -302,23 +302,23 @@ union semun {
 #endif
 /** Some platforms define the EOWNERDEAD error code
  * even though they don't support Robust Mutexes.
- * Compile with -DMDB_USE_ROBUST=0, or use some other
- * mechanism like -DMDB_USE_SYSV_SEM instead of
- * -DMDB_USE_POSIX_MUTEX. (SysV semaphores are
+ * Compile with -DRZDB_USE_ROBUST=0, or use some other
+ * mechanism like -DRZDB_USE_SYSV_SEM instead of
+ * -DRZDB_USE_POSIX_MUTEX. (SysV semaphores are
  * also Robust, but some systems don't support them
  * either.)
  */
-#ifndef MDB_USE_ROBUST
+#ifndef RZDB_USE_ROBUST
 /* Android currently lacks Robust Mutex support. So does glibc < 2.4. */
-# if defined(MDB_USE_POSIX_MUTEX) && (defined(ANDROID) || \
+# if defined(RZDB_USE_POSIX_MUTEX) && (defined(ANDROID) || \
 	(defined(__GLIBC__) && GLIBC_VER < 0x020004))
-#  define MDB_USE_ROBUST	0
+#  define RZDB_USE_ROBUST	0
 # else
-#  define MDB_USE_ROBUST	1
+#  define RZDB_USE_ROBUST	1
 # endif
-#endif /* !MDB_USE_ROBUST */
+#endif /* !RZDB_USE_ROBUST */
 
-#if defined(MDB_USE_POSIX_MUTEX) && (MDB_USE_ROBUST)
+#if defined(RZDB_USE_POSIX_MUTEX) && (RZDB_USE_ROBUST)
 /* glibc < 2.12 only provided _np API */
 #  if (defined(__GLIBC__) && GLIBC_VER < 0x02000c) || \
 	(defined(PTHREAD_MUTEX_ROBUST_NP) && !defined(PTHREAD_MUTEX_ROBUST))
@@ -326,15 +326,15 @@ union semun {
 #   define pthread_mutexattr_setrobust(attr, flag)	pthread_mutexattr_setrobust_np(attr, flag)
 #   define pthread_mutex_consistent(mutex)	pthread_mutex_consistent_np(mutex)
 #  endif
-#endif /* MDB_USE_POSIX_MUTEX && MDB_USE_ROBUST */
+#endif /* RZDB_USE_POSIX_MUTEX && RZDB_USE_ROBUST */
 
-#if defined(MDB_OWNERDEAD) && (MDB_USE_ROBUST)
-#define MDB_ROBUST_SUPPORTED	1
+#if defined(RZDB_OWNERDEAD) && (RZDB_USE_ROBUST)
+#define RZDB_ROBUST_SUPPORTED	1
 #endif
 
 #ifdef _WIN32
-#define MDB_USE_HASH	1
-#define MDB_PIDLOCK	0
+#define RZDB_USE_HASH	1
+#define RZDB_PIDLOCK	0
 #define THREAD_RET	DWORD
 #define pthread_t	HANDLE
 #define pthread_mutex_t	HANDLE
@@ -359,26 +359,26 @@ typedef HANDLE mdb_mutex_t, mdb_mutexref_t;
 #define UNLOCK_MUTEX(mutex)		ReleaseMutex(mutex)
 #define mdb_mutex_consistent(mutex)	0
 #define getpid()	GetCurrentProcessId()
-#define	MDB_FDATASYNC(fd)	(!FlushFileBuffers(fd))
-#define	MDB_MSYNC(addr,len,flags)	(!FlushViewOfFile(addr,len))
+#define	RZDB_FDATASYNC(fd)	(!FlushFileBuffers(fd))
+#define	RZDB_MSYNC(addr,len,flags)	(!FlushViewOfFile(addr,len))
 #define	ErrCode()	GetLastError()
 #define GET_PAGESIZE(x) {SYSTEM_INFO si; GetSystemInfo(&si); (x) = si.dwPageSize;}
 #define	close(fd)	(CloseHandle(fd) ? 0 : -1)
 #define	munmap(ptr,len)	UnmapViewOfFile(ptr)
 #ifdef PROCESS_QUERY_LIMITED_INFORMATION
-#define MDB_PROCESS_QUERY_LIMITED_INFORMATION PROCESS_QUERY_LIMITED_INFORMATION
+#define RZDB_PROCESS_QUERY_LIMITED_INFORMATION PROCESS_QUERY_LIMITED_INFORMATION
 #else
-#define MDB_PROCESS_QUERY_LIMITED_INFORMATION 0x1000
+#define RZDB_PROCESS_QUERY_LIMITED_INFORMATION 0x1000
 #endif
 #else
 #define THREAD_RET	void *
 #define THREAD_CREATE(thr,start,arg)	pthread_create(&thr,NULL,start,arg)
 #define THREAD_FINISH(thr)	pthread_join(thr,NULL)
 
-	/** For MDB_LOCK_FORMAT: True if readers take a pid lock in the lockfile */
-#define MDB_PIDLOCK			1
+	/** For RZDB_LOCK_FORMAT: True if readers take a pid lock in the lockfile */
+#define RZDB_PIDLOCK			1
 
-#ifdef MDB_USE_POSIX_SEM
+#ifdef RZDB_USE_POSIX_SEM
 
 typedef sem_t *mdb_mutex_t, *mdb_mutexref_t;
 #define LOCK_MUTEX0(mutex)		mdb_sem_wait(mutex)
@@ -392,7 +392,7 @@ mdb_sem_wait(sem_t *sem)
    return rc;
 }
 
-#elif defined MDB_USE_SYSV_SEM
+#elif defined RZDB_USE_SYSV_SEM
 
 typedef struct mdb_mutex {
 	int semid;
@@ -416,7 +416,7 @@ mdb_sem_wait(mdb_mutexref_t sem)
 	sb.sem_num = sem->semnum;
 	do {
 		if (!semop(sem->semid, &sb, 1)) {
-			rc = *locked ? MDB_OWNERDEAD : MDB_SUCCESS;
+			rc = *locked ? RZDB_OWNERDEAD : RZDB_SUCCESS;
 			*locked = 1;
 			break;
 		}
@@ -426,7 +426,7 @@ mdb_sem_wait(mdb_mutexref_t sem)
 
 #define mdb_mutex_consistent(mutex)	0
 
-#else	/* MDB_USE_POSIX_MUTEX: */
+#else	/* RZDB_USE_POSIX_MUTEX: */
 	/** Shared mutex/semaphore as the original is stored.
 	 *
 	 *	Not for copies.  Instead it can be assigned to an #mdb_mutexref_t.
@@ -446,7 +446,7 @@ typedef pthread_mutex_t *mdb_mutexref_t;
 	/** Mark mutex-protected data as repaired, after death of previous owner.
 	 */
 #define mdb_mutex_consistent(mutex)	pthread_mutex_consistent(mutex)
-#endif	/* MDB_USE_POSIX_SEM || MDB_USE_SYSV_SEM */
+#endif	/* RZDB_USE_POSIX_SEM || RZDB_USE_SYSV_SEM */
 
 	/** Get the error code for the last failed system function.
 	 */
@@ -471,35 +471,35 @@ typedef pthread_mutex_t *mdb_mutexref_t;
 #define	GET_PAGESIZE(x)	((x) = sysconf(_SC_PAGE_SIZE))
 #endif
 
-#define	Z	MDB_FMT_Z	/**< printf/scanf format modifier for size_t */
-#define	Yu	MDB_PRIy(u)	/**< printf format for #mdb_size_t */
-#define	Yd	MDB_PRIy(d)	/**< printf format for 'signed #mdb_size_t' */
+#define	Z	RZDB_FMT_Z	/**< printf/scanf format modifier for size_t */
+#define	Yu	RZDB_PRIy(u)	/**< printf format for #mdb_size_t */
+#define	Yd	RZDB_PRIy(d)	/**< printf format for 'signed #mdb_size_t' */
 
-#ifdef MDB_USE_SYSV_SEM
+#ifdef RZDB_USE_SYSV_SEM
 #define MNAME_LEN	(sizeof(int))
 #else
 #define MNAME_LEN	(sizeof(pthread_mutex_t))
 #endif
 
-/** Initial part of #MDB_env.me_mutexname[].
- *	Changes to this code must be reflected in #MDB_LOCK_FORMAT.
+/** Initial part of #RZDB_env.me_mutexname[].
+ *	Changes to this code must be reflected in #RZDB_LOCK_FORMAT.
  */
 #ifdef _WIN32
 #define MUTEXNAME_PREFIX		"Global\\MDB"
-#elif defined MDB_USE_POSIX_SEM
+#elif defined RZDB_USE_POSIX_SEM
 #define MUTEXNAME_PREFIX		"/MDB"
 #endif
 
 /** @} */
 
-#ifdef MDB_ROBUST_SUPPORTED
+#ifdef RZDB_ROBUST_SUPPORTED
 	/** Lock mutex, handle any error, set rc = result.
 	 *	Return 0 on success, nonzero (not rc) on error.
 	 */
 #define LOCK_MUTEX(rc, env, mutex) \
 	(((rc) = LOCK_MUTEX0(mutex)) && \
 	 ((rc) = mdb_mutex_failed(env, mutex, rc)))
-static int mdb_mutex_failed(MDB_env *env, mdb_mutexref_t mutex, int rc);
+static int mdb_mutex_failed(RZDB_env *env, mdb_mutexref_t mutex, int rc);
 #else
 #define LOCK_MUTEX(rc, env, mutex) ((rc) = LOCK_MUTEX0(mutex))
 #define mdb_mutex_failed(env, mutex, rc) (rc)
@@ -514,11 +514,11 @@ static int mdb_mutex_failed(MDB_env *env, mdb_mutexref_t mutex, int rc);
  *	@note If O_DSYNC is undefined but exists in /usr/include,
  * preferably set some compiler flag to get the definition.
  */
-#ifndef MDB_DSYNC
+#ifndef RZDB_DSYNC
 # ifdef O_DSYNC
-# define MDB_DSYNC	O_DSYNC
+# define RZDB_DSYNC	O_DSYNC
 # else
-# define MDB_DSYNC	O_SYNC
+# define RZDB_DSYNC	O_SYNC
 # endif
 #endif
 #endif
@@ -526,12 +526,12 @@ static int mdb_mutex_failed(MDB_env *env, mdb_mutexref_t mutex, int rc);
 /** Function for flushing the data of a file. Define this to fsync
  *	if fdatasync() is not supported.
  */
-#ifndef MDB_FDATASYNC
-# define MDB_FDATASYNC	fdatasync
+#ifndef RZDB_FDATASYNC
+# define RZDB_FDATASYNC	fdatasync
 #endif
 
-#ifndef MDB_MSYNC
-# define MDB_MSYNC(addr,len,flags)	msync(addr,len,flags)
+#ifndef RZDB_MSYNC
+# define RZDB_MSYNC(addr,len,flags)	msync(addr,len,flags)
 #endif
 
 #ifndef MS_SYNC
@@ -547,28 +547,28 @@ static int mdb_mutex_failed(MDB_env *env, mdb_mutexref_t mutex, int rc);
 	 *	already represent 12-13 bits of addressable memory, and the OS will
 	 *	always limit applications to a maximum of 63 bits of address space.
 	 *
-	 *	@note In the #MDB_node structure, we only store 48 bits of this value,
+	 *	@note In the #RZDB_node structure, we only store 48 bits of this value,
 	 *	which thus limits us to only 60 bits of addressable data.
 	 */
-typedef MDB_ID	pgno_t;
+typedef RZDB_ID	pgno_t;
 
 	/** A transaction ID.
-	 *	See struct MDB_txn.mt_txnid for details.
+	 *	See struct RZDB_txn.mt_txnid for details.
 	 */
-typedef MDB_ID	txnid_t;
+typedef RZDB_ID	txnid_t;
 
 /** @defgroup debug	Debug Macros
  *	@{
  */
-#ifndef MDB_DEBUG
+#ifndef RZDB_DEBUG
 	/**	Enable debug output.  Needs variable argument macros (a C99 feature).
 	 *	Set this to 1 for copious tracing. Set to 2 to add dumps of all IDLs
 	 *	read from and written to the database (used for free space management).
 	 */
-#define MDB_DEBUG 0
+#define RZDB_DEBUG 0
 #endif
 
-#if MDB_DEBUG
+#if RZDB_DEBUG
 static int mdb_debug;
 static txnid_t mdb_debug_start;
 
@@ -593,7 +593,7 @@ static txnid_t mdb_debug_start;
 	/**	@brief The maximum size of a database page.
 	 *
 	 *	It is 32k or 64k, since value-PAGEBASE must fit in
-	 *	#MDB_page.%mp_upper.
+	 *	#RZDB_page.%mp_upper.
 	 *
 	 *	LMDB will use database pages < OS pages if needed.
 	 *	That causes more I/O in write transactions: The OS must
@@ -620,46 +620,46 @@ static txnid_t mdb_debug_start;
 	 *	value, items larger than 2KB will go into overflow pages, and on
 	 *	average only 1KB will be wasted.
 	 */
-#define MDB_MINKEYS	 2
+#define RZDB_MINKEYS	 2
 
 	/**	A stamp that identifies a file as an LMDB file.
 	 *	There's nothing special about this value other than that it is easily
 	 *	recognizable, and it will reflect any byte order mismatches.
 	 */
-#define MDB_MAGIC	 0x4A4C4D4E
+#define RZDB_MAGIC	 0x4A4C4D4E
 
 	/**	The version number for a database's datafile format. */
-#define MDB_DATA_VERSION	 ((MDB_DEVEL) ? 999 : 1)
+#define RZDB_DATA_VERSION	 ((RZDB_DEVEL) ? 999 : 1)
 	/**	The version number for a database's lockfile format. */
-#define MDB_LOCK_VERSION	 ((MDB_DEVEL) ? 999 : 2)
-	/** Number of bits representing #MDB_LOCK_VERSION in #MDB_LOCK_FORMAT.
-	 *	The remaining bits must leave room for #MDB_lock_desc.
+#define RZDB_LOCK_VERSION	 ((RZDB_DEVEL) ? 999 : 2)
+	/** Number of bits representing #RZDB_LOCK_VERSION in #RZDB_LOCK_FORMAT.
+	 *	The remaining bits must leave room for #RZDB_lock_desc.
 	 */
-#define MDB_LOCK_VERSION_BITS 12
+#define RZDB_LOCK_VERSION_BITS 12
 
 	/**	@brief The max size of a key we can write, or 0 for computed max.
 	 *
 	 *	This macro should normally be left alone or set to 0.
 	 *	Note that a database with big keys or dupsort data cannot be
 	 *	reliably modified by a liblmdb which uses a smaller max.
-	 *	The default is 511 for backwards compat, or 0 when #MDB_DEVEL.
+	 *	The default is 511 for backwards compat, or 0 when #RZDB_DEVEL.
 	 *
 	 *	Other values are allowed, for backwards compat.  However:
 	 *	A value bigger than the computed max can break if you do not
 	 *	know what you are doing, and liblmdb <= 0.9.10 can break when
 	 *	modifying a DB with keys/dupsort data bigger than its max.
 	 *
-	 *	Data items in an #MDB_DUPSORT database are also limited to
+	 *	Data items in an #RZDB_DUPSORT database are also limited to
 	 *	this size, since they're actually keys of a sub-DB.  Keys and
-	 *	#MDB_DUPSORT data items must fit on a node in a regular page.
+	 *	#RZDB_DUPSORT data items must fit on a node in a regular page.
 	 */
-#ifndef MDB_MAXKEYSIZE
-#define MDB_MAXKEYSIZE	 ((MDB_DEVEL) ? 0 : 511)
+#ifndef RZDB_MAXKEYSIZE
+#define RZDB_MAXKEYSIZE	 ((RZDB_DEVEL) ? 0 : 511)
 #endif
 
 	/**	The maximum size of a key we can write to the environment. */
-#if MDB_MAXKEYSIZE
-#define ENV_MAXKEY(env)	(MDB_MAXKEYSIZE)
+#if RZDB_MAXKEYSIZE
+#define ENV_MAXKEY(env)	(RZDB_MAXKEYSIZE)
 #else
 #define ENV_MAXKEY(env)	((env)->me_maxkey)
 #endif
@@ -670,11 +670,11 @@ static txnid_t mdb_debug_start;
 	 */
 #define MAXDATASIZE	0xffffffffUL
 
-#if MDB_DEBUG
+#if RZDB_DEBUG
 	/**	Key size which fits in a #DKBUF.
 	 *	@ingroup debug
 	 */
-#define DKBUF_MAXKEYSIZE ((MDB_MAXKEYSIZE) > 0 ? (MDB_MAXKEYSIZE) : 511)
+#define DKBUF_MAXKEYSIZE ((RZDB_MAXKEYSIZE) > 0 ? (RZDB_MAXKEYSIZE) : 511)
 	/**	A key buffer.
 	 *	@ingroup debug
 	 *	This is used for printing a hex dump of a key's contents.
@@ -735,10 +735,10 @@ typedef unsigned long long	mdb_hash_t;
  *	slot's address is saved in thread-specific data so that subsequent read
  *	transactions started by the same thread need no further locking to proceed.
  *
- *	If #MDB_NOTLS is set, the slot address is not saved in thread-specific data.
+ *	If #RZDB_NOTLS is set, the slot address is not saved in thread-specific data.
  *
  *	No reader table is used if the database is on a read-only filesystem, or
- *	if #MDB_NOLOCK is set.
+ *	if #RZDB_NOLOCK is set.
  *
  *	Since the database uses multi-version concurrency control, readers don't
  *	actually need any locking. This table is used to keep track of which
@@ -791,7 +791,7 @@ typedef unsigned long long	mdb_hash_t;
 	 *	the table when we know that we're the only process opening the
 	 *	lock file.
 	 */
-typedef struct MDB_rxbody {
+typedef struct RZDB_rxbody {
 	/**	Current Transaction ID when this transaction began, or (txnid_t)-1.
 	 *	Multiple readers that start at the same time will probably have the
 	 *	same ID here. Again, it's not important to exclude them from
@@ -801,23 +801,23 @@ typedef struct MDB_rxbody {
 	 */
 	volatile txnid_t		mrb_txnid;
 	/** The process ID of the process owning this reader txn. */
-	volatile MDB_PID_T	mrb_pid;
+	volatile RZDB_PID_T	mrb_pid;
 	/** The thread ID of the thread owning this txn. */
-	volatile MDB_THR_T	mrb_tid;
-} MDB_rxbody;
+	volatile RZDB_THR_T	mrb_tid;
+} RZDB_rxbody;
 
 	/** The actual reader record, with cacheline padding. */
-typedef struct MDB_reader {
+typedef struct RZDB_reader {
 	union {
-		MDB_rxbody mrx;
+		RZDB_rxbody mrx;
 		/** shorthand for mrb_txnid */
 #define	mr_txnid	mru.mrx.mrb_txnid
 #define	mr_pid	mru.mrx.mrb_pid
 #define	mr_tid	mru.mrx.mrb_tid
 		/** cache line alignment */
-		char pad[(sizeof(MDB_rxbody)+CACHELINE-1) & ~(CACHELINE-1)];
+		char pad[(sizeof(RZDB_rxbody)+CACHELINE-1) & ~(CACHELINE-1)];
 	} mru;
-} MDB_reader;
+} RZDB_reader;
 
 	/** The header for the reader table.
 	 *	The table resides in a memory-mapped file. (This is a different file
@@ -833,11 +833,11 @@ typedef struct MDB_reader {
 	 *	environment pathname. As such, naming collisions are extremely
 	 *	unlikely. If a collision occurs, the results are unpredictable.
 	 */
-typedef struct MDB_txbody {
+typedef struct RZDB_txbody {
 		/** Stamp identifying this as an LMDB file. It must be set
-		 *	to #MDB_MAGIC. */
+		 *	to #RZDB_MAGIC. */
 	uint32_t	mtb_magic;
-		/** Format of this lock file. Must be set to #MDB_LOCK_FORMAT. */
+		/** Format of this lock file. Must be set to #RZDB_LOCK_FORMAT. */
 	uint32_t	mtb_format;
 		/**	The ID of the last transaction committed to the database.
 		 *	This is recorded here only for convenience; the value can always
@@ -849,10 +849,10 @@ typedef struct MDB_txbody {
 		 *	when readers release their slots.
 		 */
 	volatile unsigned	mtb_numreaders;
-#if defined(_WIN32) || defined(MDB_USE_POSIX_SEM)
+#if defined(_WIN32) || defined(RZDB_USE_POSIX_SEM)
 		/** Binary form of names of the reader/writer locks */
 	mdb_hash_t			mtb_mutexid;
-#elif defined(MDB_USE_SYSV_SEM)
+#elif defined(RZDB_USE_SYSV_SEM)
 	int 	mtb_semid;
 	int		mtb_rlocked;
 #else
@@ -861,27 +861,27 @@ typedef struct MDB_txbody {
 		 */
 	mdb_mutex_t	mtb_rmutex;
 #endif
-} MDB_txbody;
+} RZDB_txbody;
 
 	/** The actual reader table definition. */
-typedef struct MDB_txninfo {
+typedef struct RZDB_txninfo {
 	union {
-		MDB_txbody mtb;
+		RZDB_txbody mtb;
 #define mti_magic	mt1.mtb.mtb_magic
 #define mti_format	mt1.mtb.mtb_format
 #define mti_rmutex	mt1.mtb.mtb_rmutex
 #define mti_txnid	mt1.mtb.mtb_txnid
 #define mti_numreaders	mt1.mtb.mtb_numreaders
 #define mti_mutexid	mt1.mtb.mtb_mutexid
-#ifdef MDB_USE_SYSV_SEM
+#ifdef RZDB_USE_SYSV_SEM
 #define	mti_semid	mt1.mtb.mtb_semid
 #define	mti_rlocked	mt1.mtb.mtb_rlocked
 #endif
-		char pad[(sizeof(MDB_txbody)+CACHELINE-1) & ~(CACHELINE-1)];
+		char pad[(sizeof(RZDB_txbody)+CACHELINE-1) & ~(CACHELINE-1)];
 	} mt1;
-#if !(defined(_WIN32) || defined(MDB_USE_POSIX_SEM))
+#if !(defined(_WIN32) || defined(RZDB_USE_POSIX_SEM))
 	union {
-#ifdef MDB_USE_SYSV_SEM
+#ifdef RZDB_USE_SYSV_SEM
 		int mt2_wlocked;
 #define mti_wlocked	mt2.mt2_wlocked
 #else
@@ -891,29 +891,29 @@ typedef struct MDB_txninfo {
 		char pad[(MNAME_LEN+CACHELINE-1) & ~(CACHELINE-1)];
 	} mt2;
 #endif
-	MDB_reader	mti_readers[1];
-} MDB_txninfo;
+	RZDB_reader	mti_readers[1];
+} RZDB_txninfo;
 
 	/** Lockfile format signature: version, features and field layout */
-#define MDB_LOCK_FORMAT \
+#define RZDB_LOCK_FORMAT \
 	((uint32_t)         \
-	 (((MDB_LOCK_VERSION) % (1U << MDB_LOCK_VERSION_BITS)) \
-	  + MDB_lock_desc     * (1U << MDB_LOCK_VERSION_BITS)))
+	 (((RZDB_LOCK_VERSION) % (1U << RZDB_LOCK_VERSION_BITS)) \
+	  + RZDB_lock_desc     * (1U << RZDB_LOCK_VERSION_BITS)))
 
-	/** Lock type and layout. Values 0-119. _WIN32 implies #MDB_PIDLOCK.
+	/** Lock type and layout. Values 0-119. _WIN32 implies #RZDB_PIDLOCK.
 	 *	Some low values are reserved for future tweaks.
 	 */
 #ifdef _WIN32
-# define MDB_LOCK_TYPE	(0 + ALIGNOF2(mdb_hash_t)/8 % 2)
-#elif defined MDB_USE_POSIX_SEM
-# define MDB_LOCK_TYPE	(4 + ALIGNOF2(mdb_hash_t)/8 % 2)
-#elif defined MDB_USE_SYSV_SEM
-# define MDB_LOCK_TYPE	(8)
-#elif defined MDB_USE_POSIX_MUTEX
+# define RZDB_LOCK_TYPE	(0 + ALIGNOF2(mdb_hash_t)/8 % 2)
+#elif defined RZDB_USE_POSIX_SEM
+# define RZDB_LOCK_TYPE	(4 + ALIGNOF2(mdb_hash_t)/8 % 2)
+#elif defined RZDB_USE_SYSV_SEM
+# define RZDB_LOCK_TYPE	(8)
+#elif defined RZDB_USE_POSIX_MUTEX
 /* We do not know the inside of a POSIX mutex and how to check if mutexes
  * used by two executables are compatible. Just check alignment and size.
  */
-# define MDB_LOCK_TYPE	(10 + \
+# define RZDB_LOCK_TYPE	(10 + \
 		LOG2_MOD(ALIGNOF2(pthread_mutex_t), 5) + \
 		sizeof(pthread_mutex_t) / 4U % 22 * 5)
 #endif
@@ -928,29 +928,29 @@ enum {
 	 *
 	 *	The detected ranges are mostly guesswork, or based simply on how
 	 *	big they could be without using more bits.  So we can tweak them
-	 *	in good conscience when updating #MDB_LOCK_VERSION.
+	 *	in good conscience when updating #RZDB_LOCK_VERSION.
 	 */
-	MDB_lock_desc =
+	RZDB_lock_desc =
 	/* Default CACHELINE=64 vs. other values (have seen mention of 32-256) */
 	(CACHELINE==64 ? 0 : 1 + LOG2_MOD(CACHELINE >> (CACHELINE>64), 5))
-	+ 6  * (sizeof(MDB_PID_T)/4 % 3)    /* legacy(2) to word(4/8)? */
+	+ 6  * (sizeof(RZDB_PID_T)/4 % 3)    /* legacy(2) to word(4/8)? */
 	+ 18 * (sizeof(pthread_t)/4 % 5)    /* can be struct{id, active data} */
-	+ 90 * (sizeof(MDB_txbody) / CACHELINE % 3)
-	+ 270 * (MDB_LOCK_TYPE % 120)
+	+ 90 * (sizeof(RZDB_txbody) / CACHELINE % 3)
+	+ 270 * (RZDB_LOCK_TYPE % 120)
 	/* The above is < 270*120 < 2**15 */
 	+ ((sizeof(txnid_t) == 8) << 15)    /* 32bit/64bit */
-	+ ((sizeof(MDB_reader) > CACHELINE) << 16)
-	/* Not really needed - implied by MDB_LOCK_TYPE != (_WIN32 locking) */
-	+ (((MDB_PIDLOCK) != 0)   << 17)
-	/* 18 bits total: Must be <= (32 - MDB_LOCK_VERSION_BITS). */
+	+ ((sizeof(RZDB_reader) > CACHELINE) << 16)
+	/* Not really needed - implied by RZDB_LOCK_TYPE != (_WIN32 locking) */
+	+ (((RZDB_PIDLOCK) != 0)   << 17)
+	/* 18 bits total: Must be <= (32 - RZDB_LOCK_VERSION_BITS). */
 };
 /** @} */
 
 /** Common header for all page types. The page type depends on #mp_flags.
  *
- * #P_BRANCH and #P_LEAF pages have unsorted '#MDB_node's at the end, with
+ * #P_BRANCH and #P_LEAF pages have unsorted '#RZDB_node's at the end, with
  * sorted #mp_ptrs[] entries referring to them. Exception: #P_LEAF2 pages
- * omit mp_ptrs and pack sorted #MDB_DUPFIXED values after the page header.
+ * omit mp_ptrs and pack sorted #RZDB_DUPFIXED values after the page header.
  *
  * #P_OVERFLOW records occupy one or more contiguous pages where only the
  * first has a page header. They hold the real data of #F_BIGDATA nodes.
@@ -959,17 +959,17 @@ enum {
  * A node with flag #F_DUPDATA but not #F_SUBDATA contains a sub-page.
  * (Duplicate data can also go in sub-databases, which use normal pages.)
  *
- * #P_META pages contain #MDB_meta, the start point of an LMDB snapshot.
+ * #P_META pages contain #RZDB_meta, the start point of an LMDB snapshot.
  *
- * Each non-metapage up to #MDB_meta.%mm_last_pg is reachable exactly once
+ * Each non-metapage up to #RZDB_meta.%mm_last_pg is reachable exactly once
  * in the snapshot: Either used by a database or listed in a freeDB record.
  */
-typedef struct MDB_page {
+typedef struct RZDB_page {
 #define	mp_pgno	mp_p.p_pgno
 #define	mp_next	mp_p.p_next
 	union {
 		pgno_t		p_pgno;	/**< page number */
-		struct MDB_page *p_next; /**< for in-memory list of freed pages */
+		struct RZDB_page *p_next; /**< for in-memory list of freed pages */
 	} mp_p;
 	uint16_t	mp_pad;			/**< key size if this is a LEAF2 page */
 /**	@defgroup mdb_page	Page Flags
@@ -982,8 +982,8 @@ typedef struct MDB_page {
 #define	P_OVERFLOW	 0x04		/**< overflow page */
 #define	P_META		 0x08		/**< meta page */
 #define	P_DIRTY		 0x10		/**< dirty page, also set for #P_SUBP pages */
-#define	P_LEAF2		 0x20		/**< for #MDB_DUPFIXED records */
-#define	P_SUBP		 0x40		/**< for #MDB_DUPSORT sub-pages */
+#define	P_LEAF2		 0x20		/**< for #RZDB_DUPFIXED records */
+#define	P_SUBP		 0x40		/**< for #RZDB_DUPSORT sub-pages */
 #define	P_LOOSE		 0x4000		/**< page was dirtied then freed, can be reused */
 #define	P_KEEP		 0x8000		/**< leave this page alone during spill */
 /** @} */
@@ -999,16 +999,16 @@ typedef struct MDB_page {
 		uint32_t	pb_pages;	/**< number of overflow pages */
 	} mp_pb;
 	indx_t		mp_ptrs[1];		/**< dynamic size */
-} MDB_page;
+} RZDB_page;
 
 	/** Size of the page header, excluding dynamic data at the end */
-#define PAGEHDRSZ	 ((unsigned) offsetof(MDB_page, mp_ptrs))
+#define PAGEHDRSZ	 ((unsigned) offsetof(RZDB_page, mp_ptrs))
 
 	/** Address of first usable data byte in a page, after the header */
 #define METADATA(p)	 ((void *)((char *)(p) + PAGEHDRSZ))
 
 	/** ITS#7713, change PAGEBASE to handle 65536 byte pages */
-#define	PAGEBASE	((MDB_DEVEL) ? PAGEHDRSZ : 0)
+#define	PAGEBASE	((RZDB_DEVEL) ? PAGEHDRSZ : 0)
 
 	/** Number of nodes on a page */
 #define NUMKEYS(p)	 (((p)->mp_lower - (PAGEHDRSZ-PAGEBASE)) >> 1)
@@ -1038,14 +1038,14 @@ typedef struct MDB_page {
 	/** The number of overflow pages needed to store the given size. */
 #define OVPAGES(size, psize)	((PAGEHDRSZ-1 + (size)) / (psize) + 1)
 
-	/** Link in #MDB_txn.%mt_loose_pgs list.
+	/** Link in #RZDB_txn.%mt_loose_pgs list.
 	 *  Kept outside the page header, which is needed when reusing the page.
 	 */
-#define NEXT_LOOSE_PAGE(p)		(*(MDB_page **)((p) + 2))
+#define NEXT_LOOSE_PAGE(p)		(*(RZDB_page **)((p) + 2))
 
 	/** Header for a single key/data pair within a page.
 	 * Used in pages of type #P_BRANCH and #P_LEAF without #P_LEAF2.
-	 * We guarantee 2-byte alignment for 'MDB_node's.
+	 * We guarantee 2-byte alignment for 'RZDB_node's.
 	 *
 	 * #mn_lo and #mn_hi are used for data size on leaf nodes, and for child
 	 * pgno on branch nodes.  On 64 bit platforms, #mn_flags is also used
@@ -1057,7 +1057,7 @@ typedef struct MDB_page {
 	 * #F_DUPDATA and #F_SUBDATA can be combined giving duplicate data in
 	 * a sub-page/sub-database, and named databases (just #F_SUBDATA).
 	 */
-typedef struct MDB_node {
+typedef struct RZDB_node {
 	/** part of data size or pgno
 	 *	@{ */
 #if BYTE_ORDER == LITTLE_ENDIAN
@@ -1076,16 +1076,16 @@ typedef struct MDB_node {
 #define F_DUPDATA	 0x04			/**< data has duplicates */
 
 /** valid flags for #mdb_node_add() */
-#define	NODE_ADD_FLAGS	(F_DUPDATA|F_SUBDATA|MDB_RESERVE|MDB_APPEND)
+#define	NODE_ADD_FLAGS	(F_DUPDATA|F_SUBDATA|RZDB_RESERVE|RZDB_APPEND)
 
 /** @} */
 	unsigned short	mn_flags;		/**< @ref mdb_node */
 	unsigned short	mn_ksize;		/**< key size */
 	char		mn_data[1];			/**< key and data are appended here */
-} MDB_node;
+} RZDB_node;
 
 	/** Size of the node header, excluding dynamic data at the end */
-#define NODESIZE	 offsetof(MDB_node, mn_data)
+#define NODESIZE	 offsetof(RZDB_node, mn_data)
 
 	/** Bit position of top word in page number, for shifting mn_flags */
 #define PGNO_TOPWORD ((pgno_t)-1 > 0xffffffffu ? 32 : 0)
@@ -1101,7 +1101,7 @@ typedef struct MDB_node {
 #define LEAFSIZE(k, d)	 (NODESIZE + (k)->mv_size + (d)->mv_size)
 
 	/** Address of node \b i in page \b p */
-#define NODEPTR(p, i)	 ((MDB_node *)((char *)(p) + (p)->mp_ptrs[i] + PAGEBASE))
+#define NODEPTR(p, i)	 ((RZDB_node *)((char *)(p) + (p)->mp_ptrs[i] + PAGEBASE))
 
 	/** Address of the key for the node */
 #define NODEKEY(node)	 (void *)((node)->mn_data)
@@ -1130,7 +1130,7 @@ typedef struct MDB_node {
 #ifdef MISALIGNED_OK
 #define COPY_PGNO(dst,src)	dst = src
 #else
-#if MDB_SIZE_MAX > 0xffffffffU
+#if RZDB_SIZE_MAX > 0xffffffffU
 #define COPY_PGNO(dst,src)	do { \
 	unsigned short *s, *d;	\
 	s = (unsigned short *)&(src);	\
@@ -1151,20 +1151,20 @@ typedef struct MDB_node {
 #endif
 #endif
 	/** The address of a key in a LEAF2 page.
-	 *	LEAF2 pages are used for #MDB_DUPFIXED sorted-duplicate sub-DBs.
+	 *	LEAF2 pages are used for #RZDB_DUPFIXED sorted-duplicate sub-DBs.
 	 *	There are no node headers, keys are stored contiguously.
 	 */
 #define LEAF2KEY(p, i, ks)	((char *)(p) + PAGEHDRSZ + ((i)*(ks)))
 
 	/** Set the \b node's key into \b keyptr, if requested. */
-#define MDB_GET_KEY(node, keyptr)	{ if ((keyptr) != NULL) { \
+#define RZDB_GET_KEY(node, keyptr)	{ if ((keyptr) != NULL) { \
 	(keyptr)->mv_size = NODEKSZ(node); (keyptr)->mv_data = NODEKEY(node); } }
 
 	/** Set the \b node's key into \b key. */
-#define MDB_GET_KEY2(node, key)	{ key.mv_size = NODEKSZ(node); key.mv_data = NODEKEY(node); }
+#define RZDB_GET_KEY2(node, key)	{ key.mv_size = NODEKSZ(node); key.mv_data = NODEKEY(node); }
 
 	/** Information about a single database in the environment. */
-typedef struct MDB_db {
+typedef struct RZDB_db {
 	uint32_t	md_pad;		/**< also ksize for LEAF2 pages */
 	uint16_t	md_flags;	/**< @ref mdb_dbi_open */
 	uint16_t	md_depth;	/**< depth of this tree */
@@ -1174,13 +1174,13 @@ typedef struct MDB_db {
 	mdb_size_t	md_entries;		/**< number of data items */
 	pgno_t		md_root;		/**< the root page of this tree */
 	uint64_t	md_seq;	    	/**< current sequence */
-} MDB_db;
+} RZDB_db;
 
-#define MDB_VALID	0x8000		/**< DB handle is valid, for me_dbflags */
-#define PERSISTENT_FLAGS	(0xffff & ~(MDB_VALID))
+#define RZDB_VALID	0x8000		/**< DB handle is valid, for me_dbflags */
+#define PERSISTENT_FLAGS	(0xffff & ~(RZDB_VALID))
 	/** #mdb_dbi_open() flags */
-#define VALID_FLAGS	(MDB_REVERSEKEY|MDB_DUPSORT|MDB_INTEGERKEY|MDB_DUPFIXED|\
-	MDB_INTEGERDUP|MDB_REVERSEDUP|MDB_CREATE)
+#define VALID_FLAGS	(RZDB_REVERSEKEY|RZDB_DUPSORT|RZDB_INTEGERKEY|RZDB_DUPFIXED|\
+	RZDB_INTEGERDUP|RZDB_REVERSEDUP|RZDB_CREATE)
 
 	/** Handle for the DB used to track free pages. */
 #define	FREE_DBI	0
@@ -1196,15 +1196,15 @@ typedef struct MDB_db {
 	 *	A meta page is the start point for accessing a database snapshot.
 	 *	Pages 0-1 are meta pages. Transaction N writes meta page #(N % 2).
 	 */
-typedef struct MDB_meta {
+typedef struct RZDB_meta {
 		/** Stamp identifying this as an LMDB file. It must be set
-		 *	to #MDB_MAGIC. */
+		 *	to #RZDB_MAGIC. */
 	uint32_t	mm_magic;
-		/** Version number of this file. Must be set to #MDB_DATA_VERSION. */
+		/** Version number of this file. Must be set to #RZDB_DATA_VERSION. */
 	uint32_t	mm_version;
-#ifdef MDB_VL32
-	union {		/* always zero since we don't support fixed mapping in MDB_VL32 */
-		MDB_ID	mmun_ull;
+#ifdef RZDB_VL32
+	union {		/* always zero since we don't support fixed mapping in RZDB_VL32 */
+		RZDB_ID	mmun_ull;
 		void *mmun_address;
 	} mm_un;
 #define	mm_address mm_un.mmun_address
@@ -1212,7 +1212,7 @@ typedef struct MDB_meta {
 	void		*mm_address;		/**< address for fixed mapping */
 #endif
 	mdb_size_t	mm_mapsize;			/**< size of mmap region */
-	MDB_db		mm_dbs[CORE_DBS];	/**< first is free space, 2nd is main db */
+	RZDB_db		mm_dbs[CORE_DBS];	/**< first is free space, 2nd is main db */
 	/** The size of pages used in this DB */
 #define	mm_psize	mm_dbs[FREE_DBI].md_pad
 	/** Any persistent environment flags. @ref mdb_env */
@@ -1222,42 +1222,42 @@ typedef struct MDB_meta {
 	 */
 	pgno_t		mm_last_pg;
 	volatile txnid_t	mm_txnid;	/**< txnid that committed this page */
-} MDB_meta;
+} RZDB_meta;
 
 	/** Buffer for a stack-allocated meta page.
 	 *	The members define size and alignment, and silence type
 	 *	aliasing warnings.  They are not used directly; that could
 	 *	mean incorrectly using several union members in parallel.
 	 */
-typedef union MDB_metabuf {
-	MDB_page	mb_page;
+typedef union RZDB_metabuf {
+	RZDB_page	mb_page;
 	struct {
 		char		mm_pad[PAGEHDRSZ];
-		MDB_meta	mm_meta;
+		RZDB_meta	mm_meta;
 	} mb_metabuf;
-} MDB_metabuf;
+} RZDB_metabuf;
 
 	/** Auxiliary DB info.
 	 *	The information here is mostly static/read-only. There is
 	 *	only a single copy of this record in the environment.
 	 */
-typedef struct MDB_dbx {
-	MDB_val		md_name;		/**< name of the database */
-	MDB_cmp_func	*md_cmp;	/**< function for comparing keys */
-	MDB_cmp_func	*md_dcmp;	/**< function for comparing data items */
+typedef struct RZDB_dbx {
+	RZDB_val		md_name;		/**< name of the database */
+	RZDB_cmp_func	*md_cmp;	/**< function for comparing keys */
+	RZDB_cmp_func	*md_dcmp;	/**< function for comparing data items */
 	void		*md_cmpctx;		/**< user-provided context for md_cmp */
 	void		*md_dcmpctx;	/**< user-provided context for md_dcmp */
-} MDB_dbx;
+} RZDB_dbx;
 
 	/** A database transaction.
 	 *	Every operation requires a transaction handle.
 	 */
-struct MDB_txn {
-	MDB_txn		*mt_parent;		/**< parent of a nested txn */
-	/** Nested txn under this txn, set together with flag #MDB_TXN_HAS_CHILD */
-	MDB_txn		*mt_child;
+struct RZDB_txn {
+	RZDB_txn		*mt_parent;		/**< parent of a nested txn */
+	/** Nested txn under this txn, set together with flag #RZDB_TXN_HAS_CHILD */
+	RZDB_txn		*mt_child;
 	pgno_t		mt_next_pgno;	/**< next unallocated page */
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	pgno_t		mt_last_pgno;	/**< last written page */
 #endif
 	/** The ID of this transaction. IDs are integers incrementing from 1.
@@ -1265,31 +1265,31 @@ struct MDB_txn {
 	 *	aborts, the ID may be re-used by the next writer.
 	 */
 	txnid_t		mt_txnid;
-	MDB_env		*mt_env;		/**< the DB environment */
+	RZDB_env		*mt_env;		/**< the DB environment */
 	/** The list of pages that became unused during this transaction.
 	 */
-	MDB_IDL		mt_free_pgs;
+	RZDB_IDL		mt_free_pgs;
 	/** The list of loose pages that became unused and may be reused
 	 *	in this transaction, linked through #NEXT_LOOSE_PAGE(page).
 	 */
-	MDB_page	*mt_loose_pgs;
+	RZDB_page	*mt_loose_pgs;
 	/** Number of loose pages (#mt_loose_pgs) */
 	int			mt_loose_count;
 	/** The sorted list of dirty pages we temporarily wrote to disk
 	 *	because the dirty list was full. page numbers in here are
 	 *	shifted left by 1, deleted slots have the LSB set.
 	 */
-	MDB_IDL		mt_spill_pgs;
+	RZDB_IDL		mt_spill_pgs;
 	union {
-		/** For write txns: Modified pages. Sorted when not MDB_WRITEMAP. */
-		MDB_ID2L	dirty_list;
+		/** For write txns: Modified pages. Sorted when not RZDB_WRITEMAP. */
+		RZDB_ID2L	dirty_list;
 		/** For read txns: This thread/txn's reader table slot, or NULL. */
-		MDB_reader	*reader;
+		RZDB_reader	*reader;
 	} mt_u;
 	/** Array of records for each DB known in the environment. */
-	MDB_dbx		*mt_dbxs;
-	/** Array of MDB_db records for each known DB */
-	MDB_db		*mt_dbs;
+	RZDB_dbx		*mt_dbxs;
+	/** Array of RZDB_db records for each known DB */
+	RZDB_db		*mt_dbs;
 	/** Array of sequence numbers for each DB handle */
 	unsigned int	*mt_dbiseqs;
 /** @defgroup mt_dbflag	Transaction DB Flags
@@ -1299,51 +1299,51 @@ struct MDB_txn {
 #define DB_DIRTY	0x01		/**< DB was written in this txn */
 #define DB_STALE	0x02		/**< Named-DB record is older than txnID */
 #define DB_NEW		0x04		/**< Named-DB handle opened in this txn */
-#define DB_VALID	0x08		/**< DB handle is valid, see also #MDB_VALID */
+#define DB_VALID	0x08		/**< DB handle is valid, see also #RZDB_VALID */
 #define DB_USRVALID	0x10		/**< As #DB_VALID, but not set for #FREE_DBI */
-#define DB_DUPDATA	0x20		/**< DB is #MDB_DUPSORT data */
+#define DB_DUPDATA	0x20		/**< DB is #RZDB_DUPSORT data */
 /** @} */
 	/** In write txns, array of cursors for each DB */
-	MDB_cursor	**mt_cursors;
+	RZDB_cursor	**mt_cursors;
 	/** Array of flags for each DB */
 	unsigned char	*mt_dbflags;
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	/** List of read-only pages (actually chunks) */
-	MDB_ID3L	mt_rpages;
+	RZDB_ID3L	mt_rpages;
 	/** We map chunks of 16 pages. Even though Windows uses 4KB pages, all
 	 * mappings must begin on 64KB boundaries. So we round off all pgnos to
 	 * a chunk boundary. We do the same on Linux for symmetry, and also to
 	 * reduce the frequency of mmap/munmap calls.
 	 */
-#define MDB_RPAGE_CHUNK	16
-#define MDB_TRPAGE_SIZE	4096	/**< size of #mt_rpages array of chunks */
-#define MDB_TRPAGE_MAX	(MDB_TRPAGE_SIZE-1)	/**< maximum chunk index */
+#define RZDB_RPAGE_CHUNK	16
+#define RZDB_TRPAGE_SIZE	4096	/**< size of #mt_rpages array of chunks */
+#define RZDB_TRPAGE_MAX	(RZDB_TRPAGE_SIZE-1)	/**< maximum chunk index */
 	unsigned int mt_rpcheck;	/**< threshold for reclaiming unref'd chunks */
 #endif
 	/**	Number of DB records in use, or 0 when the txn is finished.
 	 *	This number only ever increments until the txn finishes; we
 	 *	don't decrement it when individual DB handles are closed.
 	 */
-	MDB_dbi		mt_numdbs;
+	RZDB_dbi		mt_numdbs;
 
 /** @defgroup mdb_txn	Transaction Flags
  *	@ingroup internal
  *	@{
  */
 	/** #mdb_txn_begin() flags */
-#define MDB_TXN_BEGIN_FLAGS	(MDB_NOMETASYNC|MDB_NOSYNC|MDB_RDONLY)
-#define MDB_TXN_NOMETASYNC	MDB_NOMETASYNC	/**< don't sync meta for this txn on commit */
-#define MDB_TXN_NOSYNC		MDB_NOSYNC	/**< don't sync this txn on commit */
-#define MDB_TXN_RDONLY		MDB_RDONLY	/**< read-only transaction */
+#define RZDB_TXN_BEGIN_FLAGS	(RZDB_NOMETASYNC|RZDB_NOSYNC|RZDB_RDONLY)
+#define RZDB_TXN_NOMETASYNC	RZDB_NOMETASYNC	/**< don't sync meta for this txn on commit */
+#define RZDB_TXN_NOSYNC		RZDB_NOSYNC	/**< don't sync this txn on commit */
+#define RZDB_TXN_RDONLY		RZDB_RDONLY	/**< read-only transaction */
 	/* internal txn flags */
-#define MDB_TXN_WRITEMAP	MDB_WRITEMAP	/**< copy of #MDB_env flag in writers */
-#define MDB_TXN_FINISHED	0x01		/**< txn is finished or never began */
-#define MDB_TXN_ERROR		0x02		/**< txn is unusable after an error */
-#define MDB_TXN_DIRTY		0x04		/**< must write, even if dirty list is empty */
-#define MDB_TXN_SPILLS		0x08		/**< txn or a parent has spilled pages */
-#define MDB_TXN_HAS_CHILD	0x10		/**< txn has an #MDB_txn.%mt_child */
+#define RZDB_TXN_WRITEMAP	RZDB_WRITEMAP	/**< copy of #RZDB_env flag in writers */
+#define RZDB_TXN_FINISHED	0x01		/**< txn is finished or never began */
+#define RZDB_TXN_ERROR		0x02		/**< txn is unusable after an error */
+#define RZDB_TXN_DIRTY		0x04		/**< must write, even if dirty list is empty */
+#define RZDB_TXN_SPILLS		0x08		/**< txn or a parent has spilled pages */
+#define RZDB_TXN_HAS_CHILD	0x10		/**< txn has an #RZDB_txn.%mt_child */
 	/** most operations on the txn are currently illegal */
-#define MDB_TXN_BLOCKED		(MDB_TXN_FINISHED|MDB_TXN_ERROR|MDB_TXN_HAS_CHILD)
+#define RZDB_TXN_BLOCKED		(RZDB_TXN_FINISHED|RZDB_TXN_ERROR|RZDB_TXN_HAS_CHILD)
 /** @} */
 	unsigned int	mt_flags;		/**< @ref mdb_txn */
 	/** #dirty_list room: Array size - \#dirty pages visible to this txn.
@@ -1360,31 +1360,31 @@ struct MDB_txn {
  */
 #define CURSOR_STACK		 32
 
-struct MDB_xcursor;
+struct RZDB_xcursor;
 
 	/** Cursors are used for all DB operations.
 	 *	A cursor holds a path of (page pointer, key index) from the DB
-	 *	root to a position in the DB, plus other state. #MDB_DUPSORT
+	 *	root to a position in the DB, plus other state. #RZDB_DUPSORT
 	 *	cursors include an xcursor to the current data item. Write txns
 	 *	track their cursors and keep them up to date when data moves.
 	 *	Exception: An xcursor's pointer to a #P_SUBP page can be stale.
 	 *	(A node with #F_DUPDATA but no #F_SUBDATA contains a subpage).
 	 */
-struct MDB_cursor {
+struct RZDB_cursor {
 	/** Next cursor on this DB in this txn */
-	MDB_cursor	*mc_next;
+	RZDB_cursor	*mc_next;
 	/** Backup of the original cursor if this cursor is a shadow */
-	MDB_cursor	*mc_backup;
-	/** Context used for databases with #MDB_DUPSORT, otherwise NULL */
-	struct MDB_xcursor	*mc_xcursor;
+	RZDB_cursor	*mc_backup;
+	/** Context used for databases with #RZDB_DUPSORT, otherwise NULL */
+	struct RZDB_xcursor	*mc_xcursor;
 	/** The transaction that owns this cursor */
-	MDB_txn		*mc_txn;
+	RZDB_txn		*mc_txn;
 	/** The database handle this cursor operates on */
-	MDB_dbi		mc_dbi;
+	RZDB_dbi		mc_dbi;
 	/** The database record for this cursor */
-	MDB_db		*mc_db;
+	RZDB_db		*mc_db;
 	/** The database auxiliary record for this cursor */
-	MDB_dbx		*mc_dbx;
+	RZDB_dbx		*mc_dbx;
 	/** The @ref mt_dbflag for this database */
 	unsigned char	*mc_dbflag;
 	unsigned short 	mc_snum;	/**< number of pushed pages */
@@ -1399,22 +1399,22 @@ struct MDB_cursor {
 #define C_SUB	0x04			/**< Cursor is a sub-cursor */
 #define C_DEL	0x08			/**< last op was a cursor_del */
 #define C_UNTRACK	0x40		/**< Un-track cursor when closing */
-#define C_WRITEMAP	MDB_TXN_WRITEMAP /**< Copy of txn flag */
+#define C_WRITEMAP	RZDB_TXN_WRITEMAP /**< Copy of txn flag */
 /** Read-only cursor into the txn's original snapshot in the map.
  *	Set for read-only txns, and in #mdb_page_alloc() for #FREE_DBI when
- *	#MDB_DEVEL & 2. Only implements code which is necessary for this.
+ *	#RZDB_DEVEL & 2. Only implements code which is necessary for this.
  */
-#define C_ORIG_RDONLY	MDB_TXN_RDONLY
+#define C_ORIG_RDONLY	RZDB_TXN_RDONLY
 /** @} */
 	unsigned int	mc_flags;	/**< @ref mdb_cursor */
-	MDB_page	*mc_pg[CURSOR_STACK];	/**< stack of pushed pages */
+	RZDB_page	*mc_pg[CURSOR_STACK];	/**< stack of pushed pages */
 	indx_t		mc_ki[CURSOR_STACK];	/**< stack of page indices */
-#ifdef MDB_VL32
-	MDB_page	*mc_ovpg;		/**< a referenced overflow page */
+#ifdef RZDB_VL32
+	RZDB_page	*mc_ovpg;		/**< a referenced overflow page */
 #	define MC_OVPG(mc)			((mc)->mc_ovpg)
 #	define MC_SET_OVPG(mc, pg)	((mc)->mc_ovpg = (pg))
 #else
-#	define MC_OVPG(mc)			((MDB_page *)0)
+#	define MC_OVPG(mc)			((RZDB_page *)0)
 #	define MC_SET_OVPG(mc, pg)	((void)0)
 #endif
 };
@@ -1424,16 +1424,16 @@ struct MDB_cursor {
 	 *	deep nesting of sub-databases. But for now we only handle these
 	 *	levels - main DB, optional sub-DB, sorted-duplicate DB.
 	 */
-typedef struct MDB_xcursor {
+typedef struct RZDB_xcursor {
 	/** A sub-cursor for traversing the Dup DB */
-	MDB_cursor mx_cursor;
+	RZDB_cursor mx_cursor;
 	/** The database record for this Dup DB */
-	MDB_db	mx_db;
+	RZDB_db	mx_db;
 	/**	The auxiliary DB record for this Dup DB */
-	MDB_dbx	mx_dbx;
+	RZDB_dbx	mx_dbx;
 	/** The @ref mt_dbflag for this Dup DB */
 	unsigned char mx_dbflag;
-} MDB_xcursor;
+} RZDB_xcursor;
 
 	/** Check if there is an inited xcursor */
 #define XCURSOR_INITED(mc) \
@@ -1444,112 +1444,112 @@ typedef struct MDB_xcursor {
 	 *	with leaf page \b mp = mc->mc_pg[\b top].
 	 */
 #define XCURSOR_REFRESH(mc, top, mp) do { \
-	MDB_page *xr_pg = (mp); \
-	MDB_node *xr_node; \
+	RZDB_page *xr_pg = (mp); \
+	RZDB_node *xr_node; \
 	if (!XCURSOR_INITED(mc) || (mc)->mc_ki[top] >= NUMKEYS(xr_pg)) break; \
 	xr_node = NODEPTR(xr_pg, (mc)->mc_ki[top]); \
 	if ((xr_node->mn_flags & (F_DUPDATA|F_SUBDATA)) == F_DUPDATA) \
 		(mc)->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(xr_node); \
 } while (0)
 
-	/** State of FreeDB old pages, stored in the MDB_env */
-typedef struct MDB_pgstate {
+	/** State of FreeDB old pages, stored in the RZDB_env */
+typedef struct RZDB_pgstate {
 	pgno_t		*mf_pghead;	/**< Reclaimed freeDB pages, or NULL before use */
 	txnid_t		mf_pglast;	/**< ID of last used record, or 0 if !mf_pghead */
-} MDB_pgstate;
+} RZDB_pgstate;
 
 	/** The database environment. */
-struct MDB_env {
+struct RZDB_env {
 	HANDLE		me_fd;		/**< The main data file */
 	HANDLE		me_lfd;		/**< The lock file */
 	HANDLE		me_mfd;		/**< For writing and syncing the meta pages */
-#if defined(MDB_VL32) && defined(_WIN32)
+#if defined(RZDB_VL32) && defined(_WIN32)
 	HANDLE		me_fmh;		/**< File Mapping handle */
 #endif
 	/** Failed to update the meta page. Probably an I/O error. */
-#define	MDB_FATAL_ERROR	0x80000000U
+#define	RZDB_FATAL_ERROR	0x80000000U
 	/** Some fields are initialized. */
-#define	MDB_ENV_ACTIVE	0x20000000U
+#define	RZDB_ENV_ACTIVE	0x20000000U
 	/** me_txkey is set */
-#define	MDB_ENV_TXKEY	0x10000000U
+#define	RZDB_ENV_TXKEY	0x10000000U
 	/** fdatasync is unreliable */
-#define	MDB_FSYNCONLY	0x08000000U
+#define	RZDB_FSYNCONLY	0x08000000U
 	uint32_t 	me_flags;		/**< @ref mdb_env */
 	unsigned int	me_psize;	/**< DB page size, inited from me_os_psize */
 	unsigned int	me_os_psize;	/**< OS page size, from #GET_PAGESIZE */
 	unsigned int	me_maxreaders;	/**< size of the reader table */
-	/** Max #MDB_txninfo.%mti_numreaders of interest to #mdb_env_close() */
+	/** Max #RZDB_txninfo.%mti_numreaders of interest to #mdb_env_close() */
 	volatile int	me_close_readers;
-	MDB_dbi		me_numdbs;		/**< number of DBs opened */
-	MDB_dbi		me_maxdbs;		/**< size of the DB table */
-	MDB_PID_T	me_pid;		/**< process ID of this env */
+	RZDB_dbi		me_numdbs;		/**< number of DBs opened */
+	RZDB_dbi		me_maxdbs;		/**< size of the DB table */
+	RZDB_PID_T	me_pid;		/**< process ID of this env */
 	char		*me_path;		/**< path to the DB files */
 	char		*me_map;		/**< the memory map of the data file */
-	MDB_txninfo	*me_txns;		/**< the memory map of the lock file or NULL */
-	MDB_meta	*me_metas[NUM_METAS];	/**< pointers to the two meta pages */
+	RZDB_txninfo	*me_txns;		/**< the memory map of the lock file or NULL */
+	RZDB_meta	*me_metas[NUM_METAS];	/**< pointers to the two meta pages */
 	void		*me_pbuf;		/**< scratch area for DUPSORT put() */
-	MDB_txn		*me_txn;		/**< current write transaction */
-	MDB_txn		*me_txn0;		/**< prealloc'd write transaction */
+	RZDB_txn		*me_txn;		/**< current write transaction */
+	RZDB_txn		*me_txn0;		/**< prealloc'd write transaction */
 	mdb_size_t	me_mapsize;		/**< size of the data memory map */
 	off_t		me_size;		/**< current file size */
 	pgno_t		me_maxpg;		/**< me_mapsize / me_psize */
-	MDB_dbx		*me_dbxs;		/**< array of static DB info */
-	uint16_t	*me_dbflags;	/**< array of flags from MDB_db.md_flags */
+	RZDB_dbx		*me_dbxs;		/**< array of static DB info */
+	uint16_t	*me_dbflags;	/**< array of flags from RZDB_db.md_flags */
 	unsigned int	*me_dbiseqs;	/**< array of dbi sequence numbers */
 	pthread_key_t	me_txkey;	/**< thread-key for readers */
 	txnid_t		me_pgoldest;	/**< ID of oldest reader last time we looked */
-	MDB_pgstate	me_pgstate;		/**< state of old pages from freeDB */
+	RZDB_pgstate	me_pgstate;		/**< state of old pages from freeDB */
 #	define		me_pglast	me_pgstate.mf_pglast
 #	define		me_pghead	me_pgstate.mf_pghead
-	MDB_page	*me_dpages;		/**< list of malloc'd blocks for re-use */
+	RZDB_page	*me_dpages;		/**< list of malloc'd blocks for re-use */
 	/** IDL of pages that became unused in a write txn */
-	MDB_IDL		me_free_pgs;
-	/** ID2L of pages written during a write txn. Length MDB_IDL_UM_SIZE. */
-	MDB_ID2L	me_dirty_list;
+	RZDB_IDL		me_free_pgs;
+	/** ID2L of pages written during a write txn. Length RZDB_IDL_UM_SIZE. */
+	RZDB_ID2L	me_dirty_list;
 	/** Max number of freelist items that can fit in a single overflow page */
 	int			me_maxfree_1pg;
 	/** Max size of a node on a page */
 	unsigned int	me_nodemax;
-#if !(MDB_MAXKEYSIZE)
+#if !(RZDB_MAXKEYSIZE)
 	unsigned int	me_maxkey;	/**< max size of a key */
 #endif
 	int		me_live_reader;		/**< have liveness lock in reader table */
 #ifdef _WIN32
 	int		me_pidquery;		/**< Used in OpenProcess */
 #endif
-#ifdef MDB_USE_POSIX_MUTEX	/* Posix mutexes reside in shared mem */
+#ifdef RZDB_USE_POSIX_MUTEX	/* Posix mutexes reside in shared mem */
 #	define		me_rmutex	me_txns->mti_rmutex /**< Shared reader lock */
 #	define		me_wmutex	me_txns->mti_wmutex /**< Shared writer lock */
 #else
 	mdb_mutex_t	me_rmutex;
 	mdb_mutex_t	me_wmutex;
-# if defined(_WIN32) || defined(MDB_USE_POSIX_SEM)
+# if defined(_WIN32) || defined(RZDB_USE_POSIX_SEM)
 	/** Half-initialized name of mutexes, to be completed by #MUTEXNAME() */
 	char		me_mutexname[sizeof(MUTEXNAME_PREFIX) + 11];
 # endif
 #endif
-#ifdef MDB_VL32
-	MDB_ID3L	me_rpages;	/**< like #mt_rpages, but global to env */
+#ifdef RZDB_VL32
+	RZDB_ID3L	me_rpages;	/**< like #mt_rpages, but global to env */
 	pthread_mutex_t	me_rpmutex;	/**< control access to #me_rpages */
-#define MDB_ERPAGE_SIZE	16384
-#define MDB_ERPAGE_MAX	(MDB_ERPAGE_SIZE-1)
+#define RZDB_ERPAGE_SIZE	16384
+#define RZDB_ERPAGE_MAX	(RZDB_ERPAGE_SIZE-1)
 	unsigned int me_rpcheck;
 #endif
 	void		*me_userctx;	 /**< User-settable context */
-	MDB_assert_func *me_assert_func; /**< Callback for assertion failures */
+	RZDB_assert_func *me_assert_func; /**< Callback for assertion failures */
 };
 
 	/** Nested transaction */
-typedef struct MDB_ntxn {
-	MDB_txn		mnt_txn;		/**< the transaction */
-	MDB_pgstate	mnt_pgstate;	/**< parent transaction's saved freestate */
-} MDB_ntxn;
+typedef struct RZDB_ntxn {
+	RZDB_txn		mnt_txn;		/**< the transaction */
+	RZDB_pgstate	mnt_pgstate;	/**< parent transaction's saved freestate */
+} RZDB_ntxn;
 
 	/** max number of pages to commit in one writev() call */
-#define MDB_COMMIT_PAGES	 64
-#if defined(IOV_MAX) && IOV_MAX < MDB_COMMIT_PAGES
-#undef MDB_COMMIT_PAGES
-#define MDB_COMMIT_PAGES	IOV_MAX
+#define RZDB_COMMIT_PAGES	 64
+#if defined(IOV_MAX) && IOV_MAX < RZDB_COMMIT_PAGES
+#undef RZDB_COMMIT_PAGES
+#define RZDB_COMMIT_PAGES	IOV_MAX
 #endif
 
 	/** max bytes to write in one call */
@@ -1563,83 +1563,83 @@ typedef struct MDB_ntxn {
 #define TXN_DBI_CHANGED(txn, dbi) \
 	((txn)->mt_dbiseqs[dbi] != (txn)->mt_env->me_dbiseqs[dbi])
 
-static int  mdb_page_alloc(MDB_cursor *mc, int num, MDB_page **mp);
-static int  mdb_page_new(MDB_cursor *mc, uint32_t flags, int num, MDB_page **mp);
-static int  mdb_page_touch(MDB_cursor *mc);
+static int  mdb_page_alloc(RZDB_cursor *mc, int num, RZDB_page **mp);
+static int  mdb_page_new(RZDB_cursor *mc, uint32_t flags, int num, RZDB_page **mp);
+static int  mdb_page_touch(RZDB_cursor *mc);
 
-#define MDB_END_NAMES {"committed", "empty-commit", "abort", "reset", \
+#define RZDB_END_NAMES {"committed", "empty-commit", "abort", "reset", \
 	"reset-tmp", "fail-begin", "fail-beginchild"}
 enum {
 	/* mdb_txn_end operation number, for logging */
-	MDB_END_COMMITTED, MDB_END_EMPTY_COMMIT, MDB_END_ABORT, MDB_END_RESET,
-	MDB_END_RESET_TMP, MDB_END_FAIL_BEGIN, MDB_END_FAIL_BEGINCHILD
+	RZDB_END_COMMITTED, RZDB_END_EMPTY_COMMIT, RZDB_END_ABORT, RZDB_END_RESET,
+	RZDB_END_RESET_TMP, RZDB_END_FAIL_BEGIN, RZDB_END_FAIL_BEGINCHILD
 };
-#define MDB_END_OPMASK	0x0F	/**< mask for #mdb_txn_end() operation number */
-#define MDB_END_UPDATE	0x10	/**< update env state (DBIs) */
-#define MDB_END_FREE	0x20	/**< free txn unless it is #MDB_env.%me_txn0 */
-#define MDB_END_SLOT MDB_NOTLS	/**< release any reader slot if #MDB_NOTLS */
-static void mdb_txn_end(MDB_txn *txn, unsigned mode);
+#define RZDB_END_OPMASK	0x0F	/**< mask for #mdb_txn_end() operation number */
+#define RZDB_END_UPDATE	0x10	/**< update env state (DBIs) */
+#define RZDB_END_FREE	0x20	/**< free txn unless it is #RZDB_env.%me_txn0 */
+#define RZDB_END_SLOT RZDB_NOTLS	/**< release any reader slot if #RZDB_NOTLS */
+static void mdb_txn_end(RZDB_txn *txn, unsigned mode);
 
-static int  mdb_page_get(MDB_cursor *mc, pgno_t pgno, MDB_page **mp, int *lvl);
-static int  mdb_page_search_root(MDB_cursor *mc,
-			    MDB_val *key, int modify);
-#define MDB_PS_MODIFY	1
-#define MDB_PS_ROOTONLY	2
-#define MDB_PS_FIRST	4
-#define MDB_PS_LAST		8
-static int  mdb_page_search(MDB_cursor *mc,
-			    MDB_val *key, int flags);
-static int	mdb_page_merge(MDB_cursor *csrc, MDB_cursor *cdst);
+static int  mdb_page_get(RZDB_cursor *mc, pgno_t pgno, RZDB_page **mp, int *lvl);
+static int  mdb_page_search_root(RZDB_cursor *mc,
+			    RZDB_val *key, int modify);
+#define RZDB_PS_MODIFY	1
+#define RZDB_PS_ROOTONLY	2
+#define RZDB_PS_FIRST	4
+#define RZDB_PS_LAST		8
+static int  mdb_page_search(RZDB_cursor *mc,
+			    RZDB_val *key, int flags);
+static int	mdb_page_merge(RZDB_cursor *csrc, RZDB_cursor *cdst);
 
-#define MDB_SPLIT_REPLACE	MDB_APPENDDUP	/**< newkey is not new */
-static int	mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata,
+#define RZDB_SPLIT_REPLACE	RZDB_APPENDDUP	/**< newkey is not new */
+static int	mdb_page_split(RZDB_cursor *mc, RZDB_val *newkey, RZDB_val *newdata,
 				pgno_t newpgno, unsigned int nflags);
 
-static int  mdb_env_read_header(MDB_env *env, int prev, MDB_meta *meta);
-static MDB_meta *mdb_env_pick_meta(const MDB_env *env);
-static int  mdb_env_write_meta(MDB_txn *txn);
-#ifdef MDB_USE_POSIX_MUTEX /* Drop unused excl arg */
+static int  mdb_env_read_header(RZDB_env *env, int prev, RZDB_meta *meta);
+static RZDB_meta *mdb_env_pick_meta(const RZDB_env *env);
+static int  mdb_env_write_meta(RZDB_txn *txn);
+#ifdef RZDB_USE_POSIX_MUTEX /* Drop unused excl arg */
 # define mdb_env_close0(env, excl) mdb_env_close1(env)
 #endif
-static void mdb_env_close0(MDB_env *env, int excl);
+static void mdb_env_close0(RZDB_env *env, int excl);
 
-static MDB_node *mdb_node_search(MDB_cursor *mc, MDB_val *key, int *exactp);
-static int  mdb_node_add(MDB_cursor *mc, indx_t indx,
-			    MDB_val *key, MDB_val *data, pgno_t pgno, unsigned int flags);
-static void mdb_node_del(MDB_cursor *mc, int ksize);
-static void mdb_node_shrink(MDB_page *mp, indx_t indx);
-static int	mdb_node_move(MDB_cursor *csrc, MDB_cursor *cdst, int fromleft);
-static int  mdb_node_read(MDB_cursor *mc, MDB_node *leaf, MDB_val *data);
-static size_t	mdb_leaf_size(MDB_env *env, MDB_val *key, MDB_val *data);
-static size_t	mdb_branch_size(MDB_env *env, MDB_val *key);
+static RZDB_node *mdb_node_search(RZDB_cursor *mc, RZDB_val *key, int *exactp);
+static int  mdb_node_add(RZDB_cursor *mc, indx_t indx,
+			    RZDB_val *key, RZDB_val *data, pgno_t pgno, unsigned int flags);
+static void mdb_node_del(RZDB_cursor *mc, int ksize);
+static void mdb_node_shrink(RZDB_page *mp, indx_t indx);
+static int	mdb_node_move(RZDB_cursor *csrc, RZDB_cursor *cdst, int fromleft);
+static int  mdb_node_read(RZDB_cursor *mc, RZDB_node *leaf, RZDB_val *data);
+static size_t	mdb_leaf_size(RZDB_env *env, RZDB_val *key, RZDB_val *data);
+static size_t	mdb_branch_size(RZDB_env *env, RZDB_val *key);
 
-static int	mdb_rebalance(MDB_cursor *mc);
-static int	mdb_update_key(MDB_cursor *mc, MDB_val *key);
+static int	mdb_rebalance(RZDB_cursor *mc);
+static int	mdb_update_key(RZDB_cursor *mc, RZDB_val *key);
 
-static void	mdb_cursor_pop(MDB_cursor *mc);
-static int	mdb_cursor_push(MDB_cursor *mc, MDB_page *mp);
+static void	mdb_cursor_pop(RZDB_cursor *mc);
+static int	mdb_cursor_push(RZDB_cursor *mc, RZDB_page *mp);
 
-static int	mdb_cursor_del0(MDB_cursor *mc);
-static int	mdb_del0(MDB_txn *txn, MDB_dbi dbi, MDB_val *key, MDB_val *data, unsigned flags);
-static int	mdb_cursor_sibling(MDB_cursor *mc, int move_right);
-static int	mdb_cursor_next(MDB_cursor *mc, MDB_val *key, MDB_val *data, MDB_cursor_op op);
-static int	mdb_cursor_prev(MDB_cursor *mc, MDB_val *key, MDB_val *data, MDB_cursor_op op);
-static int	mdb_cursor_set(MDB_cursor *mc, MDB_val *key, MDB_val *data, MDB_cursor_op op,
+static int	mdb_cursor_del0(RZDB_cursor *mc);
+static int	mdb_del0(RZDB_txn *txn, RZDB_dbi dbi, RZDB_val *key, RZDB_val *data, unsigned flags);
+static int	mdb_cursor_sibling(RZDB_cursor *mc, int move_right);
+static int	mdb_cursor_next(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data, RZDB_cursor_op op);
+static int	mdb_cursor_prev(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data, RZDB_cursor_op op);
+static int	mdb_cursor_set(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data, RZDB_cursor_op op,
 				int *exactp);
-static int	mdb_cursor_first(MDB_cursor *mc, MDB_val *key, MDB_val *data);
-static int	mdb_cursor_last(MDB_cursor *mc, MDB_val *key, MDB_val *data);
+static int	mdb_cursor_first(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data);
+static int	mdb_cursor_last(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data);
 
-static void	mdb_cursor_init(MDB_cursor *mc, MDB_txn *txn, MDB_dbi dbi, MDB_xcursor *mx);
-static void	mdb_xcursor_init0(MDB_cursor *mc);
-static void	mdb_xcursor_init1(MDB_cursor *mc, MDB_node *node);
-static void	mdb_xcursor_init2(MDB_cursor *mc, MDB_xcursor *src_mx, int force);
+static void	mdb_cursor_init(RZDB_cursor *mc, RZDB_txn *txn, RZDB_dbi dbi, RZDB_xcursor *mx);
+static void	mdb_xcursor_init0(RZDB_cursor *mc);
+static void	mdb_xcursor_init1(RZDB_cursor *mc, RZDB_node *node);
+static void	mdb_xcursor_init2(RZDB_cursor *mc, RZDB_xcursor *src_mx, int force);
 
-static int	mdb_drop0(MDB_cursor *mc, int subs);
-static void mdb_default_cmp(MDB_txn *txn, MDB_dbi dbi);
-static int mdb_reader_check0(MDB_env *env, int rlocked, int *dead);
+static int	mdb_drop0(RZDB_cursor *mc, int subs);
+static void mdb_default_cmp(RZDB_txn *txn, RZDB_dbi dbi);
+static int mdb_reader_check0(RZDB_env *env, int rlocked, int *dead);
 
 /** @cond */
-static MDB_cmp_func	mdb_cmp_memn, mdb_cmp_memnr, mdb_cmp_int, mdb_cmp_cint, mdb_cmp_long;
+static RZDB_cmp_func	mdb_cmp_memn, mdb_cmp_memnr, mdb_cmp_int, mdb_cmp_cint, mdb_cmp_long;
 /** @endcond */
 
 /** Compare two items pointing at '#mdb_size_t's of unknown alignment. */
@@ -1649,9 +1649,9 @@ static MDB_cmp_func	mdb_cmp_memn, mdb_cmp_memnr, mdb_cmp_int, mdb_cmp_cint, mdb_
 # define mdb_cmp_clong mdb_cmp_cint
 #endif
 
-/** True if we need #mdb_cmp_clong() instead of \b cmp for #MDB_INTEGERDUP */
+/** True if we need #mdb_cmp_clong() instead of \b cmp for #RZDB_INTEGERDUP */
 #define NEED_CMP_CLONG(cmp, ksize) \
-	(UINT_MAX < MDB_SIZE_MAX && \
+	(UINT_MAX < RZDB_SIZE_MAX && \
 	 (cmp) == mdb_cmp_int && (ksize) == sizeof(mdb_size_t))
 
 #ifdef _WIN32
@@ -1659,43 +1659,43 @@ static SECURITY_DESCRIPTOR mdb_null_sd;
 static SECURITY_ATTRIBUTES mdb_all_sa;
 static int mdb_sec_inited;
 
-struct MDB_name;
-static int utf8_to_utf16(const char *src, struct MDB_name *dst, int xtra);
+struct RZDB_name;
+static int utf8_to_utf16(const char *src, struct RZDB_name *dst, int xtra);
 #endif
 
 /** Return the library version info. */
 char * ESECT
 mdb_version(int *major, int *minor, int *patch)
 {
-	if (major) *major = MDB_VERSION_MAJOR;
-	if (minor) *minor = MDB_VERSION_MINOR;
-	if (patch) *patch = MDB_VERSION_PATCH;
-	return MDB_VERSION_STRING;
+	if (major) *major = RZDB_VERSION_MAJOR;
+	if (minor) *minor = RZDB_VERSION_MINOR;
+	if (patch) *patch = RZDB_VERSION_PATCH;
+	return RZDB_VERSION_STRING;
 }
 
 /** Table of descriptions for LMDB @ref errors */
 static char *const mdb_errstr[] = {
-	"MDB_KEYEXIST: Key/data pair already exists",
-	"MDB_NOTFOUND: No matching key/data pair found",
-	"MDB_PAGE_NOTFOUND: Requested page not found",
-	"MDB_CORRUPTED: Located page was wrong type",
-	"MDB_PANIC: Update of meta page failed or environment had fatal error",
-	"MDB_VERSION_MISMATCH: Database environment version mismatch",
-	"MDB_INVALID: File is not an LMDB file",
-	"MDB_MAP_FULL: Environment mapsize limit reached",
-	"MDB_DBS_FULL: Environment maxdbs limit reached",
-	"MDB_READERS_FULL: Environment maxreaders limit reached",
-	"MDB_TLS_FULL: Thread-local storage keys full - too many environments open",
-	"MDB_TXN_FULL: Transaction has too many dirty pages - transaction too big",
-	"MDB_CURSOR_FULL: Internal error - cursor stack limit reached",
-	"MDB_PAGE_FULL: Internal error - page has no more space",
-	"MDB_MAP_RESIZED: Database contents grew beyond environment mapsize",
-	"MDB_INCOMPATIBLE: Operation and DB incompatible, or DB flags changed",
-	"MDB_BAD_RSLOT: Invalid reuse of reader locktable slot",
-	"MDB_BAD_TXN: Transaction must abort, has a child, or is invalid",
-	"MDB_BAD_VALSIZE: Unsupported size of key/DB name/data, or wrong DUPFIXED size",
-	"MDB_BAD_DBI: The specified DBI handle was closed/changed unexpectedly",
-	"MDB_PROBLEM: Unexpected problem - txn should abort",
+	"RZDB_KEYEXIST: Key/data pair already exists",
+	"RZDB_NOTFOUND: No matching key/data pair found",
+	"RZDB_PAGE_NOTFOUND: Requested page not found",
+	"RZDB_CORRUPTED: Located page was wrong type",
+	"RZDB_PANIC: Update of meta page failed or environment had fatal error",
+	"RZDB_VERSION_MISMATCH: Database environment version mismatch",
+	"RZDB_INVALID: File is not an LMDB file",
+	"RZDB_MAP_FULL: Environment mapsize limit reached",
+	"RZDB_DBS_FULL: Environment maxdbs limit reached",
+	"RZDB_READERS_FULL: Environment maxreaders limit reached",
+	"RZDB_TLS_FULL: Thread-local storage keys full - too many environments open",
+	"RZDB_TXN_FULL: Transaction has too many dirty pages - transaction too big",
+	"RZDB_CURSOR_FULL: Internal error - cursor stack limit reached",
+	"RZDB_PAGE_FULL: Internal error - page has no more space",
+	"RZDB_MAP_RESIZED: Database contents grew beyond environment mapsize",
+	"RZDB_INCOMPATIBLE: Operation and DB incompatible, or DB flags changed",
+	"RZDB_BAD_RSLOT: Invalid reuse of reader locktable slot",
+	"RZDB_BAD_TXN: Transaction must abort, has a child, or is invalid",
+	"RZDB_BAD_VALSIZE: Unsupported size of key/DB name/data, or wrong DUPFIXED size",
+	"RZDB_BAD_DBI: The specified DBI handle was closed/changed unexpectedly",
+	"RZDB_PROBLEM: Unexpected problem - txn should abort",
 };
 
 char *
@@ -1714,8 +1714,8 @@ mdb_strerror(int err)
 	if (!err)
 		return ("Successful return: 0");
 
-	if (err >= MDB_KEYEXIST && err <= MDB_LAST_ERRCODE) {
-		i = err - MDB_KEYEXIST;
+	if (err >= RZDB_KEYEXIST && err <= RZDB_LAST_ERRCODE) {
+		i = err - RZDB_KEYEXIST;
 		return mdb_errstr[i];
 	}
 
@@ -1759,7 +1759,7 @@ mdb_strerror(int err)
 		mdb_assert_fail(env, expr_txt, mdb_func_, __FILE__, __LINE__))
 
 static void ESECT
-mdb_assert_fail(MDB_env *env, const char *expr_txt,
+mdb_assert_fail(RZDB_env *env, const char *expr_txt,
 	const char *func, const char *file, int line)
 {
 	char buf[400];
@@ -1774,10 +1774,10 @@ mdb_assert_fail(MDB_env *env, const char *expr_txt,
 # define mdb_assert0(env, expr, expr_txt) ((void) 0)
 #endif /* NDEBUG */
 
-#if MDB_DEBUG
+#if RZDB_DEBUG
 /** Return the page number of \b mp which may be sub-page, for debug output */
 static pgno_t
-mdb_dbg_pgno(MDB_page *mp)
+mdb_dbg_pgno(RZDB_page *mp)
 {
 	pgno_t ret;
 	COPY_PGNO(ret, mp->mp_pgno);
@@ -1790,7 +1790,7 @@ mdb_dbg_pgno(MDB_page *mp)
  * @return The key in hexadecimal form.
  */
 char *
-mdb_dkey(MDB_val *key, char *buf)
+mdb_dkey(RZDB_val *key, char *buf)
 {
 	char *ptr = buf;
 	unsigned char *c = key->mv_data;
@@ -1800,7 +1800,7 @@ mdb_dkey(MDB_val *key, char *buf)
 		return "";
 
 	if (key->mv_size > DKBUF_MAXKEYSIZE)
-		return "MDB_MAXKEYSIZE";
+		return "RZDB_MAXKEYSIZE";
 	/* may want to make this a dynamic check: if the key is mostly
 	 * printable characters, print it as-is instead of converting to hex.
 	 */
@@ -1815,7 +1815,7 @@ mdb_dkey(MDB_val *key, char *buf)
 }
 
 static const char *
-mdb_leafnode_type(MDB_node *n)
+mdb_leafnode_type(RZDB_node *n)
 {
 	static char *const tp[2][2] = {{"", ": DB"}, {": sub-page", ": sub-DB"}};
 	return F_ISSET(n->mn_flags, F_BIGDATA) ? ": overflow page" :
@@ -1824,13 +1824,13 @@ mdb_leafnode_type(MDB_node *n)
 
 /** Display all the keys in the page. */
 void
-mdb_page_list(MDB_page *mp)
+mdb_page_list(RZDB_page *mp)
 {
 	pgno_t pgno = mdb_dbg_pgno(mp);
 	const char *type, *state = (mp->mp_flags & P_DIRTY) ? ", dirty" : "";
-	MDB_node *node;
+	RZDB_node *node;
 	unsigned int i, nkeys, nsize, total = 0;
-	MDB_val key;
+	RZDB_val key;
 	DKBUF;
 
 	switch (mp->mp_flags & (P_BRANCH|P_LEAF|P_LEAF2|P_META|P_OVERFLOW|P_SUBP)) {
@@ -1845,7 +1845,7 @@ mdb_page_list(MDB_page *mp)
 		return;
 	case P_META:
 		fprintf(stderr, "Meta-page %"Yu" txnid %"Yu"\n",
-			pgno, ((MDB_meta *)METADATA(mp))->mm_txnid);
+			pgno, ((RZDB_meta *)METADATA(mp))->mm_txnid);
 		return;
 	default:
 		fprintf(stderr, "Bad page %"Yu" flags 0x%X\n", pgno, mp->mp_flags);
@@ -1888,11 +1888,11 @@ mdb_page_list(MDB_page *mp)
 }
 
 void
-mdb_cursor_chk(MDB_cursor *mc)
+mdb_cursor_chk(RZDB_cursor *mc)
 {
 	unsigned int i;
-	MDB_node *node;
-	MDB_page *mp;
+	RZDB_node *node;
+	RZDB_page *mp;
 
 	if (!mc->mc_snum || !(mc->mc_flags & C_INITIALIZED)) return;
 	for (i=0; i<mc->mc_top; i++) {
@@ -1913,29 +1913,29 @@ mdb_cursor_chk(MDB_cursor *mc)
 }
 #endif
 
-#if (MDB_DEBUG) > 2
+#if (RZDB_DEBUG) > 2
 /** Count all the pages in each DB and in the freelist
  *  and make sure it matches the actual number of pages
  *  being used.
  *  All named DBs must be open for a correct count.
  */
-static void mdb_audit(MDB_txn *txn)
+static void mdb_audit(RZDB_txn *txn)
 {
-	MDB_cursor mc;
-	MDB_val key, data;
-	MDB_ID freecount, count;
-	MDB_dbi i;
+	RZDB_cursor mc;
+	RZDB_val key, data;
+	RZDB_ID freecount, count;
+	RZDB_dbi i;
 	int rc;
 
 	freecount = 0;
 	mdb_cursor_init(&mc, txn, FREE_DBI, NULL);
-	while ((rc = mdb_cursor_get(&mc, &key, &data, MDB_NEXT)) == 0)
-		freecount += *(MDB_ID *)data.mv_data;
-	mdb_tassert(txn, rc == MDB_NOTFOUND);
+	while ((rc = mdb_cursor_get(&mc, &key, &data, RZDB_NEXT)) == 0)
+		freecount += *(RZDB_ID *)data.mv_data;
+	mdb_tassert(txn, rc == RZDB_NOTFOUND);
 
 	count = 0;
 	for (i = 0; i<txn->mt_numdbs; i++) {
-		MDB_xcursor mx;
+		RZDB_xcursor mx;
 		if (!(txn->mt_dbflags[i] & DB_VALID))
 			continue;
 		mdb_cursor_init(&mc, txn, i, &mx);
@@ -1944,23 +1944,23 @@ static void mdb_audit(MDB_txn *txn)
 		count += txn->mt_dbs[i].md_branch_pages +
 			txn->mt_dbs[i].md_leaf_pages +
 			txn->mt_dbs[i].md_overflow_pages;
-		if (txn->mt_dbs[i].md_flags & MDB_DUPSORT) {
-			rc = mdb_page_search(&mc, NULL, MDB_PS_FIRST);
-			for (; rc == MDB_SUCCESS; rc = mdb_cursor_sibling(&mc, 1)) {
+		if (txn->mt_dbs[i].md_flags & RZDB_DUPSORT) {
+			rc = mdb_page_search(&mc, NULL, RZDB_PS_FIRST);
+			for (; rc == RZDB_SUCCESS; rc = mdb_cursor_sibling(&mc, 1)) {
 				unsigned j;
-				MDB_page *mp;
+				RZDB_page *mp;
 				mp = mc.mc_pg[mc.mc_top];
 				for (j=0; j<NUMKEYS(mp); j++) {
-					MDB_node *leaf = NODEPTR(mp, j);
+					RZDB_node *leaf = NODEPTR(mp, j);
 					if (leaf->mn_flags & F_SUBDATA) {
-						MDB_db db;
+						RZDB_db db;
 						memcpy(&db, NODEDATA(leaf), sizeof(db));
 						count += db.md_branch_pages + db.md_leaf_pages +
 							db.md_overflow_pages;
 					}
 				}
 			}
-			mdb_tassert(txn, rc == MDB_NOTFOUND);
+			mdb_tassert(txn, rc == RZDB_NOTFOUND);
 		}
 	}
 	if (freecount + count + NUM_METAS != txn->mt_next_pgno) {
@@ -1972,15 +1972,15 @@ static void mdb_audit(MDB_txn *txn)
 #endif
 
 int
-mdb_cmp(MDB_txn *txn, MDB_dbi dbi, const MDB_val *a, const MDB_val *b)
+mdb_cmp(RZDB_txn *txn, RZDB_dbi dbi, const RZDB_val *a, const RZDB_val *b)
 {
 	return txn->mt_dbxs[dbi].md_cmp(a, b, txn->mt_dbxs[dbi].md_cmpctx);
 }
 
 int
-mdb_dcmp(MDB_txn *txn, MDB_dbi dbi, const MDB_val *a, const MDB_val *b)
+mdb_dcmp(RZDB_txn *txn, RZDB_dbi dbi, const RZDB_val *a, const RZDB_val *b)
 {
-	MDB_cmp_func *dcmp = txn->mt_dbxs[dbi].md_dcmp;
+	RZDB_cmp_func *dcmp = txn->mt_dbxs[dbi].md_dcmp;
 	if (NEED_CMP_CLONG(dcmp, a->mv_size))
 		dcmp = mdb_cmp_clong;
 	return dcmp(a, b, txn->mt_dbxs[dbi].md_dcmpctx);
@@ -1988,15 +1988,15 @@ mdb_dcmp(MDB_txn *txn, MDB_dbi dbi, const MDB_val *a, const MDB_val *b)
 
 /** Allocate memory for a page.
  * Re-use old malloc'd pages first for singletons, otherwise just malloc.
- * Set #MDB_TXN_ERROR on failure.
+ * Set #RZDB_TXN_ERROR on failure.
  */
-static MDB_page *
-mdb_page_malloc(MDB_txn *txn, unsigned num)
+static RZDB_page *
+mdb_page_malloc(RZDB_txn *txn, unsigned num)
 {
-	MDB_env *env = txn->mt_env;
-	MDB_page *ret = env->me_dpages;
+	RZDB_env *env = txn->mt_env;
+	RZDB_page *ret = env->me_dpages;
 	size_t psize = env->me_psize, sz = psize, off;
-	/* For ! #MDB_NOMEMINIT, psize counts how much to init.
+	/* For ! #RZDB_NOMEMINIT, psize counts how much to init.
 	 * For a single page alloc, we init everything after the page header.
 	 * For multi-page, we init the final page; if the caller needed that
 	 * many pages they will be filling in at least up to the last page.
@@ -2015,12 +2015,12 @@ mdb_page_malloc(MDB_txn *txn, unsigned num)
 	}
 	if ((ret = malloc(sz)) != NULL) {
 		VGMEMP_ALLOC(env, ret, sz);
-		if (!(env->me_flags & MDB_NOMEMINIT)) {
+		if (!(env->me_flags & RZDB_NOMEMINIT)) {
 			memset((char *)ret + off, 0, psize);
 			ret->mp_pad = 0;
 		}
 	} else {
-		txn->mt_flags |= MDB_TXN_ERROR;
+		txn->mt_flags |= RZDB_TXN_ERROR;
 	}
 	return ret;
 }
@@ -2029,7 +2029,7 @@ mdb_page_malloc(MDB_txn *txn, unsigned num)
  * (This is not used for multi-page overflow pages.)
  */
 static void
-mdb_page_free(MDB_env *env, MDB_page *mp)
+mdb_page_free(RZDB_env *env, RZDB_page *mp)
 {
 	mp->mp_next = env->me_dpages;
 	VGMEMP_FREE(env, mp);
@@ -2038,7 +2038,7 @@ mdb_page_free(MDB_env *env, MDB_page *mp)
 
 /** Free a dirty page */
 static void
-mdb_dpage_free(MDB_env *env, MDB_page *dp)
+mdb_dpage_free(RZDB_env *env, RZDB_page *dp)
 {
 	if (!IS_OVERFLOW(dp) || dp->mp_pages == 1) {
 		mdb_page_free(env, dp);
@@ -2051,10 +2051,10 @@ mdb_dpage_free(MDB_env *env, MDB_page *dp)
 
 /**	Return all dirty pages to dpage list */
 static void
-mdb_dlist_free(MDB_txn *txn)
+mdb_dlist_free(RZDB_txn *txn)
 {
-	MDB_env *env = txn->mt_env;
-	MDB_ID2L dl = txn->mt_u.dirty_list;
+	RZDB_env *env = txn->mt_env;
+	RZDB_ID2L dl = txn->mt_u.dirty_list;
 	unsigned i, n = dl[0].mid;
 
 	for (i = 1; i <= n; i++) {
@@ -2063,16 +2063,16 @@ mdb_dlist_free(MDB_txn *txn)
 	dl[0].mid = 0;
 }
 
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 static void
-mdb_page_unref(MDB_txn *txn, MDB_page *mp)
+mdb_page_unref(RZDB_txn *txn, RZDB_page *mp)
 {
 	pgno_t pgno;
-	MDB_ID3L tl = txn->mt_rpages;
+	RZDB_ID3L tl = txn->mt_rpages;
 	unsigned x, rem;
 	if (mp->mp_flags & (P_SUBP|P_DIRTY))
 		return;
-	rem = mp->mp_pgno & (MDB_RPAGE_CHUNK-1);
+	rem = mp->mp_pgno & (RZDB_RPAGE_CHUNK-1);
 	pgno = mp->mp_pgno ^ rem;
 	x = mdb_mid3l_search(tl, pgno);
 	if (x != tl[0].mid && tl[x+1].mid == mp->mp_pgno)
@@ -2080,10 +2080,10 @@ mdb_page_unref(MDB_txn *txn, MDB_page *mp)
 	if (tl[x].mref)
 		tl[x].mref--;
 }
-#define MDB_PAGE_UNREF(txn, mp)	mdb_page_unref(txn, mp)
+#define RZDB_PAGE_UNREF(txn, mp)	mdb_page_unref(txn, mp)
 
 static void
-mdb_cursor_unref(MDB_cursor *mc)
+mdb_cursor_unref(RZDB_cursor *mc)
 {
 	int i;
 	if (mc->mc_txn->mt_rpages[0].mid) {
@@ -2100,15 +2100,15 @@ mdb_cursor_unref(MDB_cursor *mc)
 	mc->mc_pg[0] = NULL;
 	mc->mc_flags &= ~C_INITIALIZED;
 }
-#define MDB_CURSOR_UNREF(mc, force) \
+#define RZDB_CURSOR_UNREF(mc, force) \
 	(((force) || ((mc)->mc_flags & C_INITIALIZED)) \
 	 ? mdb_cursor_unref(mc) \
 	 : (void)0)
 
 #else
-#define MDB_PAGE_UNREF(txn, mp)
-#define MDB_CURSOR_UNREF(mc, force) ((void)0)
-#endif /* MDB_VL32 */
+#define RZDB_PAGE_UNREF(txn, mp)
+#define RZDB_CURSOR_UNREF(mc, force) ((void)0)
+#endif /* RZDB_VL32 */
 
 /** Loosen or free a single page.
  * Saves single pages to a list for future reuse
@@ -2121,15 +2121,15 @@ mdb_cursor_unref(MDB_cursor *mc)
  * to this txn's free list.
  */
 static int
-mdb_page_loose(MDB_cursor *mc, MDB_page *mp)
+mdb_page_loose(RZDB_cursor *mc, RZDB_page *mp)
 {
 	int loose = 0;
 	pgno_t pgno = mp->mp_pgno;
-	MDB_txn *txn = mc->mc_txn;
+	RZDB_txn *txn = mc->mc_txn;
 
 	if ((mp->mp_flags & P_DIRTY) && mc->mc_dbi != FREE_DBI) {
 		if (txn->mt_parent) {
-			MDB_ID2 *dl = txn->mt_u.dirty_list;
+			RZDB_ID2 *dl = txn->mt_u.dirty_list;
 			/* If txn has a parent, make sure the page is in our
 			 * dirty list.
 			 */
@@ -2138,8 +2138,8 @@ mdb_page_loose(MDB_cursor *mc, MDB_page *mp)
 				if (x <= dl[0].mid && dl[x].mid == pgno) {
 					if (mp != dl[x].mptr) { /* bad cursor? */
 						mc->mc_flags &= ~(C_INITIALIZED|C_EOF);
-						txn->mt_flags |= MDB_TXN_ERROR;
-						return MDB_PROBLEM;
+						txn->mt_flags |= RZDB_TXN_ERROR;
+						return RZDB_PROBLEM;
 					}
 					/* ok, it's ours */
 					loose = 1;
@@ -2162,7 +2162,7 @@ mdb_page_loose(MDB_cursor *mc, MDB_page *mp)
 			return rc;
 	}
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /** Set or clear P_KEEP in dirty, non-overflow, non-sub pages watched by txn.
@@ -2173,16 +2173,16 @@ mdb_page_loose(MDB_cursor *mc, MDB_page *mp)
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_pages_xkeep(MDB_cursor *mc, unsigned pflags, int all)
+mdb_pages_xkeep(RZDB_cursor *mc, unsigned pflags, int all)
 {
 	enum { Mask = P_SUBP|P_DIRTY|P_LOOSE|P_KEEP };
-	MDB_txn *txn = mc->mc_txn;
-	MDB_cursor *m3, *m0 = mc;
-	MDB_xcursor *mx;
-	MDB_page *dp, *mp;
-	MDB_node *leaf;
+	RZDB_txn *txn = mc->mc_txn;
+	RZDB_cursor *m3, *m0 = mc;
+	RZDB_xcursor *mx;
+	RZDB_page *dp, *mp;
+	RZDB_node *leaf;
 	unsigned i, j;
-	int rc = MDB_SUCCESS, level;
+	int rc = RZDB_SUCCESS, level;
 
 	/* Mark pages seen by cursors: First m0, then tracked cursors */
 	for (i = txn->mt_numdbs;; ) {
@@ -2219,7 +2219,7 @@ mark_done:
 				pgno_t pgno = txn->mt_dbs[i].md_root;
 				if (pgno == P_INVALID)
 					continue;
-				if ((rc = mdb_page_get(m0, pgno, &dp, &level)) != MDB_SUCCESS)
+				if ((rc = mdb_page_get(m0, pgno, &dp, &level)) != RZDB_SUCCESS)
 					break;
 				if ((dp->mp_flags & Mask) == pflags && level <= 1)
 					dp->mp_flags ^= P_KEEP;
@@ -2230,20 +2230,20 @@ mark_done:
 	return rc;
 }
 
-static int mdb_page_flush(MDB_txn *txn, int keep);
+static int mdb_page_flush(RZDB_txn *txn, int keep);
 
 /**	Spill pages from the dirty list back to disk.
- * This is intended to prevent running into #MDB_TXN_FULL situations,
+ * This is intended to prevent running into #RZDB_TXN_FULL situations,
  * but note that they may still occur in a few cases:
  *	1) our estimate of the txn size could be too small. Currently this
- *	 seems unlikely, except with a large number of #MDB_MULTIPLE items.
+ *	 seems unlikely, except with a large number of #RZDB_MULTIPLE items.
  *	2) child txns may run out of space if their parents dirtied a
  *	 lot of pages and never spilled them. TODO: we probably should do
  *	 a preemptive spill during #mdb_txn_begin() of a child txn, if
  *	 the parent's dirty_room is below a given threshold.
  *
  * Otherwise, if not using nested txns, it is expected that apps will
- * not run into #MDB_TXN_FULL any more. The pages are flushed to disk
+ * not run into #RZDB_TXN_FULL any more. The pages are flushed to disk
  * the same way as for a txn commit, e.g. their P_DIRTY flag is cleared.
  * If the txn never references them again, they can be left alone.
  * If the txn only reads them, they can be used without any fuss.
@@ -2265,16 +2265,16 @@ static int mdb_page_flush(MDB_txn *txn, int keep);
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_page_spill(MDB_cursor *m0, MDB_val *key, MDB_val *data)
+mdb_page_spill(RZDB_cursor *m0, RZDB_val *key, RZDB_val *data)
 {
-	MDB_txn *txn = m0->mc_txn;
-	MDB_page *dp;
-	MDB_ID2L dl = txn->mt_u.dirty_list;
+	RZDB_txn *txn = m0->mc_txn;
+	RZDB_page *dp;
+	RZDB_ID2L dl = txn->mt_u.dirty_list;
 	unsigned int i, j, need;
 	int rc;
 
 	if (m0->mc_flags & C_SUB)
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 
 	/* Estimate how much space this op will take */
 	i = m0->mc_db->md_depth;
@@ -2288,15 +2288,15 @@ mdb_page_spill(MDB_cursor *m0, MDB_val *key, MDB_val *data)
 	need = i;
 
 	if (txn->mt_dirty_room > i)
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 
 	if (!txn->mt_spill_pgs) {
-		txn->mt_spill_pgs = mdb_midl_alloc(MDB_IDL_UM_MAX);
+		txn->mt_spill_pgs = mdb_midl_alloc(RZDB_IDL_UM_MAX);
 		if (!txn->mt_spill_pgs)
 			return ENOMEM;
 	} else {
 		/* purge deleted slots */
-		MDB_IDL sl = txn->mt_spill_pgs;
+		RZDB_IDL sl = txn->mt_spill_pgs;
 		unsigned int num = sl[0];
 		j=0;
 		for (i=1; i<=num; i++) {
@@ -2307,7 +2307,7 @@ mdb_page_spill(MDB_cursor *m0, MDB_val *key, MDB_val *data)
 	}
 
 	/* Preserve pages which may soon be dirtied again */
-	if ((rc = mdb_pages_xkeep(m0, P_DIRTY, 1)) != MDB_SUCCESS)
+	if ((rc = mdb_pages_xkeep(m0, P_DIRTY, 1)) != RZDB_SUCCESS)
 		goto done;
 
 	/* Less aggressive spill - we originally spilled the entire dirty list,
@@ -2317,13 +2317,13 @@ mdb_page_spill(MDB_cursor *m0, MDB_val *key, MDB_val *data)
 	 * of the dirty pages. Testing revealed this to be a good tradeoff,
 	 * better than 1/2, 1/4, or 1/10.
 	 */
-	if (need < MDB_IDL_UM_MAX / 8)
-		need = MDB_IDL_UM_MAX / 8;
+	if (need < RZDB_IDL_UM_MAX / 8)
+		need = RZDB_IDL_UM_MAX / 8;
 
 	/* Save the page IDs of all the pages we're flushing */
 	/* flush from the tail forward, this saves a lot of shifting later on. */
 	for (i=dl[0].mid; i && need; i--) {
-		MDB_ID pn = dl[i].mid << 1;
+		RZDB_ID pn = dl[i].mid << 1;
 		dp = dl[i].mptr;
 		if (dp->mp_flags & (P_LOOSE|P_KEEP))
 			continue;
@@ -2331,7 +2331,7 @@ mdb_page_spill(MDB_cursor *m0, MDB_val *key, MDB_val *data)
 		 * spill list.
 		 */
 		if (txn->mt_parent) {
-			MDB_txn *tx2;
+			RZDB_txn *tx2;
 			for (tx2 = txn->mt_parent; tx2; tx2 = tx2->mt_parent) {
 				if (tx2->mt_spill_pgs) {
 					j = mdb_midl_search(tx2->mt_spill_pgs, pn);
@@ -2351,25 +2351,25 @@ mdb_page_spill(MDB_cursor *m0, MDB_val *key, MDB_val *data)
 	mdb_midl_sort(txn->mt_spill_pgs);
 
 	/* Flush the spilled part of dirty list */
-	if ((rc = mdb_page_flush(txn, i)) != MDB_SUCCESS)
+	if ((rc = mdb_page_flush(txn, i)) != RZDB_SUCCESS)
 		goto done;
 
 	/* Reset any dirty pages we kept that page_flush didn't see */
 	rc = mdb_pages_xkeep(m0, P_DIRTY|P_KEEP, i);
 
 done:
-	txn->mt_flags |= rc ? MDB_TXN_ERROR : MDB_TXN_SPILLS;
+	txn->mt_flags |= rc ? RZDB_TXN_ERROR : RZDB_TXN_SPILLS;
 	return rc;
 }
 
 /** Find oldest txnid still referenced. Expects txn->mt_txnid > 0. */
 static txnid_t
-mdb_find_oldest(MDB_txn *txn)
+mdb_find_oldest(RZDB_txn *txn)
 {
 	int i;
 	txnid_t mr, oldest = txn->mt_txnid - 1;
 	if (txn->mt_env->me_txns) {
-		MDB_reader *r = txn->mt_env->me_txns->mti_readers;
+		RZDB_reader *r = txn->mt_env->me_txns->mti_readers;
 		for (i = txn->mt_env->me_txns->mti_numreaders; --i >= 0; ) {
 			if (r[i].mr_pid) {
 				mr = r[i].mr_txnid;
@@ -2383,12 +2383,12 @@ mdb_find_oldest(MDB_txn *txn)
 
 /** Add a page to the txn's dirty list */
 static void
-mdb_page_dirty(MDB_txn *txn, MDB_page *mp)
+mdb_page_dirty(RZDB_txn *txn, RZDB_page *mp)
 {
-	MDB_ID2 mid;
-	int rc, (*insert)(MDB_ID2L, MDB_ID2 *);
+	RZDB_ID2 mid;
+	int rc, (*insert)(RZDB_ID2L, RZDB_ID2 *);
 
-	if (txn->mt_flags & MDB_TXN_WRITEMAP) {
+	if (txn->mt_flags & RZDB_TXN_WRITEMAP) {
 		insert = mdb_mid2l_append;
 	} else {
 		insert = mdb_mid2l_insert;
@@ -2401,14 +2401,14 @@ mdb_page_dirty(MDB_txn *txn, MDB_page *mp)
 }
 
 /** Allocate page numbers and memory for writing.  Maintain me_pglast,
- * me_pghead and mt_next_pgno.  Set #MDB_TXN_ERROR on failure.
+ * me_pghead and mt_next_pgno.  Set #RZDB_TXN_ERROR on failure.
  *
  * If there are free pages available from older transactions, they
  * are re-used first. Otherwise allocate a new page at mt_next_pgno.
  * Do not modify the freedB, just merge freeDB records into me_pghead[]
  * and move me_pglast to say which records were consumed.  Only this
  * function can create me_pghead and move me_pglast/mt_next_pgno.
- * When #MDB_DEVEL & 2, it is not affected by #mdb_freelist_save(): it
+ * When #RZDB_DEVEL & 2, it is not affected by #mdb_freelist_save(): it
  * then uses the transaction's original snapshot of the freeDB.
  * @param[in] mc cursor A cursor handle identifying the transaction and
  *	database for which we are allocating.
@@ -2418,9 +2418,9 @@ mdb_page_dirty(MDB_txn *txn, MDB_page *mp)
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_page_alloc(MDB_cursor *mc, int num, MDB_page **mp)
+mdb_page_alloc(RZDB_cursor *mc, int num, RZDB_page **mp)
 {
-#ifdef MDB_PARANOID	/* Seems like we can ignore this now */
+#ifdef RZDB_PARANOID	/* Seems like we can ignore this now */
 	/* Get at most <Max_retries> more freeDB records once me_pghead
 	 * has enough pages.  If not enough, use new pages from the map.
 	 * If <Paranoid> and mc is updating the freeDB, only get new
@@ -2432,14 +2432,14 @@ mdb_page_alloc(MDB_cursor *mc, int num, MDB_page **mp)
 	enum { Paranoid = 0, Max_retries = INT_MAX /*infinite*/ };
 #endif
 	int rc, retry = num * 60;
-	MDB_txn *txn = mc->mc_txn;
-	MDB_env *env = txn->mt_env;
+	RZDB_txn *txn = mc->mc_txn;
+	RZDB_env *env = txn->mt_env;
 	pgno_t pgno, *mop = env->me_pghead;
 	unsigned i, j, mop_len = mop ? mop[0] : 0, n2 = num-1;
-	MDB_page *np;
+	RZDB_page *np;
 	txnid_t oldest = 0, last;
-	MDB_cursor_op op;
-	MDB_cursor m2;
+	RZDB_cursor_op op;
+	RZDB_cursor m2;
 	int found_old = 0;
 
 	/* If there are any loose pages, just use them */
@@ -2449,20 +2449,20 @@ mdb_page_alloc(MDB_cursor *mc, int num, MDB_page **mp)
 		txn->mt_loose_count--;
 		DPRINTF(("db %d use loose page %"Yu, DDBI(mc), np->mp_pgno));
 		*mp = np;
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 
 	*mp = NULL;
 
 	/* If our dirty list is already full, we can't do anything */
 	if (txn->mt_dirty_room == 0) {
-		rc = MDB_TXN_FULL;
+		rc = RZDB_TXN_FULL;
 		goto fail;
 	}
 
-	for (op = MDB_FIRST;; op = MDB_NEXT) {
-		MDB_val key, data;
-		MDB_node *leaf;
+	for (op = RZDB_FIRST;; op = RZDB_NEXT) {
+		RZDB_val key, data;
+		RZDB_node *leaf;
 		pgno_t *idl;
 
 		/* Seek a big enough contiguous page range. Prefer
@@ -2479,12 +2479,12 @@ mdb_page_alloc(MDB_cursor *mc, int num, MDB_page **mp)
 				break;
 		}
 
-		if (op == MDB_FIRST) {	/* 1st iteration */
+		if (op == RZDB_FIRST) {	/* 1st iteration */
 			/* Prepare to fetch more and coalesce */
 			last = env->me_pglast;
 			oldest = env->me_pgoldest;
 			mdb_cursor_init(&m2, txn, FREE_DBI, NULL);
-#if (MDB_DEVEL) & 2	/* "& 2" so MDB_DEVEL=1 won't hide bugs breaking freeDB */
+#if (RZDB_DEVEL) & 2	/* "& 2" so RZDB_DEVEL=1 won't hide bugs breaking freeDB */
 			/* Use original snapshot. TODO: Should need less care in code
 			 * which modifies the database. Maybe we can delete some code?
 			 */
@@ -2493,7 +2493,7 @@ mdb_page_alloc(MDB_cursor *mc, int num, MDB_page **mp)
 			m2.mc_dbflag = (unsigned char *)""; /* probably unnecessary */
 #endif
 			if (last) {
-				op = MDB_SET_RANGE;
+				op = RZDB_SET_RANGE;
 				key.mv_data = &last; /* will look up last+1 */
 				key.mv_size = sizeof(last);
 			}
@@ -2516,7 +2516,7 @@ mdb_page_alloc(MDB_cursor *mc, int num, MDB_page **mp)
 		}
 		rc = mdb_cursor_get(&m2, &key, NULL, op);
 		if (rc) {
-			if (rc == MDB_NOTFOUND)
+			if (rc == RZDB_NOTFOUND)
 				break;
 			goto fail;
 		}
@@ -2532,10 +2532,10 @@ mdb_page_alloc(MDB_cursor *mc, int num, MDB_page **mp)
 		}
 		np = m2.mc_pg[m2.mc_top];
 		leaf = NODEPTR(np, m2.mc_ki[m2.mc_top]);
-		if ((rc = mdb_node_read(&m2, leaf, &data)) != MDB_SUCCESS)
+		if ((rc = mdb_node_read(&m2, leaf, &data)) != RZDB_SUCCESS)
 			goto fail;
 
-		idl = (MDB_ID *) data.mv_data;
+		idl = (RZDB_ID *) data.mv_data;
 		i = idl[0];
 		if (!mop) {
 			if (!(env->me_pghead = mop = mdb_midl_alloc(i))) {
@@ -2548,7 +2548,7 @@ mdb_page_alloc(MDB_cursor *mc, int num, MDB_page **mp)
 			mop = env->me_pghead;
 		}
 		env->me_pglast = last;
-#if (MDB_DEBUG) > 1
+#if (RZDB_DEBUG) > 1
 		DPRINTF(("IDL read txn %"Yu" root %"Yu" num %u",
 			last, txn->mt_dbs[FREE_DBI].md_root, i));
 		for (j = i; j; j--)
@@ -2564,15 +2564,15 @@ mdb_page_alloc(MDB_cursor *mc, int num, MDB_page **mp)
 	pgno = txn->mt_next_pgno;
 	if (pgno + num >= env->me_maxpg) {
 			DPUTS("DB size maxed out");
-			rc = MDB_MAP_FULL;
+			rc = RZDB_MAP_FULL;
 			goto fail;
 	}
-#if defined(_WIN32) && !defined(MDB_VL32)
-	if (!(env->me_flags & MDB_RDONLY)) {
+#if defined(_WIN32) && !defined(RZDB_VL32)
+	if (!(env->me_flags & RZDB_RDONLY)) {
 		void *p;
-		p = (MDB_page *)(env->me_map + env->me_psize * pgno);
+		p = (RZDB_page *)(env->me_map + env->me_psize * pgno);
 		p = VirtualAlloc(p, env->me_psize * num, MEM_COMMIT,
-			(env->me_flags & MDB_WRITEMAP) ? PAGE_READWRITE:
+			(env->me_flags & RZDB_WRITEMAP) ? PAGE_READWRITE:
 			PAGE_READONLY);
 		if (!p) {
 			DPUTS("VirtualAlloc failed");
@@ -2583,8 +2583,8 @@ mdb_page_alloc(MDB_cursor *mc, int num, MDB_page **mp)
 #endif
 
 search_done:
-	if (env->me_flags & MDB_WRITEMAP) {
-		np = (MDB_page *)(env->me_map + env->me_psize * pgno);
+	if (env->me_flags & RZDB_WRITEMAP) {
+		np = (RZDB_page *)(env->me_map + env->me_psize * pgno);
 	} else {
 		if (!(np = mdb_page_malloc(txn, num))) {
 			rc = ENOMEM;
@@ -2603,10 +2603,10 @@ search_done:
 	mdb_page_dirty(txn, np);
 	*mp = np;
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 
 fail:
-	txn->mt_flags |= MDB_TXN_ERROR;
+	txn->mt_flags |= RZDB_TXN_ERROR;
 	return rc;
 }
 
@@ -2616,7 +2616,7 @@ fail:
  * @param[in] psize size of a page
  */
 static void
-mdb_page_copy(MDB_page *dst, MDB_page *src, unsigned int psize)
+mdb_page_copy(RZDB_page *dst, RZDB_page *src, unsigned int psize)
 {
 	enum { Align = sizeof(pgno_t) };
 	indx_t upper = src->mp_upper, lower = src->mp_lower, unused = upper-lower;
@@ -2643,10 +2643,10 @@ mdb_page_copy(MDB_page *dst, MDB_page *src, unsigned int psize)
  * mp wasn't spilled.
  */
 static int
-mdb_page_unspill(MDB_txn *txn, MDB_page *mp, MDB_page **ret)
+mdb_page_unspill(RZDB_txn *txn, RZDB_page *mp, RZDB_page **ret)
 {
-	MDB_env *env = txn->mt_env;
-	const MDB_txn *tx2;
+	RZDB_env *env = txn->mt_env;
+	const RZDB_txn *tx2;
 	unsigned x;
 	pgno_t pgno = mp->mp_pgno, pn = pgno << 1;
 
@@ -2655,15 +2655,15 @@ mdb_page_unspill(MDB_txn *txn, MDB_page *mp, MDB_page **ret)
 			continue;
 		x = mdb_midl_search(tx2->mt_spill_pgs, pn);
 		if (x <= tx2->mt_spill_pgs[0] && tx2->mt_spill_pgs[x] == pn) {
-			MDB_page *np;
+			RZDB_page *np;
 			int num;
 			if (txn->mt_dirty_room == 0)
-				return MDB_TXN_FULL;
+				return RZDB_TXN_FULL;
 			if (IS_OVERFLOW(mp))
 				num = mp->mp_pages;
 			else
 				num = 1;
-			if (env->me_flags & MDB_WRITEMAP) {
+			if (env->me_flags & RZDB_WRITEMAP) {
 				np = mp;
 			} else {
 				np = mdb_page_malloc(txn, num);
@@ -2693,25 +2693,25 @@ mdb_page_unspill(MDB_txn *txn, MDB_page *mp, MDB_page **ret)
 			break;
 		}
 	}
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /** Touch a page: make it dirty and re-insert into tree with updated pgno.
- * Set #MDB_TXN_ERROR on failure.
+ * Set #RZDB_TXN_ERROR on failure.
  * @param[in] mc cursor pointing to the page to be touched
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_page_touch(MDB_cursor *mc)
+mdb_page_touch(RZDB_cursor *mc)
 {
-	MDB_page *mp = mc->mc_pg[mc->mc_top], *np;
-	MDB_txn *txn = mc->mc_txn;
-	MDB_cursor *m2, *m3;
+	RZDB_page *mp = mc->mc_pg[mc->mc_top], *np;
+	RZDB_txn *txn = mc->mc_txn;
+	RZDB_cursor *m2, *m3;
 	pgno_t	pgno;
 	int rc;
 
 	if (!F_ISSET(mp->mp_flags, P_DIRTY)) {
-		if (txn->mt_flags & MDB_TXN_SPILLS) {
+		if (txn->mt_flags & RZDB_TXN_SPILLS) {
 			np = NULL;
 			rc = mdb_page_unspill(txn, mp, &np);
 			if (rc)
@@ -2729,14 +2729,14 @@ mdb_page_touch(MDB_cursor *mc)
 		mdb_midl_xappend(txn->mt_free_pgs, mp->mp_pgno);
 		/* Update the parent page, if any, to point to the new page */
 		if (mc->mc_top) {
-			MDB_page *parent = mc->mc_pg[mc->mc_top-1];
-			MDB_node *node = NODEPTR(parent, mc->mc_ki[mc->mc_top-1]);
+			RZDB_page *parent = mc->mc_pg[mc->mc_top-1];
+			RZDB_node *node = NODEPTR(parent, mc->mc_ki[mc->mc_top-1]);
 			SETPGNO(node, pgno);
 		} else {
 			mc->mc_db->md_root = pgno;
 		}
 	} else if (txn->mt_parent && !IS_SUBP(mp)) {
-		MDB_ID2 mid, *dl = txn->mt_u.dirty_list;
+		RZDB_ID2 mid, *dl = txn->mt_u.dirty_list;
 		pgno = mp->mp_pgno;
 		/* If txn has a parent, make sure the page is in our
 		 * dirty list.
@@ -2746,13 +2746,13 @@ mdb_page_touch(MDB_cursor *mc)
 			if (x <= dl[0].mid && dl[x].mid == pgno) {
 				if (mp != dl[x].mptr) { /* bad cursor? */
 					mc->mc_flags &= ~(C_INITIALIZED|C_EOF);
-					txn->mt_flags |= MDB_TXN_ERROR;
-					return MDB_PROBLEM;
+					txn->mt_flags |= RZDB_TXN_ERROR;
+					return RZDB_PROBLEM;
 				}
 				return 0;
 			}
 		}
-		mdb_cassert(mc, dl[0].mid < MDB_IDL_UM_MAX);
+		mdb_cassert(mc, dl[0].mid < RZDB_IDL_UM_MAX);
 		/* No - copy it */
 		np = mdb_page_malloc(txn, 1);
 		if (!np)
@@ -2791,38 +2791,38 @@ done:
 			}
 		}
 	}
-	MDB_PAGE_UNREF(mc->mc_txn, mp);
+	RZDB_PAGE_UNREF(mc->mc_txn, mp);
 	return 0;
 
 fail:
-	txn->mt_flags |= MDB_TXN_ERROR;
+	txn->mt_flags |= RZDB_TXN_ERROR;
 	return rc;
 }
 
 int
-mdb_env_sync0(MDB_env *env, int force, pgno_t numpgs)
+mdb_env_sync0(RZDB_env *env, int force, pgno_t numpgs)
 {
 	int rc = 0;
-	if (env->me_flags & MDB_RDONLY)
+	if (env->me_flags & RZDB_RDONLY)
 		return EACCES;
-	if (force || !F_ISSET(env->me_flags, MDB_NOSYNC)) {
-		if (env->me_flags & MDB_WRITEMAP) {
-			int flags = ((env->me_flags & MDB_MAPASYNC) && !force)
+	if (force || !F_ISSET(env->me_flags, RZDB_NOSYNC)) {
+		if (env->me_flags & RZDB_WRITEMAP) {
+			int flags = ((env->me_flags & RZDB_MAPASYNC) && !force)
 				? MS_ASYNC : MS_SYNC;
-			if (MDB_MSYNC(env->me_map, env->me_psize * numpgs, flags))
+			if (RZDB_MSYNC(env->me_map, env->me_psize * numpgs, flags))
 				rc = ErrCode();
 #ifdef _WIN32
-			else if (flags == MS_SYNC && MDB_FDATASYNC(env->me_fd))
+			else if (flags == MS_SYNC && RZDB_FDATASYNC(env->me_fd))
 				rc = ErrCode();
 #endif
 		} else {
 #ifdef BROKEN_FDATASYNC
-			if (env->me_flags & MDB_FSYNCONLY) {
+			if (env->me_flags & RZDB_FSYNCONLY) {
 				if (fsync(env->me_fd))
 					rc = ErrCode();
 			} else
 #endif
-			if (MDB_FDATASYNC(env->me_fd))
+			if (RZDB_FDATASYNC(env->me_fd))
 				rc = ErrCode();
 		}
 	}
@@ -2830,26 +2830,26 @@ mdb_env_sync0(MDB_env *env, int force, pgno_t numpgs)
 }
 
 int
-mdb_env_sync(MDB_env *env, int force)
+mdb_env_sync(RZDB_env *env, int force)
 {
-	MDB_meta *m = mdb_env_pick_meta(env);
+	RZDB_meta *m = mdb_env_pick_meta(env);
 	return mdb_env_sync0(env, force, m->mm_last_pg+1);
 }
 
 /** Back up parent txn's cursors, then grab the originals for tracking */
 static int
-mdb_cursor_shadow(MDB_txn *src, MDB_txn *dst)
+mdb_cursor_shadow(RZDB_txn *src, RZDB_txn *dst)
 {
-	MDB_cursor *mc, *bk;
-	MDB_xcursor *mx;
+	RZDB_cursor *mc, *bk;
+	RZDB_xcursor *mx;
 	size_t size;
 	int i;
 
 	for (i = src->mt_numdbs; --i >= 0; ) {
 		if ((mc = src->mt_cursors[i]) != NULL) {
-			size = sizeof(MDB_cursor);
+			size = sizeof(RZDB_cursor);
 			if (mc->mc_xcursor)
-				size += sizeof(MDB_xcursor);
+				size += sizeof(RZDB_xcursor);
 			for (; mc; mc = bk->mc_next) {
 				bk = malloc(size);
 				if (!bk)
@@ -2864,7 +2864,7 @@ mdb_cursor_shadow(MDB_txn *src, MDB_txn *dst)
 				mc->mc_txn    = dst;
 				mc->mc_dbflag = &dst->mt_dbflags[i];
 				if ((mx = mc->mc_xcursor) != NULL) {
-					*(MDB_xcursor *)(bk+1) = *mx;
+					*(RZDB_xcursor *)(bk+1) = *mx;
 					mx->mx_cursor.mc_txn = dst;
 				}
 				mc->mc_next = dst->mt_cursors[i];
@@ -2872,7 +2872,7 @@ mdb_cursor_shadow(MDB_txn *src, MDB_txn *dst)
 			}
 		}
 	}
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /** Close this write txn's cursors, give parent txn's cursors back to parent.
@@ -2881,10 +2881,10 @@ mdb_cursor_shadow(MDB_txn *src, MDB_txn *dst)
  * @return 0 on success, non-zero on failure.
  */
 static void
-mdb_cursors_close(MDB_txn *txn, unsigned merge)
+mdb_cursors_close(RZDB_txn *txn, unsigned merge)
 {
-	MDB_cursor **cursors = txn->mt_cursors, *mc, *next, *bk;
-	MDB_xcursor *mx;
+	RZDB_cursor **cursors = txn->mt_cursors, *mc, *next, *bk;
+	RZDB_xcursor *mx;
 	int i;
 
 	for (i = txn->mt_numdbs; --i >= 0; ) {
@@ -2904,7 +2904,7 @@ mdb_cursors_close(MDB_txn *txn, unsigned merge)
 					/* Abort nested txn */
 					*mc = *bk;
 					if ((mx = mc->mc_xcursor) != NULL)
-						*mx = *(MDB_xcursor *)(bk+1);
+						*mx = *(RZDB_xcursor *)(bk+1);
 				}
 				mc = bk;
 			}
@@ -2915,7 +2915,7 @@ mdb_cursors_close(MDB_txn *txn, unsigned merge)
 	}
 }
 
-#if !(MDB_PIDLOCK)		/* Currently the same as defined(_WIN32) */
+#if !(RZDB_PIDLOCK)		/* Currently the same as defined(_WIN32) */
 enum Pidlock_op {
 	Pidset, Pidcheck
 };
@@ -2934,9 +2934,9 @@ enum Pidlock_op {
  * lock on the lockfile, set at an offset equal to the pid.
  */
 static int
-mdb_reader_pid(MDB_env *env, enum Pidlock_op op, MDB_PID_T pid)
+mdb_reader_pid(RZDB_env *env, enum Pidlock_op op, RZDB_PID_T pid)
 {
-#if !(MDB_PIDLOCK)		/* Currently the same as defined(_WIN32) */
+#if !(RZDB_PIDLOCK)		/* Currently the same as defined(_WIN32) */
 	int ret = 0;
 	HANDLE h;
 	if (op == Pidcheck) {
@@ -2974,29 +2974,29 @@ mdb_reader_pid(MDB_env *env, enum Pidlock_op op, MDB_PID_T pid)
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_txn_renew0(MDB_txn *txn)
+mdb_txn_renew0(RZDB_txn *txn)
 {
-	MDB_env *env = txn->mt_env;
-	MDB_txninfo *ti = env->me_txns;
-	MDB_meta *meta;
+	RZDB_env *env = txn->mt_env;
+	RZDB_txninfo *ti = env->me_txns;
+	RZDB_meta *meta;
 	unsigned int i, nr, flags = txn->mt_flags;
 	uint16_t x;
 	int rc, new_notls = 0;
 
-	if ((flags &= MDB_TXN_RDONLY) != 0) {
+	if ((flags &= RZDB_TXN_RDONLY) != 0) {
 		if (!ti) {
 			meta = mdb_env_pick_meta(env);
 			txn->mt_txnid = meta->mm_txnid;
 			txn->mt_u.reader = NULL;
 		} else {
-			MDB_reader *r = (env->me_flags & MDB_NOTLS) ? txn->mt_u.reader :
+			RZDB_reader *r = (env->me_flags & RZDB_NOTLS) ? txn->mt_u.reader :
 				pthread_getspecific(env->me_txkey);
 			if (r) {
 				if (r->mr_pid != env->me_pid || r->mr_txnid != (txnid_t)-1)
-					return MDB_BAD_RSLOT;
+					return RZDB_BAD_RSLOT;
 			} else {
-				MDB_PID_T pid = env->me_pid;
-				MDB_THR_T tid = pthread_self();
+				RZDB_PID_T pid = env->me_pid;
+				RZDB_THR_T tid = pthread_self();
 				mdb_mutexref_t rmutex = env->me_rmutex;
 
 				if (!env->me_live_reader) {
@@ -3014,7 +3014,7 @@ mdb_txn_renew0(MDB_txn *txn)
 						break;
 				if (i == env->me_maxreaders) {
 					UNLOCK_MUTEX(rmutex);
-					return MDB_READERS_FULL;
+					return RZDB_READERS_FULL;
 				}
 				r = &ti->mti_readers[i];
 				/* Claim the reader slot, carefully since other code
@@ -3032,7 +3032,7 @@ mdb_txn_renew0(MDB_txn *txn)
 				r->mr_pid = pid;
 				UNLOCK_MUTEX(rmutex);
 
-				new_notls = (env->me_flags & MDB_NOTLS);
+				new_notls = (env->me_flags & RZDB_NOTLS);
 				if (!new_notls && (rc=pthread_setspecific(env->me_txkey, r))) {
 					r->mr_pid = 0;
 					return rc;
@@ -3058,14 +3058,14 @@ mdb_txn_renew0(MDB_txn *txn)
 			txn->mt_txnid = meta->mm_txnid;
 		}
 		txn->mt_txnid++;
-#if MDB_DEBUG
+#if RZDB_DEBUG
 		if (txn->mt_txnid == mdb_debug_start)
 			mdb_debug = 1;
 #endif
 		txn->mt_child = NULL;
 		txn->mt_loose_pgs = NULL;
 		txn->mt_loose_count = 0;
-		txn->mt_dirty_room = MDB_IDL_UM_MAX;
+		txn->mt_dirty_room = RZDB_IDL_UM_MAX;
 		txn->mt_u.dirty_list = env->me_dirty_list;
 		txn->mt_u.dirty_list[0].mid = 0;
 		txn->mt_free_pgs = env->me_free_pgs;
@@ -3076,11 +3076,11 @@ mdb_txn_renew0(MDB_txn *txn)
 	}
 
 	/* Copy the DB info and flags */
-	memcpy(txn->mt_dbs, meta->mm_dbs, CORE_DBS * sizeof(MDB_db));
+	memcpy(txn->mt_dbs, meta->mm_dbs, CORE_DBS * sizeof(RZDB_db));
 
 	/* Moved to here to avoid a data race in read TXNs */
 	txn->mt_next_pgno = meta->mm_last_pg+1;
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	txn->mt_last_pgno = txn->mt_next_pgno - 1;
 #endif
 
@@ -3091,65 +3091,65 @@ mdb_txn_renew0(MDB_txn *txn)
 	for (i=CORE_DBS; i<txn->mt_numdbs; i++) {
 		x = env->me_dbflags[i];
 		txn->mt_dbs[i].md_flags = x & PERSISTENT_FLAGS;
-		txn->mt_dbflags[i] = (x & MDB_VALID) ? DB_VALID|DB_USRVALID|DB_STALE : 0;
+		txn->mt_dbflags[i] = (x & RZDB_VALID) ? DB_VALID|DB_USRVALID|DB_STALE : 0;
 	}
 	txn->mt_dbflags[MAIN_DBI] = DB_VALID|DB_USRVALID;
 	txn->mt_dbflags[FREE_DBI] = DB_VALID;
 
-	if (env->me_flags & MDB_FATAL_ERROR) {
+	if (env->me_flags & RZDB_FATAL_ERROR) {
 		DPUTS("environment had fatal error, must shutdown!");
-		rc = MDB_PANIC;
+		rc = RZDB_PANIC;
 	} else if (env->me_maxpg < txn->mt_next_pgno) {
-		rc = MDB_MAP_RESIZED;
+		rc = RZDB_MAP_RESIZED;
 	} else {
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
-	mdb_txn_end(txn, new_notls /*0 or MDB_END_SLOT*/ | MDB_END_FAIL_BEGIN);
+	mdb_txn_end(txn, new_notls /*0 or RZDB_END_SLOT*/ | RZDB_END_FAIL_BEGIN);
 	return rc;
 }
 
 int
-mdb_txn_renew(MDB_txn *txn)
+mdb_txn_renew(RZDB_txn *txn)
 {
 	int rc;
 
-	if (!txn || !F_ISSET(txn->mt_flags, MDB_TXN_RDONLY|MDB_TXN_FINISHED))
+	if (!txn || !F_ISSET(txn->mt_flags, RZDB_TXN_RDONLY|RZDB_TXN_FINISHED))
 		return EINVAL;
 
 	rc = mdb_txn_renew0(txn);
-	if (rc == MDB_SUCCESS) {
+	if (rc == RZDB_SUCCESS) {
 		DPRINTF(("renew txn %"Yu"%c %p on mdbenv %p, root page %"Yu,
-			txn->mt_txnid, (txn->mt_flags & MDB_TXN_RDONLY) ? 'r' : 'w',
+			txn->mt_txnid, (txn->mt_flags & RZDB_TXN_RDONLY) ? 'r' : 'w',
 			(void *)txn, (void *)txn->mt_env, txn->mt_dbs[MAIN_DBI].md_root));
 	}
 	return rc;
 }
 
 int
-mdb_txn_begin(MDB_env *env, MDB_txn *parent, unsigned int flags, MDB_txn **ret)
+mdb_txn_begin(RZDB_env *env, RZDB_txn *parent, unsigned int flags, RZDB_txn **ret)
 {
-	MDB_txn *txn;
-	MDB_ntxn *ntxn;
+	RZDB_txn *txn;
+	RZDB_ntxn *ntxn;
 	int rc, size, tsize;
 
-	flags &= MDB_TXN_BEGIN_FLAGS;
-	flags |= env->me_flags & MDB_WRITEMAP;
+	flags &= RZDB_TXN_BEGIN_FLAGS;
+	flags |= env->me_flags & RZDB_WRITEMAP;
 
-	if (env->me_flags & MDB_RDONLY & ~flags) /* write txn in RDONLY env */
+	if (env->me_flags & RZDB_RDONLY & ~flags) /* write txn in RDONLY env */
 		return EACCES;
 
 	if (parent) {
 		/* Nested transactions: Max 1 child, write txns only, no writemap */
 		flags |= parent->mt_flags;
-		if (flags & (MDB_RDONLY|MDB_WRITEMAP|MDB_TXN_BLOCKED)) {
-			return (parent->mt_flags & MDB_TXN_RDONLY) ? EINVAL : MDB_BAD_TXN;
+		if (flags & (RZDB_RDONLY|RZDB_WRITEMAP|RZDB_TXN_BLOCKED)) {
+			return (parent->mt_flags & RZDB_TXN_RDONLY) ? EINVAL : RZDB_BAD_TXN;
 		}
-		/* Child txns save MDB_pgstate and use own copy of cursors */
-		size = env->me_maxdbs * (sizeof(MDB_db)+sizeof(MDB_cursor *)+1);
-		size += tsize = sizeof(MDB_ntxn);
-	} else if (flags & MDB_RDONLY) {
-		size = env->me_maxdbs * (sizeof(MDB_db)+1);
-		size += tsize = sizeof(MDB_txn);
+		/* Child txns save RZDB_pgstate and use own copy of cursors */
+		size = env->me_maxdbs * (sizeof(RZDB_db)+sizeof(RZDB_cursor *)+1);
+		size += tsize = sizeof(RZDB_ntxn);
+	} else if (flags & RZDB_RDONLY) {
+		size = env->me_maxdbs * (sizeof(RZDB_db)+1);
+		size += tsize = sizeof(RZDB_txn);
 	} else {
 		/* Reuse preallocated write txn. However, do not touch it until
 		 * mdb_txn_renew0() succeeds, since it currently may be active.
@@ -3161,30 +3161,30 @@ mdb_txn_begin(MDB_env *env, MDB_txn *parent, unsigned int flags, MDB_txn **ret)
 		DPRINTF(("calloc: %s", strerror(errno)));
 		return ENOMEM;
 	}
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	if (!parent) {
-		txn->mt_rpages = malloc(MDB_TRPAGE_SIZE * sizeof(MDB_ID3));
+		txn->mt_rpages = malloc(RZDB_TRPAGE_SIZE * sizeof(RZDB_ID3));
 		if (!txn->mt_rpages) {
 			free(txn);
 			return ENOMEM;
 		}
 		txn->mt_rpages[0].mid = 0;
-		txn->mt_rpcheck = MDB_TRPAGE_SIZE/2;
+		txn->mt_rpcheck = RZDB_TRPAGE_SIZE/2;
 	}
 #endif
 	txn->mt_dbxs = env->me_dbxs;	/* static */
-	txn->mt_dbs = (MDB_db *) ((char *)txn + tsize);
+	txn->mt_dbs = (RZDB_db *) ((char *)txn + tsize);
 	txn->mt_dbflags = (unsigned char *)txn + size - env->me_maxdbs;
 	txn->mt_flags = flags;
 	txn->mt_env = env;
 
 	if (parent) {
 		unsigned int i;
-		txn->mt_cursors = (MDB_cursor **)(txn->mt_dbs + env->me_maxdbs);
+		txn->mt_cursors = (RZDB_cursor **)(txn->mt_dbs + env->me_maxdbs);
 		txn->mt_dbiseqs = parent->mt_dbiseqs;
-		txn->mt_u.dirty_list = malloc(sizeof(MDB_ID2)*MDB_IDL_UM_SIZE);
+		txn->mt_u.dirty_list = malloc(sizeof(RZDB_ID2)*RZDB_IDL_UM_SIZE);
 		if (!txn->mt_u.dirty_list ||
-			!(txn->mt_free_pgs = mdb_midl_alloc(MDB_IDL_UM_MAX)))
+			!(txn->mt_free_pgs = mdb_midl_alloc(RZDB_IDL_UM_MAX)))
 		{
 			free(txn->mt_u.dirty_list);
 			free(txn);
@@ -3195,22 +3195,22 @@ mdb_txn_begin(MDB_env *env, MDB_txn *parent, unsigned int flags, MDB_txn **ret)
 		txn->mt_u.dirty_list[0].mid = 0;
 		txn->mt_spill_pgs = NULL;
 		txn->mt_next_pgno = parent->mt_next_pgno;
-		parent->mt_flags |= MDB_TXN_HAS_CHILD;
+		parent->mt_flags |= RZDB_TXN_HAS_CHILD;
 		parent->mt_child = txn;
 		txn->mt_parent = parent;
 		txn->mt_numdbs = parent->mt_numdbs;
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 		txn->mt_rpages = parent->mt_rpages;
 #endif
-		memcpy(txn->mt_dbs, parent->mt_dbs, txn->mt_numdbs * sizeof(MDB_db));
+		memcpy(txn->mt_dbs, parent->mt_dbs, txn->mt_numdbs * sizeof(RZDB_db));
 		/* Copy parent's mt_dbflags, but clear DB_NEW */
 		for (i=0; i<txn->mt_numdbs; i++)
 			txn->mt_dbflags[i] = parent->mt_dbflags[i] & ~DB_NEW;
 		rc = 0;
-		ntxn = (MDB_ntxn *)txn;
+		ntxn = (RZDB_ntxn *)txn;
 		ntxn->mnt_pgstate = env->me_pgstate; /* save parent me_pghead & co */
 		if (env->me_pghead) {
-			size = MDB_IDL_SIZEOF(env->me_pghead);
+			size = RZDB_IDL_SIZEOF(env->me_pghead);
 			env->me_pghead = mdb_midl_alloc(env->me_pghead[0]);
 			if (env->me_pghead)
 				memcpy(env->me_pghead, ntxn->mnt_pgstate.mf_pghead, size);
@@ -3220,15 +3220,15 @@ mdb_txn_begin(MDB_env *env, MDB_txn *parent, unsigned int flags, MDB_txn **ret)
 		if (!rc)
 			rc = mdb_cursor_shadow(parent, txn);
 		if (rc)
-			mdb_txn_end(txn, MDB_END_FAIL_BEGINCHILD);
-	} else { /* MDB_RDONLY */
+			mdb_txn_end(txn, RZDB_END_FAIL_BEGINCHILD);
+	} else { /* RZDB_RDONLY */
 		txn->mt_dbiseqs = env->me_dbiseqs;
 renew:
 		rc = mdb_txn_renew0(txn);
 	}
 	if (rc) {
 		if (txn != env->me_txn0) {
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 			free(txn->mt_rpages);
 #endif
 			free(txn);
@@ -3237,22 +3237,22 @@ renew:
 		txn->mt_flags |= flags;	/* could not change txn=me_txn0 earlier */
 		*ret = txn;
 		DPRINTF(("begin txn %"Yu"%c %p on mdbenv %p, root page %"Yu,
-			txn->mt_txnid, (flags & MDB_RDONLY) ? 'r' : 'w',
+			txn->mt_txnid, (flags & RZDB_RDONLY) ? 'r' : 'w',
 			(void *) txn, (void *) env, txn->mt_dbs[MAIN_DBI].md_root));
 	}
 
 	return rc;
 }
 
-MDB_env *
-mdb_txn_env(MDB_txn *txn)
+RZDB_env *
+mdb_txn_env(RZDB_txn *txn)
 {
 	if(!txn) return NULL;
 	return txn->mt_env;
 }
 
 mdb_size_t
-mdb_txn_id(MDB_txn *txn)
+mdb_txn_id(RZDB_txn *txn)
 {
     if(!txn) return 0;
     return txn->mt_txnid;
@@ -3260,17 +3260,17 @@ mdb_txn_id(MDB_txn *txn)
 
 /** Export or close DBI handles opened in this txn. */
 static void
-mdb_dbis_update(MDB_txn *txn, int keep)
+mdb_dbis_update(RZDB_txn *txn, int keep)
 {
 	int i;
-	MDB_dbi n = txn->mt_numdbs;
-	MDB_env *env = txn->mt_env;
+	RZDB_dbi n = txn->mt_numdbs;
+	RZDB_env *env = txn->mt_env;
 	unsigned char *tdbflags = txn->mt_dbflags;
 
 	for (i = n; --i >= CORE_DBS;) {
 		if (tdbflags[i] & DB_NEW) {
 			if (keep) {
-				env->me_dbflags[i] = txn->mt_dbs[i].md_flags | MDB_VALID;
+				env->me_dbflags[i] = txn->mt_dbs[i].md_flags | RZDB_VALID;
 			} else {
 				char *ptr = env->me_dbxs[i].md_name.mv_data;
 				if (ptr) {
@@ -3293,45 +3293,45 @@ mdb_dbis_update(MDB_txn *txn, int keep)
  * @param[in] mode why and how to end the transaction
  */
 static void
-mdb_txn_end(MDB_txn *txn, unsigned mode)
+mdb_txn_end(RZDB_txn *txn, unsigned mode)
 {
-	MDB_env	*env = txn->mt_env;
-#if MDB_DEBUG
-	static const char *const names[] = MDB_END_NAMES;
+	RZDB_env	*env = txn->mt_env;
+#if RZDB_DEBUG
+	static const char *const names[] = RZDB_END_NAMES;
 #endif
 
 	/* Export or close DBI handles opened in this txn */
-	mdb_dbis_update(txn, mode & MDB_END_UPDATE);
+	mdb_dbis_update(txn, mode & RZDB_END_UPDATE);
 
 	DPRINTF(("%s txn %"Yu"%c %p on mdbenv %p, root page %"Yu,
-		names[mode & MDB_END_OPMASK],
-		txn->mt_txnid, (txn->mt_flags & MDB_TXN_RDONLY) ? 'r' : 'w',
+		names[mode & RZDB_END_OPMASK],
+		txn->mt_txnid, (txn->mt_flags & RZDB_TXN_RDONLY) ? 'r' : 'w',
 		(void *) txn, (void *)env, txn->mt_dbs[MAIN_DBI].md_root));
 
-	if (F_ISSET(txn->mt_flags, MDB_TXN_RDONLY)) {
+	if (F_ISSET(txn->mt_flags, RZDB_TXN_RDONLY)) {
 		if (txn->mt_u.reader) {
 			txn->mt_u.reader->mr_txnid = (txnid_t)-1;
-			if (!(env->me_flags & MDB_NOTLS)) {
+			if (!(env->me_flags & RZDB_NOTLS)) {
 				txn->mt_u.reader = NULL; /* txn does not own reader */
-			} else if (mode & MDB_END_SLOT) {
+			} else if (mode & RZDB_END_SLOT) {
 				txn->mt_u.reader->mr_pid = 0;
 				txn->mt_u.reader = NULL;
-			} /* else txn owns the slot until it does MDB_END_SLOT */
+			} /* else txn owns the slot until it does RZDB_END_SLOT */
 		}
 		txn->mt_numdbs = 0;		/* prevent further DBI activity */
-		txn->mt_flags |= MDB_TXN_FINISHED;
+		txn->mt_flags |= RZDB_TXN_FINISHED;
 
-	} else if (!F_ISSET(txn->mt_flags, MDB_TXN_FINISHED)) {
+	} else if (!F_ISSET(txn->mt_flags, RZDB_TXN_FINISHED)) {
 		pgno_t *pghead = env->me_pghead;
 
-		if (!(mode & MDB_END_UPDATE)) /* !(already closed cursors) */
+		if (!(mode & RZDB_END_UPDATE)) /* !(already closed cursors) */
 			mdb_cursors_close(txn, 0);
-		if (!(env->me_flags & MDB_WRITEMAP)) {
+		if (!(env->me_flags & RZDB_WRITEMAP)) {
 			mdb_dlist_free(txn);
 		}
 
 		txn->mt_numdbs = 0;
-		txn->mt_flags = MDB_TXN_FINISHED;
+		txn->mt_flags = RZDB_TXN_FINISHED;
 
 		if (!txn->mt_parent) {
 			mdb_midl_shrink(&txn->mt_free_pgs);
@@ -3348,8 +3348,8 @@ mdb_txn_end(MDB_txn *txn, unsigned mode)
 				UNLOCK_MUTEX(env->me_wmutex);
 		} else {
 			txn->mt_parent->mt_child = NULL;
-			txn->mt_parent->mt_flags &= ~MDB_TXN_HAS_CHILD;
-			env->me_pgstate = ((MDB_ntxn *)txn)->mnt_pgstate;
+			txn->mt_parent->mt_flags &= ~RZDB_TXN_HAS_CHILD;
+			env->me_pgstate = ((RZDB_ntxn *)txn)->mnt_pgstate;
 			mdb_midl_free(txn->mt_free_pgs);
 			mdb_midl_free(txn->mt_spill_pgs);
 			free(txn->mt_u.dirty_list);
@@ -3357,13 +3357,13 @@ mdb_txn_end(MDB_txn *txn, unsigned mode)
 
 		mdb_midl_free(pghead);
 	}
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	if (!txn->mt_parent) {
-		MDB_ID3L el = env->me_rpages, tl = txn->mt_rpages;
+		RZDB_ID3L el = env->me_rpages, tl = txn->mt_rpages;
 		unsigned i, x, n = tl[0].mid;
 		pthread_mutex_lock(&env->me_rpmutex);
 		for (i = 1; i <= n; i++) {
-			if (tl[i].mid & (MDB_RPAGE_CHUNK-1)) {
+			if (tl[i].mid & (RZDB_RPAGE_CHUNK-1)) {
 				/* tmp overflow pages that we didn't share in env */
 				munmap(tl[i].mptr, tl[i].mcnt * env->me_psize);
 			} else {
@@ -3378,29 +3378,29 @@ mdb_txn_end(MDB_txn *txn, unsigned mode)
 		}
 		pthread_mutex_unlock(&env->me_rpmutex);
 		tl[0].mid = 0;
-		if (mode & MDB_END_FREE)
+		if (mode & RZDB_END_FREE)
 			free(tl);
 	}
 #endif
-	if (mode & MDB_END_FREE)
+	if (mode & RZDB_END_FREE)
 		free(txn);
 }
 
 void
-mdb_txn_reset(MDB_txn *txn)
+mdb_txn_reset(RZDB_txn *txn)
 {
 	if (txn == NULL)
 		return;
 
 	/* This call is only valid for read-only txns */
-	if (!(txn->mt_flags & MDB_TXN_RDONLY))
+	if (!(txn->mt_flags & RZDB_TXN_RDONLY))
 		return;
 
-	mdb_txn_end(txn, MDB_END_RESET);
+	mdb_txn_end(txn, RZDB_END_RESET);
 }
 
 void
-mdb_txn_abort(MDB_txn *txn)
+mdb_txn_abort(RZDB_txn *txn)
 {
 	if (txn == NULL)
 		return;
@@ -3408,24 +3408,24 @@ mdb_txn_abort(MDB_txn *txn)
 	if (txn->mt_child)
 		mdb_txn_abort(txn->mt_child);
 
-	mdb_txn_end(txn, MDB_END_ABORT|MDB_END_SLOT|MDB_END_FREE);
+	mdb_txn_end(txn, RZDB_END_ABORT|RZDB_END_SLOT|RZDB_END_FREE);
 }
 
 /** Save the freelist as of this transaction to the freeDB.
  * This changes the freelist. Keep trying until it stabilizes.
  *
- * When (MDB_DEVEL) & 2, the changes do not affect #mdb_page_alloc(),
+ * When (RZDB_DEVEL) & 2, the changes do not affect #mdb_page_alloc(),
  * it then uses the transaction's original snapshot of the freeDB.
  */
 static int
-mdb_freelist_save(MDB_txn *txn)
+mdb_freelist_save(RZDB_txn *txn)
 {
 	/* env->me_pghead[] can grow and shrink during this call.
 	 * env->me_pglast and txn->mt_free_pgs[] can only grow.
 	 * Page numbers cannot disappear from txn->mt_free_pgs[].
 	 */
-	MDB_cursor mc;
-	MDB_env	*env = txn->mt_env;
+	RZDB_cursor mc;
+	RZDB_env	*env = txn->mt_env;
 	int rc, maxfree_1pg = env->me_maxfree_1pg, more = 1;
 	txnid_t	pglast = 0, head_id = 0;
 	pgno_t	freecnt = 0, *free_pgs, *mop;
@@ -3435,8 +3435,8 @@ mdb_freelist_save(MDB_txn *txn)
 
 	if (env->me_pghead) {
 		/* Make sure first page of freeDB is touched and on freelist */
-		rc = mdb_page_search(&mc, NULL, MDB_PS_FIRST|MDB_PS_MODIFY);
-		if (rc && rc != MDB_NOTFOUND)
+		rc = mdb_page_search(&mc, NULL, RZDB_PS_FIRST|RZDB_PS_MODIFY);
+		if (rc && rc != RZDB_NOTFOUND)
 			return rc;
 	}
 
@@ -3444,15 +3444,15 @@ mdb_freelist_save(MDB_txn *txn)
 		/* Put loose page numbers in mt_free_pgs, since
 		 * we may be unable to return them to me_pghead.
 		 */
-		MDB_page *mp = txn->mt_loose_pgs;
-		MDB_ID2 *dl = txn->mt_u.dirty_list;
+		RZDB_page *mp = txn->mt_loose_pgs;
+		RZDB_ID2 *dl = txn->mt_u.dirty_list;
 		unsigned x;
 		if ((rc = mdb_midl_need(&txn->mt_free_pgs, txn->mt_loose_count)) != 0)
 			return rc;
 		for (; mp; mp = NEXT_LOOSE_PAGE(mp)) {
 			mdb_midl_xappend(txn->mt_free_pgs, mp->mp_pgno);
 			/* must also remove from dirty list */
-			if (txn->mt_flags & MDB_TXN_WRITEMAP) {
+			if (txn->mt_flags & RZDB_TXN_WRITEMAP) {
 				for (x=1; x<=dl[0].mid; x++)
 					if (dl[x].mid == mp->mp_pgno)
 						break;
@@ -3484,13 +3484,13 @@ mdb_freelist_save(MDB_txn *txn)
 		txn->mt_loose_count = 0;
 	}
 
-	/* MDB_RESERVE cancels meminit in ovpage malloc (when no WRITEMAP) */
-	clean_limit = (env->me_flags & (MDB_NOMEMINIT|MDB_WRITEMAP))
+	/* RZDB_RESERVE cancels meminit in ovpage malloc (when no WRITEMAP) */
+	clean_limit = (env->me_flags & (RZDB_NOMEMINIT|RZDB_WRITEMAP))
 		? SSIZE_MAX : maxfree_1pg;
 
 	for (;;) {
 		/* Come back here after each Put() in case freelist changed */
-		MDB_val key, data;
+		RZDB_val key, data;
 		pgno_t *pgs;
 		ssize_t j;
 
@@ -3513,8 +3513,8 @@ mdb_freelist_save(MDB_txn *txn)
 		if (freecnt < txn->mt_free_pgs[0]) {
 			if (!freecnt) {
 				/* Make sure last page of freeDB is touched and on freelist */
-				rc = mdb_page_search(&mc, NULL, MDB_PS_LAST|MDB_PS_MODIFY);
-				if (rc && rc != MDB_NOTFOUND)
+				rc = mdb_page_search(&mc, NULL, RZDB_PS_LAST|RZDB_PS_MODIFY);
+				if (rc && rc != RZDB_NOTFOUND)
 					return rc;
 			}
 			free_pgs = txn->mt_free_pgs;
@@ -3523,8 +3523,8 @@ mdb_freelist_save(MDB_txn *txn)
 			key.mv_data = &txn->mt_txnid;
 			do {
 				freecnt = free_pgs[0];
-				data.mv_size = MDB_IDL_SIZEOF(free_pgs);
-				rc = mdb_cursor_put(&mc, &key, &data, MDB_RESERVE);
+				data.mv_size = RZDB_IDL_SIZEOF(free_pgs);
+				rc = mdb_cursor_put(&mc, &key, &data, RZDB_RESERVE);
 				if (rc)
 					return rc;
 				/* Retry if mt_free_pgs[] grew during the Put() */
@@ -3532,7 +3532,7 @@ mdb_freelist_save(MDB_txn *txn)
 			} while (freecnt < free_pgs[0]);
 			mdb_midl_sort(free_pgs);
 			memcpy(data.mv_data, free_pgs, data.mv_size);
-#if (MDB_DEBUG) > 1
+#if (RZDB_DEBUG) > 1
 			{
 				unsigned int i = free_pgs[0];
 				DPRINTF(("IDL write txn %"Yu" root %"Yu" num %u",
@@ -3573,7 +3573,7 @@ mdb_freelist_save(MDB_txn *txn)
 		key.mv_size = sizeof(head_id);
 		key.mv_data = &head_id;
 		data.mv_size = (head_room + 1) * sizeof(pgno_t);
-		rc = mdb_cursor_put(&mc, &key, &data, MDB_RESERVE);
+		rc = mdb_cursor_put(&mc, &key, &data, RZDB_RESERVE);
 		if (rc)
 			return rc;
 		/* IDL is initially empty, zero out at least the length */
@@ -3589,14 +3589,14 @@ mdb_freelist_save(MDB_txn *txn)
 	 * left at this point.  The pages themselves remain in dirty_list.
 	 */
 	if (txn->mt_loose_pgs) {
-		MDB_page *mp = txn->mt_loose_pgs;
+		RZDB_page *mp = txn->mt_loose_pgs;
 		unsigned count = txn->mt_loose_count;
-		MDB_IDL loose;
+		RZDB_IDL loose;
 		/* Room for loose pages + temp IDL with same */
 		if ((rc = mdb_midl_need(&env->me_pghead, 2*count+1)) != 0)
 			return rc;
 		mop = env->me_pghead;
-		loose = mop + MDB_IDL_ALLOCLEN(mop) - count;
+		loose = mop + RZDB_IDL_ALLOCLEN(mop) - count;
 		for (count = 0; mp; mp = NEXT_LOOSE_PAGE(mp))
 			loose[ ++count ] = mp->mp_pgno;
 		loose[0] = count;
@@ -3608,27 +3608,27 @@ mdb_freelist_save(MDB_txn *txn)
 	}
 
 	/* Fill in the reserved me_pghead records */
-	rc = MDB_SUCCESS;
+	rc = RZDB_SUCCESS;
 	if (mop_len) {
-		MDB_val key, data;
+		RZDB_val key, data;
 
 		mop += mop_len;
 		rc = mdb_cursor_first(&mc, &key, &data);
-		for (; !rc; rc = mdb_cursor_next(&mc, &key, &data, MDB_NEXT)) {
+		for (; !rc; rc = mdb_cursor_next(&mc, &key, &data, RZDB_NEXT)) {
 			txnid_t id = *(txnid_t *)key.mv_data;
-			ssize_t	len = (ssize_t)(data.mv_size / sizeof(MDB_ID)) - 1;
-			MDB_ID save;
+			ssize_t	len = (ssize_t)(data.mv_size / sizeof(RZDB_ID)) - 1;
+			RZDB_ID save;
 
 			mdb_tassert(txn, len >= 0 && id <= env->me_pglast);
 			key.mv_data = &id;
 			if (len > mop_len) {
 				len = mop_len;
-				data.mv_size = (len + 1) * sizeof(MDB_ID);
+				data.mv_size = (len + 1) * sizeof(RZDB_ID);
 			}
 			data.mv_data = mop -= len;
 			save = mop[0];
 			mop[0] = len;
-			rc = mdb_cursor_put(&mc, &key, &data, MDB_CURRENT);
+			rc = mdb_cursor_put(&mc, &key, &data, RZDB_CURRENT);
 			mop[0] = save;
 			if (rc || !(mop_len -= len))
 				break;
@@ -3643,20 +3643,20 @@ mdb_freelist_save(MDB_txn *txn)
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_page_flush(MDB_txn *txn, int keep)
+mdb_page_flush(RZDB_txn *txn, int keep)
 {
-	MDB_env		*env = txn->mt_env;
-	MDB_ID2L	dl = txn->mt_u.dirty_list;
+	RZDB_env		*env = txn->mt_env;
+	RZDB_ID2L	dl = txn->mt_u.dirty_list;
 	unsigned	psize = env->me_psize, j;
 	int			i, pagecount = dl[0].mid, rc;
 	size_t		size = 0;
 	off_t		pos = 0;
 	pgno_t		pgno = 0;
-	MDB_page	*dp = NULL;
+	RZDB_page	*dp = NULL;
 #ifdef _WIN32
 	OVERLAPPED	ov;
 #else
-	struct iovec iov[MDB_COMMIT_PAGES];
+	struct iovec iov[RZDB_COMMIT_PAGES];
 	ssize_t		wsize = 0, wres;
 	off_t		wpos = 0, next_pos = 1; /* impossible pos, so pos != next_pos */
 	int			n = 0;
@@ -3664,7 +3664,7 @@ mdb_page_flush(MDB_txn *txn, int keep)
 
 	j = i = keep;
 
-	if (env->me_flags & MDB_WRITEMAP) {
+	if (env->me_flags & RZDB_WRITEMAP) {
 		/* Clear dirty flags */
 		while (++i <= pagecount) {
 			dp = dl[i].mptr;
@@ -3716,12 +3716,12 @@ mdb_page_flush(MDB_txn *txn, int keep)
 			return rc;
 		}
 #else
-		/* Write up to MDB_COMMIT_PAGES dirty pages at a time. */
-		if (pos!=next_pos || n==MDB_COMMIT_PAGES || wsize+size>MAX_WRITE) {
+		/* Write up to RZDB_COMMIT_PAGES dirty pages at a time. */
+		if (pos!=next_pos || n==RZDB_COMMIT_PAGES || wsize+size>MAX_WRITE) {
 			if (n) {
 retry_write:
 				/* Write previous page(s) */
-#ifdef MDB_USE_PWRITEV
+#ifdef RZDB_USE_PWRITEV
 				wres = pwritev(env->me_fd, iov, n, wpos);
 #else
 				if (n == 1) {
@@ -3765,7 +3765,7 @@ retry_seek:
 		n++;
 #endif	/* _WIN32 */
 	}
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	if (pgno > txn->mt_last_pgno)
 		txn->mt_last_pgno = pgno;
 #endif
@@ -3791,21 +3791,21 @@ done:
 	i--;
 	txn->mt_dirty_room += i - j;
 	dl[0].mid = j;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int
-mdb_txn_commit(MDB_txn *txn)
+mdb_txn_commit(RZDB_txn *txn)
 {
 	int		rc;
 	unsigned int i, end_mode;
-	MDB_env	*env;
+	RZDB_env	*env;
 
 	if (txn == NULL)
 		return EINVAL;
 
 	/* mdb_txn_end() mode for a commit which writes nothing */
-	end_mode = MDB_END_EMPTY_COMMIT|MDB_END_UPDATE|MDB_END_SLOT|MDB_END_FREE;
+	end_mode = RZDB_END_EMPTY_COMMIT|RZDB_END_UPDATE|RZDB_END_SLOT|RZDB_END_FREE;
 
 	if (txn->mt_child) {
 		rc = mdb_txn_commit(txn->mt_child);
@@ -3815,23 +3815,23 @@ mdb_txn_commit(MDB_txn *txn)
 
 	env = txn->mt_env;
 
-	if (F_ISSET(txn->mt_flags, MDB_TXN_RDONLY)) {
+	if (F_ISSET(txn->mt_flags, RZDB_TXN_RDONLY)) {
 		goto done;
 	}
 
-	if (txn->mt_flags & (MDB_TXN_FINISHED|MDB_TXN_ERROR)) {
+	if (txn->mt_flags & (RZDB_TXN_FINISHED|RZDB_TXN_ERROR)) {
 		DPUTS("txn has failed/finished, can't commit");
 		if (txn->mt_parent)
-			txn->mt_parent->mt_flags |= MDB_TXN_ERROR;
-		rc = MDB_BAD_TXN;
+			txn->mt_parent->mt_flags |= RZDB_TXN_ERROR;
+		rc = RZDB_BAD_TXN;
 		goto fail;
 	}
 
 	if (txn->mt_parent) {
-		MDB_txn *parent = txn->mt_parent;
-		MDB_page **lp;
-		MDB_ID2L dst, src;
-		MDB_IDL pspill;
+		RZDB_txn *parent = txn->mt_parent;
+		RZDB_page **lp;
+		RZDB_ID2L dst, src;
+		RZDB_IDL pspill;
 		unsigned x, y, len, ps_len;
 
 		/* Append our free list to parent's */
@@ -3840,7 +3840,7 @@ mdb_txn_commit(MDB_txn *txn)
 			goto fail;
 		mdb_midl_free(txn->mt_free_pgs);
 		/* Failures after this must either undo the changes
-		 * to the parent or set MDB_TXN_ERROR in the parent.
+		 * to the parent or set RZDB_TXN_ERROR in the parent.
 		 */
 
 		parent->mt_next_pgno = txn->mt_next_pgno;
@@ -3850,7 +3850,7 @@ mdb_txn_commit(MDB_txn *txn)
 		mdb_cursors_close(txn, 1);
 
 		/* Update parent's DB table. */
-		memcpy(parent->mt_dbs, txn->mt_dbs, txn->mt_numdbs * sizeof(MDB_db));
+		memcpy(parent->mt_dbs, txn->mt_dbs, txn->mt_numdbs * sizeof(RZDB_db));
 		parent->mt_numdbs = txn->mt_numdbs;
 		parent->mt_dbflags[FREE_DBI] = txn->mt_dbflags[FREE_DBI];
 		parent->mt_dbflags[MAIN_DBI] = txn->mt_dbflags[MAIN_DBI];
@@ -3868,7 +3868,7 @@ mdb_txn_commit(MDB_txn *txn)
 			pspill[0] = (pgno_t)-1;
 			/* Mark our dirty pages as deleted in parent spill list */
 			for (i=0, len=src[0].mid; ++i <= len; ) {
-				MDB_ID pn = src[i].mid << 1;
+				RZDB_ID pn = src[i].mid << 1;
 				while (pn > pspill[x])
 					x--;
 				if (pn == pspill[x]) {
@@ -3886,7 +3886,7 @@ mdb_txn_commit(MDB_txn *txn)
 		/* Remove anything in our spill list from parent's dirty list */
 		if (txn->mt_spill_pgs && txn->mt_spill_pgs[0]) {
 			for (i=1; i<=txn->mt_spill_pgs[0]; i++) {
-				MDB_ID pn = txn->mt_spill_pgs[i];
+				RZDB_ID pn = txn->mt_spill_pgs[i];
 				if (pn & 1)
 					continue;	/* deleted spillpg */
 				pn >>= 1;
@@ -3918,7 +3918,7 @@ mdb_txn_commit(MDB_txn *txn)
 				}
 			}
 		} else { /* Simplify the above for single-ancestor case */
-			len = MDB_IDL_UM_MAX - txn->mt_dirty_room;
+			len = RZDB_IDL_UM_MAX - txn->mt_dirty_room;
 		}
 		/* Merge our dirty list with parent's */
 		y = src[0].mid;
@@ -3938,7 +3938,7 @@ mdb_txn_commit(MDB_txn *txn)
 				/* TODO: Prevent failure here, so parent does not fail */
 				rc = mdb_midl_append_list(&parent->mt_spill_pgs, txn->mt_spill_pgs);
 				if (rc)
-					parent->mt_flags |= MDB_TXN_ERROR;
+					parent->mt_flags |= RZDB_TXN_ERROR;
 				mdb_midl_free(txn->mt_spill_pgs);
 				mdb_midl_sort(parent->mt_spill_pgs);
 			} else {
@@ -3953,7 +3953,7 @@ mdb_txn_commit(MDB_txn *txn)
 		parent->mt_loose_count += txn->mt_loose_count;
 
 		parent->mt_child = NULL;
-		mdb_midl_free(((MDB_ntxn *)txn)->mnt_pgstate.mf_pghead);
+		mdb_midl_free(((RZDB_ntxn *)txn)->mnt_pgstate.mf_pghead);
 		free(txn);
 		return rc;
 	}
@@ -3967,7 +3967,7 @@ mdb_txn_commit(MDB_txn *txn)
 	mdb_cursors_close(txn, 0);
 
 	if (!txn->mt_u.dirty_list[0].mid &&
-		!(txn->mt_flags & (MDB_TXN_DIRTY|MDB_TXN_SPILLS)))
+		!(txn->mt_flags & (RZDB_TXN_DIRTY|RZDB_TXN_SPILLS)))
 		goto done;
 
 	DPRINTF(("committing txn %"Yu" %p on mdbenv %p, root page %"Yu,
@@ -3975,16 +3975,16 @@ mdb_txn_commit(MDB_txn *txn)
 
 	/* Update DB root pointers */
 	if (txn->mt_numdbs > CORE_DBS) {
-		MDB_cursor mc;
-		MDB_dbi i;
-		MDB_val data;
-		data.mv_size = sizeof(MDB_db);
+		RZDB_cursor mc;
+		RZDB_dbi i;
+		RZDB_val data;
+		data.mv_size = sizeof(RZDB_db);
 
 		mdb_cursor_init(&mc, txn, MAIN_DBI, NULL);
 		for (i = CORE_DBS; i < txn->mt_numdbs; i++) {
 			if (txn->mt_dbflags[i] & DB_DIRTY) {
 				if (TXN_DBI_CHANGED(txn, i)) {
-					rc = MDB_BAD_DBI;
+					rc = RZDB_BAD_DBI;
 					goto fail;
 				}
 				data.mv_data = &txn->mt_dbs[i];
@@ -4004,22 +4004,22 @@ mdb_txn_commit(MDB_txn *txn)
 	env->me_pghead = NULL;
 	mdb_midl_shrink(&txn->mt_free_pgs);
 
-#if (MDB_DEBUG) > 2
+#if (RZDB_DEBUG) > 2
 	mdb_audit(txn);
 #endif
 
 	if ((rc = mdb_page_flush(txn, 0)))
 		goto fail;
-	if (!F_ISSET(txn->mt_flags, MDB_TXN_NOSYNC) &&
+	if (!F_ISSET(txn->mt_flags, RZDB_TXN_NOSYNC) &&
 		(rc = mdb_env_sync0(env, 0, txn->mt_next_pgno)))
 		goto fail;
 	if ((rc = mdb_env_write_meta(txn)))
 		goto fail;
-	end_mode = MDB_END_COMMITTED|MDB_END_UPDATE;
+	end_mode = RZDB_END_COMMITTED|RZDB_END_UPDATE;
 
 done:
 	mdb_txn_end(txn, end_mode);
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 
 fail:
 	mdb_txn_abort(txn);
@@ -4034,11 +4034,11 @@ fail:
  * @return 0 on success, non-zero on failure.
  */
 static int ESECT
-mdb_env_read_header(MDB_env *env, int prev, MDB_meta *meta)
+mdb_env_read_header(RZDB_env *env, int prev, RZDB_meta *meta)
 {
-	MDB_metabuf	pbuf;
-	MDB_page	*p;
-	MDB_meta	*m;
+	RZDB_metabuf	pbuf;
+	RZDB_page	*p;
+	RZDB_meta	*m;
 	int			i, rc, off;
 	enum { Size = sizeof(pbuf) };
 
@@ -4061,28 +4061,28 @@ mdb_env_read_header(MDB_env *env, int prev, MDB_meta *meta)
 		if (rc != Size) {
 			if (rc == 0 && off == 0)
 				return ENOENT;
-			rc = rc < 0 ? (int) ErrCode() : MDB_INVALID;
+			rc = rc < 0 ? (int) ErrCode() : RZDB_INVALID;
 			DPRINTF(("read: %s", mdb_strerror(rc)));
 			return rc;
 		}
 
-		p = (MDB_page *)&pbuf;
+		p = (RZDB_page *)&pbuf;
 
 		if (!F_ISSET(p->mp_flags, P_META)) {
 			DPRINTF(("page %"Yu" not a meta page", p->mp_pgno));
-			return MDB_INVALID;
+			return RZDB_INVALID;
 		}
 
 		m = METADATA(p);
-		if (m->mm_magic != MDB_MAGIC) {
+		if (m->mm_magic != RZDB_MAGIC) {
 			DPUTS("meta has invalid magic");
-			return MDB_INVALID;
+			return RZDB_INVALID;
 		}
 
-		if (m->mm_version != MDB_DATA_VERSION) {
+		if (m->mm_version != RZDB_DATA_VERSION) {
 			DPRINTF(("database is version %u, expected version %u",
-				m->mm_version, MDB_DATA_VERSION));
-			return MDB_VERSION_MISMATCH;
+				m->mm_version, RZDB_DATA_VERSION));
+			return RZDB_VERSION_MISMATCH;
 		}
 
 		if (off == 0 || (prev ? m->mm_txnid < meta->mm_txnid : m->mm_txnid > meta->mm_txnid))
@@ -4091,30 +4091,30 @@ mdb_env_read_header(MDB_env *env, int prev, MDB_meta *meta)
 	return 0;
 }
 
-/** Fill in most of the zeroed #MDB_meta for an empty database environment */
+/** Fill in most of the zeroed #RZDB_meta for an empty database environment */
 static void ESECT
-mdb_env_init_meta0(MDB_env *env, MDB_meta *meta)
+mdb_env_init_meta0(RZDB_env *env, RZDB_meta *meta)
 {
-	meta->mm_magic = MDB_MAGIC;
-	meta->mm_version = MDB_DATA_VERSION;
+	meta->mm_magic = RZDB_MAGIC;
+	meta->mm_version = RZDB_DATA_VERSION;
 	meta->mm_mapsize = env->me_mapsize;
 	meta->mm_psize = env->me_psize;
 	meta->mm_last_pg = NUM_METAS-1;
 	meta->mm_flags = env->me_flags & 0xffff;
-	meta->mm_flags |= MDB_INTEGERKEY; /* this is mm_dbs[FREE_DBI].md_flags */
+	meta->mm_flags |= RZDB_INTEGERKEY; /* this is mm_dbs[FREE_DBI].md_flags */
 	meta->mm_dbs[FREE_DBI].md_root = P_INVALID;
 	meta->mm_dbs[MAIN_DBI].md_root = P_INVALID;
 }
 
 /** Write the environment parameters of a freshly created DB environment.
  * @param[in] env the environment handle
- * @param[in] meta the #MDB_meta to write
+ * @param[in] meta the #RZDB_meta to write
  * @return 0 on success, non-zero on failure.
  */
 static int ESECT
-mdb_env_init_meta(MDB_env *env, MDB_meta *meta)
+mdb_env_init_meta(RZDB_env *env, RZDB_meta *meta)
 {
-	MDB_page *p, *q;
+	RZDB_page *p, *q;
 	int rc;
 	unsigned int	 psize;
 #ifdef _WIN32
@@ -4141,18 +4141,18 @@ mdb_env_init_meta(MDB_env *env, MDB_meta *meta)
 		return ENOMEM;
 	p->mp_pgno = 0;
 	p->mp_flags = P_META;
-	*(MDB_meta *)METADATA(p) = *meta;
+	*(RZDB_meta *)METADATA(p) = *meta;
 
-	q = (MDB_page *)((char *)p + psize);
+	q = (RZDB_page *)((char *)p + psize);
 	q->mp_pgno = 1;
 	q->mp_flags = P_META;
-	*(MDB_meta *)METADATA(q) = *meta;
+	*(RZDB_meta *)METADATA(q) = *meta;
 
 	DO_PWRITE(rc, env->me_fd, p, psize * NUM_METAS, len, 0);
 	if (!rc)
 		rc = ErrCode();
 	else if ((unsigned) len == psize * NUM_METAS)
-		rc = MDB_SUCCESS;
+		rc = RZDB_SUCCESS;
 	else
 		rc = ENOSPC;
 	free(p);
@@ -4164,10 +4164,10 @@ mdb_env_init_meta(MDB_env *env, MDB_meta *meta)
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_env_write_meta(MDB_txn *txn)
+mdb_env_write_meta(RZDB_txn *txn)
 {
-	MDB_env *env;
-	MDB_meta	meta, metab, *mp;
+	RZDB_env *env;
+	RZDB_meta	meta, metab, *mp;
 	unsigned flags;
 	mdb_size_t mapsize;
 	off_t off;
@@ -4192,7 +4192,7 @@ mdb_env_write_meta(MDB_txn *txn)
 	if (mapsize < env->me_mapsize)
 		mapsize = env->me_mapsize;
 
-	if (flags & MDB_WRITEMAP) {
+	if (flags & RZDB_WRITEMAP) {
 		mp->mm_mapsize = mapsize;
 		mp->mm_dbs[FREE_DBI] = txn->mt_dbs[FREE_DBI];
 		mp->mm_dbs[MAIN_DBI] = txn->mt_dbs[MAIN_DBI];
@@ -4203,16 +4203,16 @@ mdb_env_write_meta(MDB_txn *txn)
 		__sync_synchronize();
 #endif
 		mp->mm_txnid = txn->mt_txnid;
-		if (!(flags & (MDB_NOMETASYNC|MDB_NOSYNC))) {
+		if (!(flags & (RZDB_NOMETASYNC|RZDB_NOSYNC))) {
 			unsigned meta_size = env->me_psize;
-			rc = (env->me_flags & MDB_MAPASYNC) ? MS_ASYNC : MS_SYNC;
+			rc = (env->me_flags & RZDB_MAPASYNC) ? MS_ASYNC : MS_SYNC;
 			ptr = (char *)mp - PAGEHDRSZ;
 #ifndef _WIN32	/* POSIX msync() requires ptr = start of OS page */
 			r2 = (ptr - env->me_map) & (env->me_os_psize - 1);
 			ptr -= r2;
 			meta_size += r2;
 #endif
-			if (MDB_MSYNC(ptr, meta_size, rc)) {
+			if (RZDB_MSYNC(ptr, meta_size, rc)) {
 				rc = ErrCode();
 				goto fail;
 			}
@@ -4228,16 +4228,16 @@ mdb_env_write_meta(MDB_txn *txn)
 	meta.mm_last_pg = txn->mt_next_pgno - 1;
 	meta.mm_txnid = txn->mt_txnid;
 
-	off = offsetof(MDB_meta, mm_mapsize);
+	off = offsetof(RZDB_meta, mm_mapsize);
 	ptr = (char *)&meta + off;
-	len = sizeof(MDB_meta) - off;
+	len = sizeof(RZDB_meta) - off;
 	off += (char *)mp - env->me_map;
 
-	/* Write to the SYNC fd unless MDB_NOSYNC/MDB_NOMETASYNC.
+	/* Write to the SYNC fd unless RZDB_NOSYNC/RZDB_NOMETASYNC.
 	 * (me_mfd goes to the same file as me_fd, but writing to it
 	 * also syncs to disk.  Avoids a separate fdatasync() call.)
 	 */
-	mfd = (flags & (MDB_NOSYNC|MDB_NOMETASYNC)) ? env->me_fd : env->me_mfd;
+	mfd = (flags & (RZDB_NOSYNC|RZDB_NOMETASYNC)) ? env->me_fd : env->me_mfd;
 #ifdef _WIN32
 	{
 		memset(&ov, 0, sizeof(ov));
@@ -4271,7 +4271,7 @@ retry_write:
 		(void)r2;	/* Silence warnings. We don't care about pwrite's return value */
 #endif
 fail:
-		env->me_flags |= MDB_FATAL_ERROR;
+		env->me_flags |= RZDB_FATAL_ERROR;
 		return rc;
 	}
 	/* MIPS has cache coherency issues, this is a no-op everywhere else */
@@ -4286,26 +4286,26 @@ done:
 	if (env->me_txns)
 		env->me_txns->mti_txnid = txn->mt_txnid;
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /** Check both meta pages to see which one is newer.
  * @param[in] env the environment handle
- * @return newest #MDB_meta.
+ * @return newest #RZDB_meta.
  */
-static MDB_meta *
-mdb_env_pick_meta(const MDB_env *env)
+static RZDB_meta *
+mdb_env_pick_meta(const RZDB_env *env)
 {
-	MDB_meta *const *metas = env->me_metas;
+	RZDB_meta *const *metas = env->me_metas;
 	return metas[ metas[0]->mm_txnid < metas[1]->mm_txnid ];
 }
 
 int ESECT
-mdb_env_create(MDB_env **env)
+mdb_env_create(RZDB_env **env)
 {
-	MDB_env *e;
+	RZDB_env *e;
 
-	e = calloc(1, sizeof(MDB_env));
+	e = calloc(1, sizeof(RZDB_env));
 	if (!e)
 		return ENOMEM;
 
@@ -4314,10 +4314,10 @@ mdb_env_create(MDB_env **env)
 	e->me_fd = INVALID_HANDLE_VALUE;
 	e->me_lfd = INVALID_HANDLE_VALUE;
 	e->me_mfd = INVALID_HANDLE_VALUE;
-#ifdef MDB_USE_POSIX_SEM
+#ifdef RZDB_USE_POSIX_SEM
 	e->me_rmutex = SEM_FAILED;
 	e->me_wmutex = SEM_FAILED;
-#elif defined MDB_USE_SYSV_SEM
+#elif defined RZDB_USE_SYSV_SEM
 	e->me_rmutex->semid = -1;
 	e->me_wmutex->semid = -1;
 #endif
@@ -4325,7 +4325,7 @@ mdb_env_create(MDB_env **env)
 	GET_PAGESIZE(e->me_os_psize);
 	VGMEMP_CREATE(e,0,0);
 	*env = e;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 #ifdef _WIN32
@@ -4342,9 +4342,9 @@ mdb_nt2win32(NTSTATUS st)
 #endif
 
 static int ESECT
-mdb_env_map(MDB_env *env, void *addr)
+mdb_env_map(RZDB_env *env, void *addr)
 {
-	MDB_page *p;
+	RZDB_page *p;
 	unsigned int flags = env->me_flags;
 #ifdef _WIN32
 	int rc;
@@ -4354,11 +4354,11 @@ mdb_env_map(MDB_env *env, void *addr)
 	SIZE_T msize;
 	ULONG pageprot = PAGE_READONLY, secprot, alloctype;
 
-	if (flags & MDB_WRITEMAP) {
+	if (flags & RZDB_WRITEMAP) {
 		access |= SECTION_MAP_WRITE;
 		pageprot = PAGE_READWRITE;
 	}
-	if (flags & MDB_RDONLY) {
+	if (flags & RZDB_RDONLY) {
 		secprot = PAGE_READONLY;
 		msize = 0;
 		alloctype = 0;
@@ -4372,11 +4372,11 @@ mdb_env_map(MDB_env *env, void *addr)
 	if (rc)
 		return mdb_nt2win32(rc);
 	map = addr;
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	msize = NUM_METAS * env->me_psize;
 #endif
 	rc = NtMapViewOfSection(mh, GetCurrentProcess(), &map, 0, 0, NULL, &msize, ViewUnmap, alloctype, pageprot);
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	env->me_fmh = mh;
 #else
 	NtClose(mh);
@@ -4385,7 +4385,7 @@ mdb_env_map(MDB_env *env, void *addr)
 		return mdb_nt2win32(rc);
 	env->me_map = map;
 #else
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	(void) flags;
 	env->me_map = mmap(addr, NUM_METAS * env->me_psize, PROT_READ, MAP_SHARED,
 		env->me_fd, 0);
@@ -4395,7 +4395,7 @@ mdb_env_map(MDB_env *env, void *addr)
 	}
 #else
 	int prot = PROT_READ;
-	if (flags & MDB_WRITEMAP) {
+	if (flags & RZDB_WRITEMAP) {
 		prot |= PROT_WRITE;
 		if (ftruncate(env->me_fd, env->me_mapsize) < 0)
 			return ErrCode();
@@ -4407,7 +4407,7 @@ mdb_env_map(MDB_env *env, void *addr)
 		return ErrCode();
 	}
 
-	if (flags & MDB_NORDAHEAD) {
+	if (flags & RZDB_NORDAHEAD) {
 		/* Turn off readahead. It's harmful when the DB is larger than RAM. */
 #ifdef MADV_RANDOM
 		madvise(env->me_map, env->me_mapsize, MADV_RANDOM);
@@ -4425,25 +4425,25 @@ mdb_env_map(MDB_env *env, void *addr)
 	 * instead unmap existing pages to make room for the new map.
 	 */
 	if (addr && env->me_map != addr)
-		return EBUSY;	/* TODO: Make a new MDB_* error code? */
+		return EBUSY;	/* TODO: Make a new RZDB_* error code? */
 #endif
 
-	p = (MDB_page *)env->me_map;
+	p = (RZDB_page *)env->me_map;
 	env->me_metas[0] = METADATA(p);
-	env->me_metas[1] = (MDB_meta *)((char *)env->me_metas[0] + env->me_psize);
+	env->me_metas[1] = (RZDB_meta *)((char *)env->me_metas[0] + env->me_psize);
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int ESECT
-mdb_env_set_mapsize(MDB_env *env, mdb_size_t size)
+mdb_env_set_mapsize(RZDB_env *env, mdb_size_t size)
 {
 	/* If env is already open, caller is responsible for making
 	 * sure there are no active txns.
 	 */
 	if (env->me_map) {
-		MDB_meta *meta;
-#ifndef MDB_VL32
+		RZDB_meta *meta;
+#ifndef RZDB_VL32
 		void *old;
 		int rc;
 #endif
@@ -4458,49 +4458,49 @@ mdb_env_set_mapsize(MDB_env *env, mdb_size_t size)
 			if (size < minsize)
 				size = minsize;
 		}
-#ifndef MDB_VL32
-		/* For MDB_VL32 this bit is a noop since we dynamically remap
+#ifndef RZDB_VL32
+		/* For RZDB_VL32 this bit is a noop since we dynamically remap
 		 * chunks of the DB anyway.
 		 */
 		munmap(env->me_map, env->me_mapsize);
 		env->me_mapsize = size;
-		old = (env->me_flags & MDB_FIXEDMAP) ? env->me_map : NULL;
+		old = (env->me_flags & RZDB_FIXEDMAP) ? env->me_map : NULL;
 		rc = mdb_env_map(env, old);
 		if (rc)
 			return rc;
-#endif /* !MDB_VL32 */
+#endif /* !RZDB_VL32 */
 	}
 	env->me_mapsize = size;
 	if (env->me_psize)
 		env->me_maxpg = env->me_mapsize / env->me_psize;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int ESECT
-mdb_env_set_maxdbs(MDB_env *env, MDB_dbi dbs)
+mdb_env_set_maxdbs(RZDB_env *env, RZDB_dbi dbs)
 {
 	if (env->me_map)
 		return EINVAL;
 	env->me_maxdbs = dbs + CORE_DBS;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int ESECT
-mdb_env_set_maxreaders(MDB_env *env, unsigned int readers)
+mdb_env_set_maxreaders(RZDB_env *env, unsigned int readers)
 {
 	if (env->me_map || readers < 1)
 		return EINVAL;
 	env->me_maxreaders = readers;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int ESECT
-mdb_env_get_maxreaders(MDB_env *env, unsigned int *readers)
+mdb_env_get_maxreaders(RZDB_env *env, unsigned int *readers)
 {
 	if (!env || !readers)
 		return EINVAL;
 	*readers = env->me_maxreaders;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 static int ESECT
@@ -4521,35 +4521,35 @@ mdb_fsize(HANDLE fd, mdb_size_t *size)
 
 	*size = st.st_size;
 #endif
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 
 #ifdef _WIN32
 typedef wchar_t	mdb_nchar_t;
-# define MDB_NAME(str)	L##str
+# define RZDB_NAME(str)	L##str
 # define mdb_name_cpy	wcscpy
 #else
 /** Character type for file names: char on Unix, wchar_t on Windows */
 typedef char	mdb_nchar_t;
-# define MDB_NAME(str)	str		/**< #mdb_nchar_t[] string literal */
+# define RZDB_NAME(str)	str		/**< #mdb_nchar_t[] string literal */
 # define mdb_name_cpy	strcpy	/**< Copy name (#mdb_nchar_t string) */
 #endif
 
 /** Filename - string of #mdb_nchar_t[] */
-typedef struct MDB_name {
+typedef struct RZDB_name {
 	int mn_len;					/**< Length  */
 	int mn_alloced;				/**< True if #mn_val was malloced */
 	mdb_nchar_t	*mn_val;		/**< Contents */
-} MDB_name;
+} RZDB_name;
 
-/** Filename suffixes [datafile,lockfile][without,with MDB_NOSUBDIR] */
+/** Filename suffixes [datafile,lockfile][without,with RZDB_NOSUBDIR] */
 static const mdb_nchar_t *const mdb_suffixes[2][2] = {
-	{ MDB_NAME("/data.mdb"), MDB_NAME("")      },
-	{ MDB_NAME("/lock.mdb"), MDB_NAME("-lock") }
+	{ RZDB_NAME("/data.mdb"), RZDB_NAME("")      },
+	{ RZDB_NAME("/lock.mdb"), RZDB_NAME("-lock") }
 };
 
-#define MDB_SUFFLEN 9	/**< Max string length in #mdb_suffixes[] */
+#define RZDB_SUFFLEN 9	/**< Max string length in #mdb_suffixes[] */
 
 /** Set up filename + scratch area for filename suffix, for opening files.
  * It should be freed with #mdb_fname_destroy().
@@ -4560,23 +4560,23 @@ static const mdb_nchar_t *const mdb_suffixes[2][2] = {
  * @param[out] fname Resulting filename, with room for a suffix if necessary.
  */
 static int ESECT
-mdb_fname_init(const char *path, unsigned envflags, MDB_name *fname)
+mdb_fname_init(const char *path, unsigned envflags, RZDB_name *fname)
 {
-	int no_suffix = F_ISSET(envflags, MDB_NOSUBDIR|MDB_NOLOCK);
+	int no_suffix = F_ISSET(envflags, RZDB_NOSUBDIR|RZDB_NOLOCK);
 	fname->mn_alloced = 0;
 #ifdef _WIN32
-	return utf8_to_utf16(path, fname, no_suffix ? 0 : MDB_SUFFLEN);
+	return utf8_to_utf16(path, fname, no_suffix ? 0 : RZDB_SUFFLEN);
 #else
 	fname->mn_len = strlen(path);
 	if (no_suffix)
 		fname->mn_val = (char *) path;
-	else if ((fname->mn_val = malloc(fname->mn_len + MDB_SUFFLEN+1)) != NULL) {
+	else if ((fname->mn_val = malloc(fname->mn_len + RZDB_SUFFLEN+1)) != NULL) {
 		fname->mn_alloced = 1;
 		strcpy(fname->mn_val, path);
 	}
 	else
 		return ENOMEM;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 #endif
 }
 
@@ -4585,26 +4585,26 @@ mdb_fname_init(const char *path, unsigned envflags, MDB_name *fname)
 	do { if ((fname).mn_alloced) free((fname).mn_val); } while (0)
 
 #ifdef O_CLOEXEC /* POSIX.1-2008: Set FD_CLOEXEC atomically at open() */
-# define MDB_CLOEXEC		O_CLOEXEC
+# define RZDB_CLOEXEC		O_CLOEXEC
 #else
-# define MDB_CLOEXEC		0
+# define RZDB_CLOEXEC		0
 #endif
 
 /** File type, access mode etc. for #mdb_fopen() */
 enum mdb_fopen_type {
 #ifdef _WIN32
-	MDB_O_RDONLY, MDB_O_RDWR, MDB_O_META, MDB_O_COPY, MDB_O_LOCKS
+	RZDB_O_RDONLY, RZDB_O_RDWR, RZDB_O_META, RZDB_O_COPY, RZDB_O_LOCKS
 #else
 	/* A comment in mdb_fopen() explains some O_* flag choices. */
-	MDB_O_RDONLY= O_RDONLY,                            /**< for RDONLY me_fd */
-	MDB_O_RDWR  = O_RDWR  |O_CREAT,                    /**< for me_fd */
-	MDB_O_META  = O_WRONLY|MDB_DSYNC     |MDB_CLOEXEC, /**< for me_mfd */
-	MDB_O_COPY  = O_WRONLY|O_CREAT|O_EXCL|MDB_CLOEXEC, /**< for #mdb_env_copy() */
+	RZDB_O_RDONLY= O_RDONLY,                            /**< for RDONLY me_fd */
+	RZDB_O_RDWR  = O_RDWR  |O_CREAT,                    /**< for me_fd */
+	RZDB_O_META  = O_WRONLY|RZDB_DSYNC     |RZDB_CLOEXEC, /**< for me_mfd */
+	RZDB_O_COPY  = O_WRONLY|O_CREAT|O_EXCL|RZDB_CLOEXEC, /**< for #mdb_env_copy() */
 	/** Bitmask for open() flags in enum #mdb_fopen_type.  The other bits
-	 * distinguish otherwise-equal MDB_O_* constants from each other.
+	 * distinguish otherwise-equal RZDB_O_* constants from each other.
 	 */
-	MDB_O_MASK  = MDB_O_RDWR|MDB_CLOEXEC | MDB_O_RDONLY|MDB_O_META|MDB_O_COPY,
-	MDB_O_LOCKS = MDB_O_RDWR|MDB_CLOEXEC | ((MDB_O_MASK+1) & ~MDB_O_MASK) /**< for me_lfd */
+	RZDB_O_MASK  = RZDB_O_RDWR|RZDB_CLOEXEC | RZDB_O_RDONLY|RZDB_O_META|RZDB_O_COPY,
+	RZDB_O_LOCKS = RZDB_O_RDWR|RZDB_CLOEXEC | ((RZDB_O_MASK+1) & ~RZDB_O_MASK) /**< for me_lfd */
 #endif
 };
 
@@ -4618,11 +4618,11 @@ enum mdb_fopen_type {
  * @return 0 on success, non-zero on failure.
  */
 static int ESECT
-mdb_fopen(const MDB_env *env, MDB_name *fname,
+mdb_fopen(const RZDB_env *env, RZDB_name *fname,
 	enum mdb_fopen_type which, mdb_mode_t mode,
 	HANDLE *res)
 {
-	int rc = MDB_SUCCESS;
+	int rc = RZDB_SUCCESS;
 	HANDLE fd;
 #ifdef _WIN32
 	DWORD acc, share, disp, attrs;
@@ -4632,13 +4632,13 @@ mdb_fopen(const MDB_env *env, MDB_name *fname,
 
 	if (fname->mn_alloced)		/* modifiable copy */
 		mdb_name_cpy(fname->mn_val + fname->mn_len,
-			mdb_suffixes[which==MDB_O_LOCKS][F_ISSET(env->me_flags, MDB_NOSUBDIR)]);
+			mdb_suffixes[which==RZDB_O_LOCKS][F_ISSET(env->me_flags, RZDB_NOSUBDIR)]);
 
 	/* The directory must already exist.  Usually the file need not.
-	 * MDB_O_META requires the file because we already created it using
-	 * MDB_O_RDWR.  MDB_O_COPY must not overwrite an existing file.
+	 * RZDB_O_META requires the file because we already created it using
+	 * RZDB_O_RDWR.  RZDB_O_COPY must not overwrite an existing file.
 	 *
-	 * With MDB_O_COPY we do not want the OS to cache the writes, since
+	 * With RZDB_O_COPY we do not want the OS to cache the writes, since
 	 * the source data is already in the OS cache.
 	 *
 	 * The lockfile needs FD_CLOEXEC (close file descriptor on exec*())
@@ -4654,16 +4654,16 @@ mdb_fopen(const MDB_env *env, MDB_name *fname,
 	disp = OPEN_ALWAYS;
 	attrs = FILE_ATTRIBUTE_NORMAL;
 	switch (which) {
-	case MDB_O_RDONLY:			/* read-only datafile */
+	case RZDB_O_RDONLY:			/* read-only datafile */
 		acc = GENERIC_READ;
 		disp = OPEN_EXISTING;
 		break;
-	case MDB_O_META:			/* for writing metapages */
+	case RZDB_O_META:			/* for writing metapages */
 		acc = GENERIC_WRITE;
 		disp = OPEN_EXISTING;
 		attrs = FILE_ATTRIBUTE_NORMAL|FILE_FLAG_WRITE_THROUGH;
 		break;
-	case MDB_O_COPY:			/* mdb_env_copy() & co */
+	case RZDB_O_COPY:			/* mdb_env_copy() & co */
 		acc = GENERIC_WRITE;
 		share = 0;
 		disp = CREATE_NEW;
@@ -4673,19 +4673,19 @@ mdb_fopen(const MDB_env *env, MDB_name *fname,
 	}
 	fd = CreateFileW(fname->mn_val, acc, share, NULL, disp, attrs, NULL);
 #else
-	fd = open(fname->mn_val, which & MDB_O_MASK, mode);
+	fd = open(fname->mn_val, which & RZDB_O_MASK, mode);
 #endif
 
 	if (fd == INVALID_HANDLE_VALUE)
 		rc = ErrCode();
 #ifndef _WIN32
 	else {
-		if (which != MDB_O_RDONLY && which != MDB_O_RDWR) {
+		if (which != RZDB_O_RDONLY && which != RZDB_O_RDWR) {
 			/* Set CLOEXEC if we could not pass it to open() */
-			if (!MDB_CLOEXEC && (flags = fcntl(fd, F_GETFD)) != -1)
+			if (!RZDB_CLOEXEC && (flags = fcntl(fd, F_GETFD)) != -1)
 				(void) fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
 		}
-		if (which == MDB_O_COPY && env->me_psize >= env->me_os_psize) {
+		if (which == RZDB_O_COPY && env->me_psize >= env->me_os_psize) {
 			/* This may require buffer alignment.  There is no portable
 			 * way to ask how much, so we require OS pagesize alignment.
 			 */
@@ -4715,33 +4715,33 @@ mdb_fopen(const MDB_env *env, MDB_name *fname,
 /** Further setup required for opening an LMDB environment
  */
 static int ESECT
-mdb_env_open2(MDB_env *env, int prev)
+mdb_env_open2(RZDB_env *env, int prev)
 {
 	unsigned int flags = env->me_flags;
 	int i, newenv = 0, rc;
-	MDB_meta meta;
+	RZDB_meta meta;
 
 #ifdef _WIN32
 	/* See if we should use QueryLimited */
 	rc = GetVersion();
 	if ((rc & 0xff) > 5)
-		env->me_pidquery = MDB_PROCESS_QUERY_LIMITED_INFORMATION;
+		env->me_pidquery = RZDB_PROCESS_QUERY_LIMITED_INFORMATION;
 	else
 		env->me_pidquery = PROCESS_QUERY_INFORMATION;
 	/* Grab functions we need from NTDLL */
 	if (!NtCreateSection) {
 		HMODULE h = GetModuleHandle("NTDLL.DLL");
 		if (!h)
-			return MDB_PROBLEM;
+			return RZDB_PROBLEM;
 		NtClose = (NtCloseFunc *)GetProcAddress(h, "NtClose");
 		if (!NtClose)
-			return MDB_PROBLEM;
+			return RZDB_PROBLEM;
 		NtMapViewOfSection = (NtMapViewOfSectionFunc *)GetProcAddress(h, "NtMapViewOfSection");
 		if (!NtMapViewOfSection)
-			return MDB_PROBLEM;
+			return RZDB_PROBLEM;
 		NtCreateSection = (NtCreateSectionFunc *)GetProcAddress(h, "NtCreateSection");
 		if (!NtCreateSection)
-			return MDB_PROBLEM;
+			return RZDB_PROBLEM;
 	}
 #endif /* _WIN32 */
 
@@ -4787,7 +4787,7 @@ mdb_env_open2(MDB_env *env, int prev)
 			} else {	/* 4.x and newer is OK */
 				break;
 			}
-			env->me_flags |= MDB_FSYNCONLY;
+			env->me_flags |= RZDB_FSYNCONLY;
 			break;
 		}
 	}
@@ -4822,7 +4822,7 @@ mdb_env_open2(MDB_env *env, int prev)
 	}
 	meta.mm_mapsize = env->me_mapsize;
 
-	if (newenv && !(flags & MDB_FIXEDMAP)) {
+	if (newenv && !(flags & RZDB_FIXEDMAP)) {
 		/* mdb_env_map() may grow the datafile.  Write the metapages
 		 * first, so the file will be valid if initialization fails.
 		 * Except with FIXEDMAP, since we do not yet know mm_address.
@@ -4848,31 +4848,31 @@ mdb_env_open2(MDB_env *env, int prev)
 	}
 #endif
 
-	rc = mdb_env_map(env, (flags & MDB_FIXEDMAP) ? meta.mm_address : NULL);
+	rc = mdb_env_map(env, (flags & RZDB_FIXEDMAP) ? meta.mm_address : NULL);
 	if (rc)
 		return rc;
 
 	if (newenv) {
-		if (flags & MDB_FIXEDMAP)
+		if (flags & RZDB_FIXEDMAP)
 			meta.mm_address = env->me_map;
 		i = mdb_env_init_meta(env, &meta);
-		if (i != MDB_SUCCESS) {
+		if (i != RZDB_SUCCESS) {
 			return i;
 		}
 	}
 
 	env->me_maxfree_1pg = (env->me_psize - PAGEHDRSZ) / sizeof(pgno_t) - 1;
-	env->me_nodemax = (((env->me_psize - PAGEHDRSZ) / MDB_MINKEYS) & -2)
+	env->me_nodemax = (((env->me_psize - PAGEHDRSZ) / RZDB_MINKEYS) & -2)
 		- sizeof(indx_t);
-#if !(MDB_MAXKEYSIZE)
-	env->me_maxkey = env->me_nodemax - (NODESIZE + sizeof(MDB_db));
+#if !(RZDB_MAXKEYSIZE)
+	env->me_maxkey = env->me_nodemax - (NODESIZE + sizeof(RZDB_db));
 #endif
 	env->me_maxpg = env->me_mapsize / env->me_psize;
 
-#if MDB_DEBUG
+#if RZDB_DEBUG
 	{
-		MDB_meta *meta = mdb_env_pick_meta(env);
-		MDB_db *db = &meta->mm_dbs[MAIN_DBI];
+		RZDB_meta *meta = mdb_env_pick_meta(env);
+		RZDB_db *db = &meta->mm_dbs[MAIN_DBI];
 
 		DPRINTF(("opened database version %u, pagesize %u",
 			meta->mm_version, env->me_psize));
@@ -4886,7 +4886,7 @@ mdb_env_open2(MDB_env *env, int prev)
 	}
 #endif
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 
@@ -4897,7 +4897,7 @@ mdb_env_open2(MDB_env *env, int prev)
 static void
 mdb_env_reader_dest(void *ptr)
 {
-	MDB_reader *reader = ptr;
+	RZDB_reader *reader = ptr;
 
 #ifndef _WIN32
 	if (reader->mr_pid == getpid()) /* catch pthread_exit() in child process */
@@ -4926,7 +4926,7 @@ static void NTAPI mdb_tls_callback(PVOID module, DWORD reason, PVOID ptr)
 	case DLL_THREAD_ATTACH: break;
 	case DLL_THREAD_DETACH:
 		for (i=0; i<mdb_tls_nkeys; i++) {
-			MDB_reader *r = pthread_getspecific(mdb_tls_keys[i]);
+			RZDB_reader *r = pthread_getspecific(mdb_tls_keys[i]);
 			if (r) {
 				mdb_env_reader_dest(r);
 			}
@@ -4965,10 +4965,10 @@ PIMAGE_TLS_CALLBACK mdb_tls_cbp = mdb_tls_callback;
 
 /** Downgrade the exclusive lock on the region back to shared */
 static int ESECT
-mdb_env_share_locks(MDB_env *env, int *excl)
+mdb_env_share_locks(RZDB_env *env, int *excl)
 {
 	int rc = 0;
-	MDB_meta *meta = mdb_env_pick_meta(env);
+	RZDB_meta *meta = mdb_env_pick_meta(env);
 
 	env->me_txns->mti_txnid = meta->mm_txnid;
 
@@ -5008,7 +5008,7 @@ mdb_env_share_locks(MDB_env *env, int *excl)
  *	Maintain *excl = -1: no/unknown lock, 0: shared, 1: exclusive.
  */
 static int ESECT
-mdb_env_excl_lock(MDB_env *env, int *excl)
+mdb_env_excl_lock(RZDB_env *env, int *excl)
 {
 	int rc = 0;
 #ifdef _WIN32
@@ -5035,8 +5035,8 @@ mdb_env_excl_lock(MDB_env *env, int *excl)
 	if (!rc) {
 		*excl = 1;
 	} else
-# ifndef MDB_USE_POSIX_MUTEX
-	if (*excl < 0) /* always true when MDB_USE_POSIX_MUTEX */
+# ifndef RZDB_USE_POSIX_MUTEX
+	if (*excl < 0) /* always true when RZDB_USE_POSIX_MUTEX */
 # endif
 	{
 		lock_info.l_type = F_RDLCK;
@@ -5049,7 +5049,7 @@ mdb_env_excl_lock(MDB_env *env, int *excl)
 	return rc;
 }
 
-#ifdef MDB_USE_HASH
+#ifdef RZDB_USE_HASH
 /*
  * hash_64 - 64 bit Fowler/Noll/Vo-0 FNV-1a hash code
  *
@@ -5120,11 +5120,11 @@ mdb_pack85(unsigned long long l, char *out)
 	*out = '\0';
 }
 
-/** Init #MDB_env.me_mutexname[] except the char which #MUTEXNAME() will set.
- *	Changes to this code must be reflected in #MDB_LOCK_FORMAT.
+/** Init #RZDB_env.me_mutexname[] except the char which #MUTEXNAME() will set.
+ *	Changes to this code must be reflected in #RZDB_LOCK_FORMAT.
  */
 static void ESECT
-mdb_env_mname_init(MDB_env *env)
+mdb_env_mname_init(RZDB_env *env)
 {
 	char *nm = env->me_mutexname;
 	strcpy(nm, MUTEXNAME_PREFIX);
@@ -5146,38 +5146,38 @@ mdb_env_mname_init(MDB_env *env)
  * @return 0 on success, non-zero on failure.
  */
 static int ESECT
-mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
+mdb_env_setup_locks(RZDB_env *env, RZDB_name *fname, int mode, int *excl)
 {
 #ifdef _WIN32
-#	define MDB_ERRCODE_ROFS	ERROR_WRITE_PROTECT
+#	define RZDB_ERRCODE_ROFS	ERROR_WRITE_PROTECT
 #else
-#	define MDB_ERRCODE_ROFS	EROFS
+#	define RZDB_ERRCODE_ROFS	EROFS
 #endif
-#ifdef MDB_USE_SYSV_SEM
+#ifdef RZDB_USE_SYSV_SEM
 	int semid;
 	union semun semu;
 #endif
 	int rc;
 	off_t size, rsize;
 
-	rc = mdb_fopen(env, fname, MDB_O_LOCKS, mode, &env->me_lfd);
+	rc = mdb_fopen(env, fname, RZDB_O_LOCKS, mode, &env->me_lfd);
 	if (rc) {
 		/* Omit lockfile if read-only env on read-only filesystem */
-		if (rc == MDB_ERRCODE_ROFS && (env->me_flags & MDB_RDONLY)) {
-			return MDB_SUCCESS;
+		if (rc == RZDB_ERRCODE_ROFS && (env->me_flags & RZDB_RDONLY)) {
+			return RZDB_SUCCESS;
 		}
 		goto fail;
 	}
 
-	if (!(env->me_flags & MDB_NOTLS)) {
+	if (!(env->me_flags & RZDB_NOTLS)) {
 		rc = pthread_key_create(&env->me_txkey, mdb_env_reader_dest);
 		if (rc)
 			goto fail;
-		env->me_flags |= MDB_ENV_TXKEY;
+		env->me_flags |= RZDB_ENV_TXKEY;
 #ifdef _WIN32
 		/* Windows TLS callbacks need help finding their TLS info. */
 		if (mdb_tls_nkeys >= MAX_TLS_KEYS) {
-			rc = MDB_TLS_FULL;
+			rc = RZDB_TLS_FULL;
 			goto fail;
 		}
 		mdb_tls_keys[mdb_tls_nkeys++] = env->me_txkey;
@@ -5195,7 +5195,7 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 	size = lseek(env->me_lfd, 0, SEEK_END);
 	if (size == -1) goto fail_errno;
 #endif
-	rsize = (env->me_maxreaders-1) * sizeof(MDB_reader) + sizeof(MDB_txninfo);
+	rsize = (env->me_maxreaders-1) * sizeof(RZDB_reader) + sizeof(RZDB_txninfo);
 	if (size < rsize && *excl > 0) {
 #ifdef _WIN32
 		if (SetFilePointer(env->me_lfd, rsize, NULL, FILE_BEGIN) != (DWORD)rsize
@@ -5206,8 +5206,8 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 #endif
 	} else {
 		rsize = size;
-		size = rsize - sizeof(MDB_txninfo);
-		env->me_maxreaders = size/sizeof(MDB_reader) + 1;
+		size = rsize - sizeof(RZDB_txninfo);
+		env->me_maxreaders = size/sizeof(RZDB_reader) + 1;
 	}
 	{
 #ifdef _WIN32
@@ -5253,7 +5253,7 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 		if (!env->me_rmutex) goto fail_errno;
 		env->me_wmutex = CreateMutexA(&mdb_all_sa, FALSE, MUTEXNAME(env, 'w'));
 		if (!env->me_wmutex) goto fail_errno;
-#elif defined(MDB_USE_POSIX_SEM)
+#elif defined(RZDB_USE_POSIX_SEM)
 		struct stat stbuf;
 		struct {
 			dev_t dev;
@@ -5261,14 +5261,14 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 		} idbuf;
 
 #if defined(__NetBSD__)
-#define	MDB_SHORT_SEMNAMES	1	/* limited to 14 chars */
+#define	RZDB_SHORT_SEMNAMES	1	/* limited to 14 chars */
 #endif
 		if (fstat(env->me_lfd, &stbuf)) goto fail_errno;
 		memset(&idbuf, 0, sizeof(idbuf));
 		idbuf.dev = stbuf.st_dev;
 		idbuf.ino = stbuf.st_ino;
 		env->me_txns->mti_mutexid = mdb_hash(&idbuf, sizeof(idbuf))
-#ifdef MDB_SHORT_SEMNAMES
+#ifdef RZDB_SHORT_SEMNAMES
 			/* Max 9 base85-digits.  We truncate here instead of in
 			 * mdb_env_mname_init() to keep the latter portable.
 			 */
@@ -5285,7 +5285,7 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 		if (env->me_rmutex == SEM_FAILED) goto fail_errno;
 		env->me_wmutex = sem_open(MUTEXNAME(env, 'w'), O_CREAT|O_EXCL, mode, 1);
 		if (env->me_wmutex == SEM_FAILED) goto fail_errno;
-#elif defined(MDB_USE_SYSV_SEM)
+#elif defined(RZDB_USE_SYSV_SEM)
 		unsigned short vals[2] = {1, 1};
 		key_t key = ftok(fname->mn_val, 'M'); /* fname is lockfile path now */
 		if (key == -1)
@@ -5299,7 +5299,7 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 		env->me_txns->mti_semid = semid;
 		env->me_txns->mti_rlocked = 0;
 		env->me_txns->mti_wlocked = 0;
-#else	/* MDB_USE_POSIX_MUTEX: */
+#else	/* RZDB_USE_POSIX_MUTEX: */
 		pthread_mutexattr_t mattr;
 
 		/* Solaris needs this before initing a robust mutex.  Otherwise
@@ -5312,7 +5312,7 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 		if ((rc = pthread_mutexattr_init(&mattr)) != 0)
 			goto fail;
 		rc = pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
-#ifdef MDB_ROBUST_SUPPORTED
+#ifdef RZDB_ROBUST_SUPPORTED
 		if (!rc) rc = pthread_mutexattr_setrobust(&mattr, PTHREAD_MUTEX_ROBUST);
 #endif
 		if (!rc) rc = pthread_mutex_init(env->me_txns->mti_rmutex, &mattr);
@@ -5322,24 +5322,24 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 			goto fail;
 #endif	/* _WIN32 || ... */
 
-		env->me_txns->mti_magic = MDB_MAGIC;
-		env->me_txns->mti_format = MDB_LOCK_FORMAT;
+		env->me_txns->mti_magic = RZDB_MAGIC;
+		env->me_txns->mti_format = RZDB_LOCK_FORMAT;
 		env->me_txns->mti_txnid = 0;
 		env->me_txns->mti_numreaders = 0;
 
 	} else {
-#ifdef MDB_USE_SYSV_SEM
+#ifdef RZDB_USE_SYSV_SEM
 		struct semid_ds buf;
 #endif
-		if (env->me_txns->mti_magic != MDB_MAGIC) {
+		if (env->me_txns->mti_magic != RZDB_MAGIC) {
 			DPUTS("lock region has invalid magic");
-			rc = MDB_INVALID;
+			rc = RZDB_INVALID;
 			goto fail;
 		}
-		if (env->me_txns->mti_format != MDB_LOCK_FORMAT) {
+		if (env->me_txns->mti_format != RZDB_LOCK_FORMAT) {
 			DPRINTF(("lock region has format+version 0x%x, expected 0x%x",
-				env->me_txns->mti_format, MDB_LOCK_FORMAT));
-			rc = MDB_VERSION_MISMATCH;
+				env->me_txns->mti_format, RZDB_LOCK_FORMAT));
+			rc = RZDB_VERSION_MISMATCH;
 			goto fail;
 		}
 		rc = ErrCode();
@@ -5352,13 +5352,13 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 		if (!env->me_rmutex) goto fail_errno;
 		env->me_wmutex = OpenMutexA(SYNCHRONIZE, FALSE, MUTEXNAME(env, 'w'));
 		if (!env->me_wmutex) goto fail_errno;
-#elif defined(MDB_USE_POSIX_SEM)
+#elif defined(RZDB_USE_POSIX_SEM)
 		mdb_env_mname_init(env);
 		env->me_rmutex = sem_open(MUTEXNAME(env, 'r'), 0);
 		if (env->me_rmutex == SEM_FAILED) goto fail_errno;
 		env->me_wmutex = sem_open(MUTEXNAME(env, 'w'), 0);
 		if (env->me_wmutex == SEM_FAILED) goto fail_errno;
-#elif defined(MDB_USE_SYSV_SEM)
+#elif defined(RZDB_USE_SYSV_SEM)
 		semid = env->me_txns->mti_semid;
 		semu.buf = &buf;
 		/* check for read access */
@@ -5369,7 +5369,7 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 			goto fail_errno;
 #endif
 	}
-#ifdef MDB_USE_SYSV_SEM
+#ifdef RZDB_USE_SYSV_SEM
 	env->me_rmutex->semid = semid;
 	env->me_wmutex->semid = semid;
 	env->me_rmutex->semnum = 0;
@@ -5378,7 +5378,7 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 	env->me_wmutex->locked = &env->me_txns->mti_wlocked;
 #endif
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 
 fail_errno:
 	rc = ErrCode();
@@ -5390,29 +5390,29 @@ fail:
 	 *	at runtime. Changing other flags requires closing the
 	 *	environment and re-opening it with the new flags.
 	 */
-#define	CHANGEABLE	(MDB_NOSYNC|MDB_NOMETASYNC|MDB_MAPASYNC|MDB_NOMEMINIT)
-#define	CHANGELESS	(MDB_FIXEDMAP|MDB_NOSUBDIR|MDB_RDONLY| \
-	MDB_WRITEMAP|MDB_NOTLS|MDB_NOLOCK|MDB_NORDAHEAD|MDB_PREVMETA)
+#define	CHANGEABLE	(RZDB_NOSYNC|RZDB_NOMETASYNC|RZDB_MAPASYNC|RZDB_NOMEMINIT)
+#define	CHANGELESS	(RZDB_FIXEDMAP|RZDB_NOSUBDIR|RZDB_RDONLY| \
+	RZDB_WRITEMAP|RZDB_NOTLS|RZDB_NOLOCK|RZDB_NORDAHEAD|RZDB_PREVMETA)
 
 #if VALID_FLAGS & PERSISTENT_FLAGS & (CHANGEABLE|CHANGELESS)
 # error "Persistent DB flags & env flags overlap, but both go in mm_flags"
 #endif
 
 int ESECT
-mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode)
+mdb_env_open(RZDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode)
 {
 	int rc, excl = -1;
-	MDB_name fname;
+	RZDB_name fname;
 
 	if (env->me_fd!=INVALID_HANDLE_VALUE || (flags & ~(CHANGEABLE|CHANGELESS)))
 		return EINVAL;
 
-#ifdef MDB_VL32
-	if (flags & MDB_WRITEMAP) {
+#ifdef RZDB_VL32
+	if (flags & RZDB_WRITEMAP) {
 		/* silently ignore WRITEMAP in 32 bit mode */
-		flags ^= MDB_WRITEMAP;
+		flags ^= RZDB_WRITEMAP;
 	}
-	if (flags & MDB_FIXEDMAP) {
+	if (flags & RZDB_FIXEDMAP) {
 		/* cannot support FIXEDMAP */
 		return EINVAL;
 	}
@@ -5423,7 +5423,7 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 	if (rc)
 		return rc;
 
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 #ifdef _WIN32
 	env->me_rpmutex = CreateMutex(NULL, FALSE, NULL);
 	if (!env->me_rpmutex) {
@@ -5436,14 +5436,14 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 		goto leave;
 #endif
 #endif
-	flags |= MDB_ENV_ACTIVE;	/* tell mdb_env_close0() to clean up */
+	flags |= RZDB_ENV_ACTIVE;	/* tell mdb_env_close0() to clean up */
 
-	if (flags & MDB_RDONLY) {
+	if (flags & RZDB_RDONLY) {
 		/* silently ignore WRITEMAP when we're only getting read access */
-		flags &= ~MDB_WRITEMAP;
+		flags &= ~RZDB_WRITEMAP;
 	} else {
-		if (!((env->me_free_pgs = mdb_midl_alloc(MDB_IDL_UM_MAX)) &&
-			  (env->me_dirty_list = calloc(MDB_IDL_UM_SIZE, sizeof(MDB_ID2)))))
+		if (!((env->me_free_pgs = mdb_midl_alloc(RZDB_IDL_UM_MAX)) &&
+			  (env->me_dirty_list = calloc(RZDB_IDL_UM_SIZE, sizeof(RZDB_ID2)))))
 			rc = ENOMEM;
 	}
 
@@ -5451,53 +5451,53 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 	if (rc)
 		goto leave;
 
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	{
-		env->me_rpages = malloc(MDB_ERPAGE_SIZE * sizeof(MDB_ID3));
+		env->me_rpages = malloc(RZDB_ERPAGE_SIZE * sizeof(RZDB_ID3));
 		if (!env->me_rpages) {
 			rc = ENOMEM;
 			goto leave;
 		}
 		env->me_rpages[0].mid = 0;
-		env->me_rpcheck = MDB_ERPAGE_SIZE/2;
+		env->me_rpcheck = RZDB_ERPAGE_SIZE/2;
 	}
 #endif
 
 	env->me_path = strdup(path);
-	env->me_dbxs = calloc(env->me_maxdbs, sizeof(MDB_dbx));
+	env->me_dbxs = calloc(env->me_maxdbs, sizeof(RZDB_dbx));
 	env->me_dbflags = calloc(env->me_maxdbs, sizeof(uint16_t));
 	env->me_dbiseqs = calloc(env->me_maxdbs, sizeof(unsigned int));
 	if (!(env->me_dbxs && env->me_path && env->me_dbflags && env->me_dbiseqs)) {
 		rc = ENOMEM;
 		goto leave;
 	}
-	env->me_dbxs[FREE_DBI].md_cmp = mdb_cmp_long; /* aligned MDB_INTEGERKEY */
+	env->me_dbxs[FREE_DBI].md_cmp = mdb_cmp_long; /* aligned RZDB_INTEGERKEY */
 
 	/* For RDONLY, get lockfile after we know datafile exists */
-	if (!(flags & (MDB_RDONLY|MDB_NOLOCK))) {
+	if (!(flags & (RZDB_RDONLY|RZDB_NOLOCK))) {
 		rc = mdb_env_setup_locks(env, &fname, mode, &excl);
 		if (rc)
 			goto leave;
 	}
 
 	rc = mdb_fopen(env, &fname,
-		(flags & MDB_RDONLY) ? MDB_O_RDONLY : MDB_O_RDWR,
+		(flags & RZDB_RDONLY) ? RZDB_O_RDONLY : RZDB_O_RDWR,
 		mode, &env->me_fd);
 	if (rc)
 		goto leave;
 
-	if ((flags & (MDB_RDONLY|MDB_NOLOCK)) == MDB_RDONLY) {
+	if ((flags & (RZDB_RDONLY|RZDB_NOLOCK)) == RZDB_RDONLY) {
 		rc = mdb_env_setup_locks(env, &fname, mode, &excl);
 		if (rc)
 			goto leave;
 	}
 
-	if ((rc = mdb_env_open2(env, flags & MDB_PREVMETA)) == MDB_SUCCESS) {
-		if (!(flags & (MDB_RDONLY|MDB_WRITEMAP))) {
+	if ((rc = mdb_env_open2(env, flags & RZDB_PREVMETA)) == RZDB_SUCCESS) {
+		if (!(flags & (RZDB_RDONLY|RZDB_WRITEMAP))) {
 			/* Synchronous fd for meta writes. Needed even with
-			 * MDB_NOSYNC/MDB_NOMETASYNC, in case these get reset.
+			 * RZDB_NOSYNC/RZDB_NOMETASYNC, in case these get reset.
 			 */
-			rc = mdb_fopen(env, &fname, MDB_O_META, mode, &env->me_mfd);
+			rc = mdb_fopen(env, &fname, RZDB_O_META, mode, &env->me_mfd);
 			if (rc)
 				goto leave;
 		}
@@ -5507,30 +5507,30 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 			if (rc)
 				goto leave;
 		}
-		if (!(flags & MDB_RDONLY)) {
-			MDB_txn *txn;
-			int tsize = sizeof(MDB_txn), size = tsize + env->me_maxdbs *
-				(sizeof(MDB_db)+sizeof(MDB_cursor *)+sizeof(unsigned int)+1);
+		if (!(flags & RZDB_RDONLY)) {
+			RZDB_txn *txn;
+			int tsize = sizeof(RZDB_txn), size = tsize + env->me_maxdbs *
+				(sizeof(RZDB_db)+sizeof(RZDB_cursor *)+sizeof(unsigned int)+1);
 			if ((env->me_pbuf = calloc(1, env->me_psize)) &&
 				(txn = calloc(1, size)))
 			{
-				txn->mt_dbs = (MDB_db *)((char *)txn + tsize);
-				txn->mt_cursors = (MDB_cursor **)(txn->mt_dbs + env->me_maxdbs);
+				txn->mt_dbs = (RZDB_db *)((char *)txn + tsize);
+				txn->mt_cursors = (RZDB_cursor **)(txn->mt_dbs + env->me_maxdbs);
 				txn->mt_dbiseqs = (unsigned int *)(txn->mt_cursors + env->me_maxdbs);
 				txn->mt_dbflags = (unsigned char *)(txn->mt_dbiseqs + env->me_maxdbs);
 				txn->mt_env = env;
-#ifdef MDB_VL32
-				txn->mt_rpages = malloc(MDB_TRPAGE_SIZE * sizeof(MDB_ID3));
+#ifdef RZDB_VL32
+				txn->mt_rpages = malloc(RZDB_TRPAGE_SIZE * sizeof(RZDB_ID3));
 				if (!txn->mt_rpages) {
 					free(txn);
 					rc = ENOMEM;
 					goto leave;
 				}
 				txn->mt_rpages[0].mid = 0;
-				txn->mt_rpcheck = MDB_TRPAGE_SIZE/2;
+				txn->mt_rpcheck = RZDB_TRPAGE_SIZE/2;
 #endif
 				txn->mt_dbxs = env->me_dbxs;
-				txn->mt_flags = MDB_TXN_FINISHED;
+				txn->mt_flags = RZDB_TXN_FINISHED;
 				env->me_txn0 = txn;
 			} else {
 				rc = ENOMEM;
@@ -5548,11 +5548,11 @@ leave:
 
 /** Destroy resources from mdb_env_open(), clear our readers & DBIs */
 static void ESECT
-mdb_env_close0(MDB_env *env, int excl)
+mdb_env_close0(RZDB_env *env, int excl)
 {
 	int i;
 
-	if (!(env->me_flags & MDB_ENV_ACTIVE))
+	if (!(env->me_flags & RZDB_ENV_ACTIVE))
 		return;
 
 	/* Doing this here since me_dbxs may not exist during mdb_env_close */
@@ -5567,11 +5567,11 @@ mdb_env_close0(MDB_env *env, int excl)
 	free(env->me_dbflags);
 	free(env->me_path);
 	free(env->me_dirty_list);
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	if (env->me_txn0 && env->me_txn0->mt_rpages)
 		free(env->me_txn0->mt_rpages);
 	if (env->me_rpages) {
-		MDB_ID3L el = env->me_rpages;
+		RZDB_ID3L el = env->me_rpages;
 		unsigned int x;
 		for (x=1; x<=el[0].mid; x++)
 			munmap(el[x].mptr, el[x].mcnt * env->me_psize);
@@ -5581,7 +5581,7 @@ mdb_env_close0(MDB_env *env, int excl)
 	free(env->me_txn0);
 	mdb_midl_free(env->me_free_pgs);
 
-	if (env->me_flags & MDB_ENV_TXKEY) {
+	if (env->me_flags & RZDB_ENV_TXKEY) {
 		pthread_key_delete(env->me_txkey);
 #ifdef _WIN32
 		/* Delete our key from the global list */
@@ -5595,7 +5595,7 @@ mdb_env_close0(MDB_env *env, int excl)
 	}
 
 	if (env->me_map) {
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 		munmap(env->me_map, NUM_METAS*env->me_psize);
 #else
 		munmap(env->me_map, env->me_mapsize);
@@ -5606,7 +5606,7 @@ mdb_env_close0(MDB_env *env, int excl)
 	if (env->me_fd != INVALID_HANDLE_VALUE)
 		(void) close(env->me_fd);
 	if (env->me_txns) {
-		MDB_PID_T pid = getpid();
+		RZDB_PID_T pid = getpid();
 		/* Clearing readers is done in this function because
 		 * me_txkey with its destructor must be disabled first.
 		 *
@@ -5625,7 +5625,7 @@ mdb_env_close0(MDB_env *env, int excl)
 		/* Windows automatically destroys the mutexes when
 		 * the last handle closes.
 		 */
-#elif defined(MDB_USE_POSIX_SEM)
+#elif defined(RZDB_USE_POSIX_SEM)
 		if (env->me_rmutex != SEM_FAILED) {
 			sem_close(env->me_rmutex);
 			if (env->me_wmutex != SEM_FAILED)
@@ -5640,7 +5640,7 @@ mdb_env_close0(MDB_env *env, int excl)
 				sem_unlink(MUTEXNAME(env, 'w'));
 			}
 		}
-#elif defined(MDB_USE_SYSV_SEM)
+#elif defined(RZDB_USE_SYSV_SEM)
 		if (env->me_rmutex->semid != -1) {
 			/* If we have the filelock:  If we are the
 			 * only remaining user, clean up semaphores.
@@ -5651,7 +5651,7 @@ mdb_env_close0(MDB_env *env, int excl)
 				semctl(env->me_rmutex->semid, 0, IPC_RMID);
 		}
 #endif
-		munmap((void *)env->me_txns, (env->me_maxreaders-1)*sizeof(MDB_reader)+sizeof(MDB_txninfo));
+		munmap((void *)env->me_txns, (env->me_maxreaders-1)*sizeof(RZDB_reader)+sizeof(RZDB_txninfo));
 	}
 	if (env->me_lfd != INVALID_HANDLE_VALUE) {
 #ifdef _WIN32
@@ -5664,7 +5664,7 @@ mdb_env_close0(MDB_env *env, int excl)
 #endif
 		(void) close(env->me_lfd);
 	}
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 #ifdef _WIN32
 	if (env->me_fmh) CloseHandle(env->me_fmh);
 	if (env->me_rpmutex) CloseHandle(env->me_rpmutex);
@@ -5673,11 +5673,11 @@ mdb_env_close0(MDB_env *env, int excl)
 #endif
 #endif
 
-	env->me_flags &= ~(MDB_ENV_ACTIVE|MDB_ENV_TXKEY);
+	env->me_flags &= ~(RZDB_ENV_ACTIVE|RZDB_ENV_TXKEY);
 }
 
 void ESECT
-mdb_env_close(MDB_env *env)
+mdb_env_close(RZDB_env *env)
 {
 	if (env == NULL)
 		return;
@@ -5689,9 +5689,9 @@ mdb_env_close(MDB_env *env)
 }
 
 void ESECT
-mdb_env_clear_page_cache(MDB_env *env)
+mdb_env_clear_page_cache(RZDB_env *env)
 {
-	MDB_page *dp;
+	RZDB_page *dp;
 
 	if (env == NULL)
 		return;
@@ -5706,7 +5706,7 @@ mdb_env_clear_page_cache(MDB_env *env)
 
 /** Compare two items pointing at aligned #mdb_size_t's */
 static int
-mdb_cmp_long(const MDB_val *a, const MDB_val *b , void* ctx)
+mdb_cmp_long(const RZDB_val *a, const RZDB_val *b , void* ctx)
 {
 	return (*(mdb_size_t *)a->mv_data < *(mdb_size_t *)b->mv_data) ? -1 :
 		*(mdb_size_t *)a->mv_data > *(mdb_size_t *)b->mv_data;
@@ -5714,11 +5714,11 @@ mdb_cmp_long(const MDB_val *a, const MDB_val *b , void* ctx)
 
 /** Compare two items pointing at aligned unsigned int's.
  *
- *	This is also set as #MDB_INTEGERDUP|#MDB_DUPFIXED's #MDB_dbx.%md_dcmp,
+ *	This is also set as #RZDB_INTEGERDUP|#RZDB_DUPFIXED's #RZDB_dbx.%md_dcmp,
  *	but #mdb_cmp_clong() is called instead if the data type is #mdb_size_t.
  */
 static int
-mdb_cmp_int(const MDB_val *a, const MDB_val *b , void* ctx)
+mdb_cmp_int(const RZDB_val *a, const RZDB_val *b , void* ctx)
 {
 	return (*(unsigned int *)a->mv_data < *(unsigned int *)b->mv_data) ? -1 :
 		*(unsigned int *)a->mv_data > *(unsigned int *)b->mv_data;
@@ -5728,7 +5728,7 @@ mdb_cmp_int(const MDB_val *a, const MDB_val *b , void* ctx)
  *	Nodes and keys are guaranteed to be 2-byte aligned.
  */
 static int
-mdb_cmp_cint(const MDB_val *a, const MDB_val *b , void* ctx)
+mdb_cmp_cint(const RZDB_val *a, const RZDB_val *b , void* ctx)
 {
 #if BYTE_ORDER == LITTLE_ENDIAN
 	unsigned short *u, *c;
@@ -5756,7 +5756,7 @@ mdb_cmp_cint(const MDB_val *a, const MDB_val *b , void* ctx)
 
 /** Compare two items lexically */
 static int
-mdb_cmp_memn(const MDB_val *a, const MDB_val *b , void* ctx)
+mdb_cmp_memn(const RZDB_val *a, const RZDB_val *b , void* ctx)
 {
 	int diff;
 	ssize_t len_diff;
@@ -5775,7 +5775,7 @@ mdb_cmp_memn(const MDB_val *a, const MDB_val *b , void* ctx)
 
 /** Compare two items in reverse byte order */
 static int
-mdb_cmp_memnr(const MDB_val *a, const MDB_val *b , void* ctx)
+mdb_cmp_memnr(const RZDB_val *a, const RZDB_val *b , void* ctx)
 {
 	const unsigned char	*p1, *p2, *p1_lim;
 	ssize_t len_diff;
@@ -5806,16 +5806,16 @@ mdb_cmp_memnr(const MDB_val *a, const MDB_val *b , void* ctx)
  * Updates the cursor index with the index of the found entry.
  * If no entry larger or equal to the key is found, returns NULL.
  */
-static MDB_node *
-mdb_node_search(MDB_cursor *mc, MDB_val *key, int *exactp)
+static RZDB_node *
+mdb_node_search(RZDB_cursor *mc, RZDB_val *key, int *exactp)
 {
 	unsigned int	 i = 0, nkeys;
 	int		 low, high;
 	int		 rc = 0;
-	MDB_page *mp = mc->mc_pg[mc->mc_top];
-	MDB_node	*node = NULL;
-	MDB_val	 nodekey;
-	MDB_cmp_func *cmp;
+	RZDB_page *mp = mc->mc_pg[mc->mc_top];
+	RZDB_node	*node = NULL;
+	RZDB_val	 nodekey;
+	RZDB_cmp_func *cmp;
 	DKBUF;
 
 	nkeys = NUMKEYS(mp);
@@ -5863,7 +5863,7 @@ mdb_node_search(MDB_cursor *mc, MDB_val *key, int *exactp)
 			nodekey.mv_data = NODEKEY(node);
 
 			rc = cmp(key, &nodekey, mc->mc_dbx->md_cmpctx);
-#if MDB_DEBUG
+#if RZDB_DEBUG
 			if (IS_LEAF(mp))
 				DPRINTF(("found leaf index %u [%s], rc = %i",
 				    i, DKEY(&nodekey), rc));
@@ -5899,9 +5899,9 @@ mdb_node_search(MDB_cursor *mc, MDB_val *key, int *exactp)
 
 #if 0
 static void
-mdb_cursor_adjust(MDB_cursor *mc, func)
+mdb_cursor_adjust(RZDB_cursor *mc, func)
 {
-	MDB_cursor *m2;
+	RZDB_cursor *m2;
 
 	for (m2 = mc->mc_txn->mt_cursors[mc->mc_dbi]; m2; m2=m2->mc_next) {
 		if (m2->mc_pg[m2->mc_top] == mc->mc_pg[mc->mc_top]) {
@@ -5913,7 +5913,7 @@ mdb_cursor_adjust(MDB_cursor *mc, func)
 
 /** Pop a page off the top of the cursor's stack. */
 static void
-mdb_cursor_pop(MDB_cursor *mc)
+mdb_cursor_pop(RZDB_cursor *mc)
 {
 	if (mc->mc_snum) {
 		DPRINTF(("popping page %"Yu" off db %d cursor %p",
@@ -5929,27 +5929,27 @@ mdb_cursor_pop(MDB_cursor *mc)
 }
 
 /** Push a page onto the top of the cursor's stack.
- * Set #MDB_TXN_ERROR on failure.
+ * Set #RZDB_TXN_ERROR on failure.
  */
 static int
-mdb_cursor_push(MDB_cursor *mc, MDB_page *mp)
+mdb_cursor_push(RZDB_cursor *mc, RZDB_page *mp)
 {
 	DPRINTF(("pushing page %"Yu" on db %d cursor %p", mp->mp_pgno,
 		DDBI(mc), (void *) mc));
 
 	if (mc->mc_snum >= CURSOR_STACK) {
-		mc->mc_txn->mt_flags |= MDB_TXN_ERROR;
-		return MDB_CURSOR_FULL;
+		mc->mc_txn->mt_flags |= RZDB_TXN_ERROR;
+		return RZDB_CURSOR_FULL;
 	}
 
 	mc->mc_top = mc->mc_snum++;
 	mc->mc_pg[mc->mc_top] = mp;
 	mc->mc_ki[mc->mc_top] = 0;
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 /** Map a read-only page.
  * There are two levels of tracking in use, a per-txn list and a per-env list.
  * ref'ing and unref'ing the per-txn list is faster since it requires no
@@ -5968,7 +5968,7 @@ mdb_cursor_push(MDB_cursor *mc, MDB_page *mp)
  * and returns to its original value when enough pages were purged.
  *
  * If purging doesn't free any slots, filling the per-txn list will return
- * MDB_TXN_FULL, and filling the per-env list returns MDB_MAP_FULL.
+ * RZDB_TXN_FULL, and filling the per-env list returns RZDB_MAP_FULL.
  *
  * Reference tracking in a txn is imperfect, pages can linger with non-zero
  * refcnt even without active references. It was deemed to be too invasive
@@ -6000,13 +6000,13 @@ mdb_cursor_push(MDB_cursor *mc, MDB_page *mp)
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_rpage_get(MDB_txn *txn, pgno_t pg0, MDB_page **ret)
+mdb_rpage_get(RZDB_txn *txn, pgno_t pg0, RZDB_page **ret)
 {
-	MDB_env *env = txn->mt_env;
-	MDB_page *p;
-	MDB_ID3L tl = txn->mt_rpages;
-	MDB_ID3L el = env->me_rpages;
-	MDB_ID3 id3;
+	RZDB_env *env = txn->mt_env;
+	RZDB_page *p;
+	RZDB_ID3L tl = txn->mt_rpages;
+	RZDB_ID3L el = env->me_rpages;
+	RZDB_ID3 id3;
 	unsigned x, rem;
 	pgno_t pgno;
 	int rc, retries = 1;
@@ -6017,7 +6017,7 @@ mdb_rpage_get(MDB_txn *txn, pgno_t pg0, MDB_page **ret)
 #define MAP(rc,env,addr,len,off)	\
 	addr = NULL; \
 	rc = NtMapViewOfSection(env->me_fmh, GetCurrentProcess(), &addr, 0, \
-		len, &off, &len, ViewUnmap, (env->me_flags & MDB_RDONLY) ? 0 : MEM_RESERVE, PAGE_READONLY); \
+		len, &off, &len, ViewUnmap, (env->me_flags & RZDB_RDONLY) ? 0 : MEM_RESERVE, PAGE_READONLY); \
 	if (rc) rc = mdb_nt2win32(rc)
 #else
 	off_t off;
@@ -6031,7 +6031,7 @@ mdb_rpage_get(MDB_txn *txn, pgno_t pg0, MDB_page **ret)
 	/* remember the offset of the actual page number, so we can
 	 * return the correct pointer at the end.
 	 */
-	rem = pg0 & (MDB_RPAGE_CHUNK-1);
+	rem = pg0 & (RZDB_RPAGE_CHUNK-1);
 	pgno = pg0 ^ rem;
 
 	id3.mid = 0;
@@ -6040,7 +6040,7 @@ mdb_rpage_get(MDB_txn *txn, pgno_t pg0, MDB_page **ret)
 		if (x != tl[0].mid && tl[x+1].mid == pg0)
 			x++;
 		/* check for overflow size */
-		p = (MDB_page *)((char *)tl[x].mptr + rem * env->me_psize);
+		p = (RZDB_page *)((char *)tl[x].mptr + rem * env->me_psize);
 		if (IS_OVERFLOW(p) && p->mp_pages + rem > tl[x].mcnt) {
 			id3.mcnt = p->mp_pages + rem;
 			len = id3.mcnt * env->me_psize;
@@ -6086,7 +6086,7 @@ mdb_rpage_get(MDB_txn *txn, pgno_t pg0, MDB_page **ret)
 	}
 
 notlocal:
-	if (tl[0].mid >= MDB_TRPAGE_MAX - txn->mt_rpcheck) {
+	if (tl[0].mid >= RZDB_TRPAGE_MAX - txn->mt_rpcheck) {
 		unsigned i, y;
 		/* purge unref'd pages from our list and unref in env */
 		pthread_mutex_lock(&env->me_rpmutex);
@@ -6096,7 +6096,7 @@ retry:
 			if (!tl[i].mref) {
 				if (!y) y = i;
 				/* tmp overflow pages don't go to env */
-				if (tl[i].mid & (MDB_RPAGE_CHUNK-1)) {
+				if (tl[i].mid & (RZDB_RPAGE_CHUNK-1)) {
 					munmap(tl[i].mptr, tl[i].mcnt * env->me_psize);
 					continue;
 				}
@@ -6109,8 +6109,8 @@ retry:
 			/* we didn't find any unref'd chunks.
 			 * if we're out of room, fail.
 			 */
-			if (tl[0].mid >= MDB_TRPAGE_MAX)
-				return MDB_TXN_FULL;
+			if (tl[0].mid >= RZDB_TRPAGE_MAX)
+				return RZDB_TXN_FULL;
 			/* otherwise, raise threshold for next time around
 			 * and let this go.
 			 */
@@ -6124,19 +6124,19 @@ retry:
 			/* decrease the check threshold toward its original value */
 			if (!txn->mt_rpcheck)
 				txn->mt_rpcheck = 1;
-			while (txn->mt_rpcheck < tl[0].mid && txn->mt_rpcheck < MDB_TRPAGE_SIZE/2)
+			while (txn->mt_rpcheck < tl[0].mid && txn->mt_rpcheck < RZDB_TRPAGE_SIZE/2)
 				txn->mt_rpcheck *= 2;
 		}
 	}
-	if (tl[0].mid < MDB_TRPAGE_SIZE) {
+	if (tl[0].mid < RZDB_TRPAGE_SIZE) {
 		id3.mref = 1;
 		if (id3.mid)
 			goto found;
 		/* don't map past last written page in read-only envs */
-		if ((env->me_flags & MDB_RDONLY) && pgno + MDB_RPAGE_CHUNK-1 > txn->mt_last_pgno)
+		if ((env->me_flags & RZDB_RDONLY) && pgno + RZDB_RPAGE_CHUNK-1 > txn->mt_last_pgno)
 			id3.mcnt = txn->mt_last_pgno + 1 - pgno;
 		else
-			id3.mcnt = MDB_RPAGE_CHUNK;
+			id3.mcnt = RZDB_RPAGE_CHUNK;
 		len = id3.mcnt * env->me_psize;
 		id3.mid = pgno;
 
@@ -6147,7 +6147,7 @@ retry:
 			id3.mptr = el[x].mptr;
 			id3.mcnt = el[x].mcnt;
 			/* check for overflow size */
-			p = (MDB_page *)((char *)id3.mptr + rem * env->me_psize);
+			p = (RZDB_page *)((char *)id3.mptr + rem * env->me_psize);
 			if (IS_OVERFLOW(p) && p->mp_pages + rem > id3.mcnt) {
 				id3.mcnt = p->mp_pages + rem;
 				len = id3.mcnt * env->me_psize;
@@ -6169,7 +6169,7 @@ retry:
 			pthread_mutex_unlock(&env->me_rpmutex);
 			goto found;
 		}
-		if (el[0].mid >= MDB_ERPAGE_MAX - env->me_rpcheck) {
+		if (el[0].mid >= RZDB_ERPAGE_MAX - env->me_rpcheck) {
 			/* purge unref'd pages */
 			unsigned i, y = 0;
 			for (i=1; i<=el[0].mid; i++) {
@@ -6185,9 +6185,9 @@ retry:
 					id3.mid = 0;
 					goto retry;
 				}
-				if (el[0].mid >= MDB_ERPAGE_MAX) {
+				if (el[0].mid >= RZDB_ERPAGE_MAX) {
 					pthread_mutex_unlock(&env->me_rpmutex);
-					return MDB_MAP_FULL;
+					return RZDB_MAP_FULL;
 				}
 				env->me_rpcheck /= 2;
 			} else {
@@ -6197,7 +6197,7 @@ retry:
 				el[0].mid = y-1;
 				if (!env->me_rpcheck)
 					env->me_rpcheck = 1;
-				while (env->me_rpcheck < el[0].mid && env->me_rpcheck < MDB_ERPAGE_SIZE/2)
+				while (env->me_rpcheck < el[0].mid && env->me_rpcheck < RZDB_ERPAGE_SIZE/2)
 					env->me_rpcheck *= 2;
 			}
 		}
@@ -6209,7 +6209,7 @@ fail:
 			return rc;
 		}
 		/* check for overflow size */
-		p = (MDB_page *)((char *)id3.mptr + rem * env->me_psize);
+		p = (RZDB_page *)((char *)id3.mptr + rem * env->me_psize);
 		if (IS_OVERFLOW(p) && p->mp_pages + rem > id3.mcnt) {
 			id3.mcnt = p->mp_pages + rem;
 			munmap(id3.mptr, len);
@@ -6223,22 +6223,22 @@ fail:
 found:
 		mdb_mid3l_insert(tl, &id3);
 	} else {
-		return MDB_TXN_FULL;
+		return RZDB_TXN_FULL;
 	}
 ok:
-	p = (MDB_page *)((char *)id3.mptr + rem * env->me_psize);
-#if MDB_DEBUG	/* we don't need this check any more */
+	p = (RZDB_page *)((char *)id3.mptr + rem * env->me_psize);
+#if RZDB_DEBUG	/* we don't need this check any more */
 	if (IS_OVERFLOW(p)) {
 		mdb_tassert(txn, p->mp_pages + rem <= id3.mcnt);
 	}
 #endif
 	*ret = p;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 #endif
 
 /** Find the address of the page corresponding to a given page number.
- * Set #MDB_TXN_ERROR on failure.
+ * Set #RZDB_TXN_ERROR on failure.
  * @param[in] mc the cursor accessing the page.
  * @param[in] pgno the page number for the page to retrieve.
  * @param[out] ret address of a pointer where the page's address will be stored.
@@ -6246,17 +6246,17 @@ ok:
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_page_get(MDB_cursor *mc, pgno_t pgno, MDB_page **ret, int *lvl)
+mdb_page_get(RZDB_cursor *mc, pgno_t pgno, RZDB_page **ret, int *lvl)
 {
-	MDB_txn *txn = mc->mc_txn;
-	MDB_page *p = NULL;
+	RZDB_txn *txn = mc->mc_txn;
+	RZDB_page *p = NULL;
 	int level;
 
 	if (! (mc->mc_flags & (C_ORIG_RDONLY|C_WRITEMAP))) {
-		MDB_txn *tx2 = txn;
+		RZDB_txn *tx2 = txn;
 		level = 1;
 		do {
-			MDB_ID2L dl = tx2->mt_u.dirty_list;
+			RZDB_ID2L dl = tx2->mt_u.dirty_list;
 			unsigned x;
 			/* Spilled pages were dirtied in this txn and flushed
 			 * because the dirty list got full. Bring this page
@@ -6264,7 +6264,7 @@ mdb_page_get(MDB_cursor *mc, pgno_t pgno, MDB_page **ret, int *lvl)
 			 * leave that unless page_touch happens again).
 			 */
 			if (tx2->mt_spill_pgs) {
-				MDB_ID pn = pgno << 1;
+				RZDB_ID pn = pgno << 1;
 				x = mdb_midl_search(tx2->mt_spill_pgs, pn);
 				if (x <= tx2->mt_spill_pgs[0] && tx2->mt_spill_pgs[x] == pn) {
 					goto mapped;
@@ -6283,23 +6283,23 @@ mdb_page_get(MDB_cursor *mc, pgno_t pgno, MDB_page **ret, int *lvl)
 
 	if (pgno >= txn->mt_next_pgno) {
 		DPRINTF(("page %"Yu" not found", pgno));
-		txn->mt_flags |= MDB_TXN_ERROR;
-		return MDB_PAGE_NOTFOUND;
+		txn->mt_flags |= RZDB_TXN_ERROR;
+		return RZDB_PAGE_NOTFOUND;
 	}
 
 	level = 0;
 
 mapped:
 	{
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 		int rc = mdb_rpage_get(txn, pgno, &p);
 		if (rc) {
-			txn->mt_flags |= MDB_TXN_ERROR;
+			txn->mt_flags |= RZDB_TXN_ERROR;
 			return rc;
 		}
 #else
-		MDB_env *env = txn->mt_env;
-		p = (MDB_page *)(env->me_map + env->me_psize * pgno);
+		RZDB_env *env = txn->mt_env;
+		p = (RZDB_page *)(env->me_map + env->me_psize * pgno);
 #endif
 	}
 
@@ -6307,21 +6307,21 @@ done:
 	*ret = p;
 	if (lvl)
 		*lvl = level;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /** Finish #mdb_page_search() / #mdb_page_search_lowest().
  *	The cursor is at the root page, set up the rest of it.
  */
 static int
-mdb_page_search_root(MDB_cursor *mc, MDB_val *key, int flags)
+mdb_page_search_root(RZDB_cursor *mc, RZDB_val *key, int flags)
 {
-	MDB_page	*mp = mc->mc_pg[mc->mc_top];
+	RZDB_page	*mp = mc->mc_pg[mc->mc_top];
 	int rc;
 	DKBUF;
 
 	while (IS_BRANCH(mp)) {
-		MDB_node	*node;
+		RZDB_node	*node;
 		indx_t		i;
 
 		DPRINTF(("branch page %"Yu" has %u keys", mp->mp_pgno, NUMKEYS(mp)));
@@ -6332,9 +6332,9 @@ mdb_page_search_root(MDB_cursor *mc, MDB_val *key, int flags)
 		mdb_cassert(mc, !mc->mc_dbi || NUMKEYS(mp) > 1);
 		DPRINTF(("found index 0 to page %"Yu, NODEPGNO(NODEPTR(mp, 0))));
 
-		if (flags & (MDB_PS_FIRST|MDB_PS_LAST)) {
+		if (flags & (RZDB_PS_FIRST|RZDB_PS_LAST)) {
 			i = 0;
-			if (flags & MDB_PS_LAST) {
+			if (flags & RZDB_PS_LAST) {
 				i = NUMKEYS(mp) - 1;
 				/* if already init'd, see if we're already in right place */
 				if (mc->mc_flags & C_INITIALIZED) {
@@ -6371,7 +6371,7 @@ mdb_page_search_root(MDB_cursor *mc, MDB_val *key, int flags)
 			return rc;
 
 ready:
-		if (flags & MDB_PS_MODIFY) {
+		if (flags & RZDB_PS_MODIFY) {
 			if ((rc = mdb_page_touch(mc)) != 0)
 				return rc;
 			mp = mc->mc_pg[mc->mc_top];
@@ -6381,8 +6381,8 @@ ready:
 	if (!IS_LEAF(mp)) {
 		DPRINTF(("internal error, index points to a %02X page!?",
 		    mp->mp_flags));
-		mc->mc_txn->mt_flags |= MDB_TXN_ERROR;
-		return MDB_CORRUPTED;
+		mc->mc_txn->mt_flags |= RZDB_TXN_ERROR;
+		return RZDB_CORRUPTED;
 	}
 
 	DPRINTF(("found leaf page %"Yu" for key [%s]", mp->mp_pgno,
@@ -6390,7 +6390,7 @@ ready:
 	mc->mc_flags |= C_INITIALIZED;
 	mc->mc_flags &= ~C_EOF;
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /** Search for the lowest key under the current branch page.
@@ -6400,10 +6400,10 @@ ready:
  * be underfilled.
  */
 static int
-mdb_page_search_lowest(MDB_cursor *mc)
+mdb_page_search_lowest(RZDB_cursor *mc)
 {
-	MDB_page	*mp = mc->mc_pg[mc->mc_top];
-	MDB_node	*node = NODEPTR(mp, 0);
+	RZDB_page	*mp = mc->mc_pg[mc->mc_top];
+	RZDB_node	*node = NODEPTR(mp, 0);
 	int rc;
 
 	if ((rc = mdb_page_get(mc, NODEPGNO(node), &mp, NULL)) != 0)
@@ -6412,22 +6412,22 @@ mdb_page_search_lowest(MDB_cursor *mc)
 	mc->mc_ki[mc->mc_top] = 0;
 	if ((rc = mdb_cursor_push(mc, mp)))
 		return rc;
-	return mdb_page_search_root(mc, NULL, MDB_PS_FIRST);
+	return mdb_page_search_root(mc, NULL, RZDB_PS_FIRST);
 }
 
 /** Search for the page a given key should be in.
  * Push it and its parent pages on the cursor stack.
  * @param[in,out] mc the cursor for this operation.
  * @param[in] key the key to search for, or NULL for first/last page.
- * @param[in] flags If MDB_PS_MODIFY is set, visited pages in the DB
+ * @param[in] flags If RZDB_PS_MODIFY is set, visited pages in the DB
  *   are touched (updated with new page numbers).
- *   If MDB_PS_FIRST or MDB_PS_LAST is set, find first or last leaf.
+ *   If RZDB_PS_FIRST or RZDB_PS_LAST is set, find first or last leaf.
  *   This is used by #mdb_cursor_first() and #mdb_cursor_last().
- *   If MDB_PS_ROOTONLY set, just fetch root node, no further lookups.
+ *   If RZDB_PS_ROOTONLY set, just fetch root node, no further lookups.
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_page_search(MDB_cursor *mc, MDB_val *key, int flags)
+mdb_page_search(RZDB_cursor *mc, RZDB_val *key, int flags)
 {
 	int		 rc;
 	pgno_t		 root;
@@ -6435,40 +6435,40 @@ mdb_page_search(MDB_cursor *mc, MDB_val *key, int flags)
 	/* Make sure the txn is still viable, then find the root from
 	 * the txn's db table and set it as the root of the cursor's stack.
 	 */
-	if (mc->mc_txn->mt_flags & MDB_TXN_BLOCKED) {
+	if (mc->mc_txn->mt_flags & RZDB_TXN_BLOCKED) {
 		DPUTS("transaction may not be used now");
-		return MDB_BAD_TXN;
+		return RZDB_BAD_TXN;
 	} else {
 		/* Make sure we're using an up-to-date root */
 		if (*mc->mc_dbflag & DB_STALE) {
-				MDB_cursor mc2;
+				RZDB_cursor mc2;
 				if (TXN_DBI_CHANGED(mc->mc_txn, mc->mc_dbi))
-					return MDB_BAD_DBI;
+					return RZDB_BAD_DBI;
 				mdb_cursor_init(&mc2, mc->mc_txn, MAIN_DBI, NULL);
 				rc = mdb_page_search(&mc2, &mc->mc_dbx->md_name, 0);
 				if (rc)
 					return rc;
 				{
-					MDB_val data;
+					RZDB_val data;
 					int exact = 0;
 					uint16_t flags;
-					MDB_node *leaf = mdb_node_search(&mc2,
+					RZDB_node *leaf = mdb_node_search(&mc2,
 						&mc->mc_dbx->md_name, &exact);
 					if (!exact)
-						return MDB_NOTFOUND;
+						return RZDB_NOTFOUND;
 					if ((leaf->mn_flags & (F_DUPDATA|F_SUBDATA)) != F_SUBDATA)
-						return MDB_INCOMPATIBLE; /* not a named DB */
+						return RZDB_INCOMPATIBLE; /* not a named DB */
 					rc = mdb_node_read(&mc2, leaf, &data);
 					if (rc)
 						return rc;
-					memcpy(&flags, ((char *) data.mv_data + offsetof(MDB_db, md_flags)),
+					memcpy(&flags, ((char *) data.mv_data + offsetof(RZDB_db, md_flags)),
 						sizeof(uint16_t));
 					/* The txn may not know this DBI, or another process may
 					 * have dropped and recreated the DB with other flags.
 					 */
 					if ((mc->mc_db->md_flags & PERSISTENT_FLAGS) != flags)
-						return MDB_INCOMPATIBLE;
-					memcpy(mc->mc_db, data.mv_data, sizeof(MDB_db));
+						return RZDB_INCOMPATIBLE;
+					memcpy(mc->mc_db, data.mv_data, sizeof(RZDB_db));
 				}
 				*mc->mc_dbflag &= ~DB_STALE;
 		}
@@ -6476,25 +6476,25 @@ mdb_page_search(MDB_cursor *mc, MDB_val *key, int flags)
 
 		if (root == P_INVALID) {		/* Tree is empty. */
 			DPUTS("tree is empty");
-			return MDB_NOTFOUND;
+			return RZDB_NOTFOUND;
 		}
 	}
 
 	mdb_cassert(mc, root > 1);
 	if (!mc->mc_pg[0] || mc->mc_pg[0]->mp_pgno != root) {
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 		if (mc->mc_pg[0])
-			MDB_PAGE_UNREF(mc->mc_txn, mc->mc_pg[0]);
+			RZDB_PAGE_UNREF(mc->mc_txn, mc->mc_pg[0]);
 #endif
 		if ((rc = mdb_page_get(mc, root, &mc->mc_pg[0], NULL)) != 0)
 			return rc;
 	}
 
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	{
 		int i;
 		for (i=1; i<mc->mc_snum; i++)
-			MDB_PAGE_UNREF(mc->mc_txn, mc->mc_pg[i]);
+			RZDB_PAGE_UNREF(mc->mc_txn, mc->mc_pg[i]);
 	}
 #endif
 	mc->mc_snum = 1;
@@ -6503,26 +6503,26 @@ mdb_page_search(MDB_cursor *mc, MDB_val *key, int flags)
 	DPRINTF(("db %d root page %"Yu" has flags 0x%X",
 		DDBI(mc), root, mc->mc_pg[0]->mp_flags));
 
-	if (flags & MDB_PS_MODIFY) {
+	if (flags & RZDB_PS_MODIFY) {
 		if ((rc = mdb_page_touch(mc)))
 			return rc;
 	}
 
-	if (flags & MDB_PS_ROOTONLY)
-		return MDB_SUCCESS;
+	if (flags & RZDB_PS_ROOTONLY)
+		return RZDB_SUCCESS;
 
 	return mdb_page_search_root(mc, key, flags);
 }
 
 static int
-mdb_ovpage_free(MDB_cursor *mc, MDB_page *mp)
+mdb_ovpage_free(RZDB_cursor *mc, RZDB_page *mp)
 {
-	MDB_txn *txn = mc->mc_txn;
+	RZDB_txn *txn = mc->mc_txn;
 	pgno_t pg = mp->mp_pgno;
 	unsigned x = 0, ovpages = mp->mp_pages;
-	MDB_env *env = txn->mt_env;
-	MDB_IDL sl = txn->mt_spill_pgs;
-	MDB_ID pn = pg << 1;
+	RZDB_env *env = txn->mt_env;
+	RZDB_IDL sl = txn->mt_spill_pgs;
+	RZDB_ID pn = pg << 1;
 	int rc;
 
 	DPRINTF(("free ov page %"Yu" (%d)", pg, ovpages));
@@ -6541,7 +6541,7 @@ mdb_ovpage_free(MDB_cursor *mc, MDB_page *mp)
 	{
 		unsigned i, j;
 		pgno_t *mop;
-		MDB_ID2 *dl, ix, iy;
+		RZDB_ID2 *dl, ix, iy;
 		rc = mdb_midl_need(&env->me_pghead, ovpages);
 		if (rc)
 			return rc;
@@ -6564,13 +6564,13 @@ mdb_ovpage_free(MDB_cursor *mc, MDB_page *mp)
 			} else {
 				mdb_cassert(mc, x > 1);
 				j = ++(dl[0].mid);
-				dl[j] = ix;		/* Unsorted. OK when MDB_TXN_ERROR. */
-				txn->mt_flags |= MDB_TXN_ERROR;
-				return MDB_PROBLEM;
+				dl[j] = ix;		/* Unsorted. OK when RZDB_TXN_ERROR. */
+				txn->mt_flags |= RZDB_TXN_ERROR;
+				return RZDB_PROBLEM;
 			}
 		}
 		txn->mt_dirty_room++;
-		if (!(env->me_flags & MDB_WRITEMAP))
+		if (!(env->me_flags & RZDB_WRITEMAP))
 			mdb_dpage_free(env, mp);
 release:
 		/* Insert in me_pghead */
@@ -6586,7 +6586,7 @@ release:
 		if (rc)
 			return rc;
 	}
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	if (mc->mc_ovpg == mp)
 		mc->mc_ovpg = NULL;
 #endif
@@ -6601,20 +6601,20 @@ release:
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_node_read(MDB_cursor *mc, MDB_node *leaf, MDB_val *data)
+mdb_node_read(RZDB_cursor *mc, RZDB_node *leaf, RZDB_val *data)
 {
-	MDB_page	*omp;		/* overflow page */
+	RZDB_page	*omp;		/* overflow page */
 	pgno_t		 pgno;
 	int rc;
 
 	if (MC_OVPG(mc)) {
-		MDB_PAGE_UNREF(mc->mc_txn, MC_OVPG(mc));
+		RZDB_PAGE_UNREF(mc->mc_txn, MC_OVPG(mc));
 		MC_SET_OVPG(mc, NULL);
 	}
 	if (!F_ISSET(leaf->mn_flags, F_BIGDATA)) {
 		data->mv_size = NODEDSZ(leaf);
 		data->mv_data = NODEDATA(leaf);
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 
 	/* Read overflow data.
@@ -6628,15 +6628,15 @@ mdb_node_read(MDB_cursor *mc, MDB_node *leaf, MDB_val *data)
 	data->mv_data = METADATA(omp);
 	MC_SET_OVPG(mc, omp);
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int
-mdb_get(MDB_txn *txn, MDB_dbi dbi,
-    MDB_val *key, MDB_val *data)
+mdb_get(RZDB_txn *txn, RZDB_dbi dbi,
+    RZDB_val *key, RZDB_val *data)
 {
-	MDB_cursor	mc;
-	MDB_xcursor	mx;
+	RZDB_cursor	mc;
+	RZDB_xcursor	mx;
 	int exact = 0, rc;
 	DKBUF;
 
@@ -6645,15 +6645,15 @@ mdb_get(MDB_txn *txn, MDB_dbi dbi,
 	if (!key || !data || !TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 
-	if (txn->mt_flags & MDB_TXN_BLOCKED)
-		return MDB_BAD_TXN;
+	if (txn->mt_flags & RZDB_TXN_BLOCKED)
+		return RZDB_BAD_TXN;
 
 	mdb_cursor_init(&mc, txn, dbi, &mx);
-	rc = mdb_cursor_set(&mc, key, data, MDB_SET, &exact);
-	/* unref all the pages when MDB_VL32 - caller must copy the data
+	rc = mdb_cursor_set(&mc, key, data, RZDB_SET, &exact);
+	/* unref all the pages when RZDB_VL32 - caller must copy the data
 	 * before doing anything else
 	 */
-	MDB_CURSOR_UNREF(&mc, 1);
+	RZDB_CURSOR_UNREF(&mc, 1);
 	return rc;
 }
 
@@ -6666,20 +6666,20 @@ mdb_get(MDB_txn *txn, MDB_dbi dbi,
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_cursor_sibling(MDB_cursor *mc, int move_right)
+mdb_cursor_sibling(RZDB_cursor *mc, int move_right)
 {
 	int		 rc;
-	MDB_node	*indx;
-	MDB_page	*mp;
-#ifdef MDB_VL32
-	MDB_page	*op;
+	RZDB_node	*indx;
+	RZDB_page	*mp;
+#ifdef RZDB_VL32
+	RZDB_page	*op;
 #endif
 
 	if (mc->mc_snum < 2) {
-		return MDB_NOTFOUND;		/* root has no siblings */
+		return RZDB_NOTFOUND;		/* root has no siblings */
 	}
 
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 	op = mc->mc_pg[mc->mc_top];
 #endif
 	mdb_cursor_pop(mc);
@@ -6690,7 +6690,7 @@ mdb_cursor_sibling(MDB_cursor *mc, int move_right)
 		       : (mc->mc_ki[mc->mc_top] == 0)) {
 		DPRINTF(("no more keys left, moving to %s sibling",
 		    move_right ? "right" : "left"));
-		if ((rc = mdb_cursor_sibling(mc, move_right)) != MDB_SUCCESS) {
+		if ((rc = mdb_cursor_sibling(mc, move_right)) != RZDB_SUCCESS) {
 			/* undo cursor_pop before returning */
 			mc->mc_top++;
 			mc->mc_snum++;
@@ -6706,7 +6706,7 @@ mdb_cursor_sibling(MDB_cursor *mc, int move_right)
 	}
 	mdb_cassert(mc, IS_BRANCH(mc->mc_pg[mc->mc_top]));
 
-	MDB_PAGE_UNREF(mc->mc_txn, op);
+	RZDB_PAGE_UNREF(mc->mc_txn, op);
 
 	indx = NODEPTR(mc->mc_pg[mc->mc_top], mc->mc_ki[mc->mc_top]);
 	if ((rc = mdb_page_get(mc, NODEPGNO(indx), &mp, NULL)) != 0) {
@@ -6719,19 +6719,19 @@ mdb_cursor_sibling(MDB_cursor *mc, int move_right)
 	if (!move_right)
 		mc->mc_ki[mc->mc_top] = NUMKEYS(mp)-1;
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /** Move the cursor to the next data item. */
 static int
-mdb_cursor_next(MDB_cursor *mc, MDB_val *key, MDB_val *data, MDB_cursor_op op)
+mdb_cursor_next(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data, RZDB_cursor_op op)
 {
-	MDB_page	*mp;
-	MDB_node	*leaf;
+	RZDB_page	*mp;
+	RZDB_node	*leaf;
 	int rc;
 
-	if ((mc->mc_flags & C_DEL && op == MDB_NEXT_DUP))
-		return MDB_NOTFOUND;
+	if ((mc->mc_flags & C_DEL && op == RZDB_NEXT_DUP))
+		return RZDB_NOTFOUND;
 
 	if (!(mc->mc_flags & C_INITIALIZED))
 		return mdb_cursor_first(mc, key, data);
@@ -6740,28 +6740,28 @@ mdb_cursor_next(MDB_cursor *mc, MDB_val *key, MDB_val *data, MDB_cursor_op op)
 
 	if (mc->mc_flags & C_EOF) {
 		if (mc->mc_ki[mc->mc_top] >= NUMKEYS(mp)-1)
-			return MDB_NOTFOUND;
+			return RZDB_NOTFOUND;
 		mc->mc_flags ^= C_EOF;
 	}
 
-	if (mc->mc_db->md_flags & MDB_DUPSORT) {
+	if (mc->mc_db->md_flags & RZDB_DUPSORT) {
 		leaf = NODEPTR(mp, mc->mc_ki[mc->mc_top]);
 		if (F_ISSET(leaf->mn_flags, F_DUPDATA)) {
-			if (op == MDB_NEXT || op == MDB_NEXT_DUP) {
-				rc = mdb_cursor_next(&mc->mc_xcursor->mx_cursor, data, NULL, MDB_NEXT);
-				if (op != MDB_NEXT || rc != MDB_NOTFOUND) {
-					if (rc == MDB_SUCCESS)
-						MDB_GET_KEY(leaf, key);
+			if (op == RZDB_NEXT || op == RZDB_NEXT_DUP) {
+				rc = mdb_cursor_next(&mc->mc_xcursor->mx_cursor, data, NULL, RZDB_NEXT);
+				if (op != RZDB_NEXT || rc != RZDB_NOTFOUND) {
+					if (rc == RZDB_SUCCESS)
+						RZDB_GET_KEY(leaf, key);
 					return rc;
 				}
 			}
 			else {
-				MDB_CURSOR_UNREF(&mc->mc_xcursor->mx_cursor, 0);
+				RZDB_CURSOR_UNREF(&mc->mc_xcursor->mx_cursor, 0);
 			}
 		} else {
 			mc->mc_xcursor->mx_cursor.mc_flags &= ~(C_INITIALIZED|C_EOF);
-			if (op == MDB_NEXT_DUP)
-				return MDB_NOTFOUND;
+			if (op == RZDB_NEXT_DUP)
+				return RZDB_NOTFOUND;
 		}
 	}
 
@@ -6774,7 +6774,7 @@ mdb_cursor_next(MDB_cursor *mc, MDB_val *key, MDB_val *data, MDB_cursor_op op)
 
 	if (mc->mc_ki[mc->mc_top] + 1u >= NUMKEYS(mp)) {
 		DPUTS("=====> move to next sibling page");
-		if ((rc = mdb_cursor_sibling(mc, 1)) != MDB_SUCCESS) {
+		if ((rc = mdb_cursor_sibling(mc, 1)) != RZDB_SUCCESS) {
 			mc->mc_flags |= C_EOF;
 			return rc;
 		}
@@ -6790,7 +6790,7 @@ skip:
 	if (IS_LEAF2(mp)) {
 		key->mv_size = mc->mc_db->md_pad;
 		key->mv_data = LEAF2KEY(mp, mc->mc_ki[mc->mc_top], key->mv_size);
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 
 	mdb_cassert(mc, IS_LEAF(mp));
@@ -6800,26 +6800,26 @@ skip:
 		mdb_xcursor_init1(mc, leaf);
 	}
 	if (data) {
-		if ((rc = mdb_node_read(mc, leaf, data)) != MDB_SUCCESS)
+		if ((rc = mdb_node_read(mc, leaf, data)) != RZDB_SUCCESS)
 			return rc;
 
 		if (F_ISSET(leaf->mn_flags, F_DUPDATA)) {
 			rc = mdb_cursor_first(&mc->mc_xcursor->mx_cursor, data, NULL);
-			if (rc != MDB_SUCCESS)
+			if (rc != RZDB_SUCCESS)
 				return rc;
 		}
 	}
 
-	MDB_GET_KEY(leaf, key);
-	return MDB_SUCCESS;
+	RZDB_GET_KEY(leaf, key);
+	return RZDB_SUCCESS;
 }
 
 /** Move the cursor to the previous data item. */
 static int
-mdb_cursor_prev(MDB_cursor *mc, MDB_val *key, MDB_val *data, MDB_cursor_op op)
+mdb_cursor_prev(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data, RZDB_cursor_op op)
 {
-	MDB_page	*mp;
-	MDB_node	*leaf;
+	RZDB_page	*mp;
+	RZDB_node	*leaf;
 	int rc;
 
 	if (!(mc->mc_flags & C_INITIALIZED)) {
@@ -6831,26 +6831,26 @@ mdb_cursor_prev(MDB_cursor *mc, MDB_val *key, MDB_val *data, MDB_cursor_op op)
 
 	mp = mc->mc_pg[mc->mc_top];
 
-	if (mc->mc_db->md_flags & MDB_DUPSORT) {
+	if (mc->mc_db->md_flags & RZDB_DUPSORT) {
 		leaf = NODEPTR(mp, mc->mc_ki[mc->mc_top]);
 		if (F_ISSET(leaf->mn_flags, F_DUPDATA)) {
-			if (op == MDB_PREV || op == MDB_PREV_DUP) {
-				rc = mdb_cursor_prev(&mc->mc_xcursor->mx_cursor, data, NULL, MDB_PREV);
-				if (op != MDB_PREV || rc != MDB_NOTFOUND) {
-					if (rc == MDB_SUCCESS) {
-						MDB_GET_KEY(leaf, key);
+			if (op == RZDB_PREV || op == RZDB_PREV_DUP) {
+				rc = mdb_cursor_prev(&mc->mc_xcursor->mx_cursor, data, NULL, RZDB_PREV);
+				if (op != RZDB_PREV || rc != RZDB_NOTFOUND) {
+					if (rc == RZDB_SUCCESS) {
+						RZDB_GET_KEY(leaf, key);
 						mc->mc_flags &= ~C_EOF;
 					}
 					return rc;
 				}
 			}
 			else {
-				MDB_CURSOR_UNREF(&mc->mc_xcursor->mx_cursor, 0);
+				RZDB_CURSOR_UNREF(&mc->mc_xcursor->mx_cursor, 0);
 			}
 		} else {
 			mc->mc_xcursor->mx_cursor.mc_flags &= ~(C_INITIALIZED|C_EOF);
-			if (op == MDB_PREV_DUP)
-				return MDB_NOTFOUND;
+			if (op == RZDB_PREV_DUP)
+				return RZDB_NOTFOUND;
 		}
 	}
 
@@ -6861,7 +6861,7 @@ mdb_cursor_prev(MDB_cursor *mc, MDB_val *key, MDB_val *data, MDB_cursor_op op)
 
 	if (mc->mc_ki[mc->mc_top] == 0)  {
 		DPUTS("=====> move to prev sibling page");
-		if ((rc = mdb_cursor_sibling(mc, 0)) != MDB_SUCCESS) {
+		if ((rc = mdb_cursor_sibling(mc, 0)) != RZDB_SUCCESS) {
 			return rc;
 		}
 		mp = mc->mc_pg[mc->mc_top];
@@ -6876,7 +6876,7 @@ mdb_cursor_prev(MDB_cursor *mc, MDB_val *key, MDB_val *data, MDB_cursor_op op)
 	if (IS_LEAF2(mp)) {
 		key->mv_size = mc->mc_db->md_pad;
 		key->mv_data = LEAF2KEY(mp, mc->mc_ki[mc->mc_top], key->mv_size);
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 
 	mdb_cassert(mc, IS_LEAF(mp));
@@ -6886,53 +6886,53 @@ mdb_cursor_prev(MDB_cursor *mc, MDB_val *key, MDB_val *data, MDB_cursor_op op)
 		mdb_xcursor_init1(mc, leaf);
 	}
 	if (data) {
-		if ((rc = mdb_node_read(mc, leaf, data)) != MDB_SUCCESS)
+		if ((rc = mdb_node_read(mc, leaf, data)) != RZDB_SUCCESS)
 			return rc;
 
 		if (F_ISSET(leaf->mn_flags, F_DUPDATA)) {
 			rc = mdb_cursor_last(&mc->mc_xcursor->mx_cursor, data, NULL);
-			if (rc != MDB_SUCCESS)
+			if (rc != RZDB_SUCCESS)
 				return rc;
 		}
 	}
 
-	MDB_GET_KEY(leaf, key);
-	return MDB_SUCCESS;
+	RZDB_GET_KEY(leaf, key);
+	return RZDB_SUCCESS;
 }
 
 /** Set the cursor on a specific data item. */
 static int
-mdb_cursor_set(MDB_cursor *mc, MDB_val *key, MDB_val *data,
-    MDB_cursor_op op, int *exactp)
+mdb_cursor_set(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data,
+    RZDB_cursor_op op, int *exactp)
 {
 	int		 rc;
-	MDB_page	*mp;
-	MDB_node	*leaf = NULL;
+	RZDB_page	*mp;
+	RZDB_node	*leaf = NULL;
 	DKBUF;
 
 	if (key->mv_size == 0)
-		return MDB_BAD_VALSIZE;
+		return RZDB_BAD_VALSIZE;
 
 	if (mc->mc_xcursor) {
-		MDB_CURSOR_UNREF(&mc->mc_xcursor->mx_cursor, 0);
+		RZDB_CURSOR_UNREF(&mc->mc_xcursor->mx_cursor, 0);
 		mc->mc_xcursor->mx_cursor.mc_flags &= ~(C_INITIALIZED|C_EOF);
 	}
 
 	/* See if we're already on the right page */
 	if (mc->mc_flags & C_INITIALIZED) {
-		MDB_val nodekey;
+		RZDB_val nodekey;
 
 		mp = mc->mc_pg[mc->mc_top];
 		if (!NUMKEYS(mp)) {
 			mc->mc_ki[mc->mc_top] = 0;
-			return MDB_NOTFOUND;
+			return RZDB_NOTFOUND;
 		}
 		if (mp->mp_flags & P_LEAF2) {
 			nodekey.mv_size = mc->mc_db->md_pad;
 			nodekey.mv_data = LEAF2KEY(mp, 0, nodekey.mv_size);
 		} else {
 			leaf = NODEPTR(mp, 0);
-			MDB_GET_KEY2(leaf, nodekey);
+			RZDB_GET_KEY2(leaf, nodekey);
 		}
 		rc = mc->mc_dbx->md_cmp(key, &nodekey, mc->mc_dbx->md_cmpctx);
 		if (rc == 0) {
@@ -6953,7 +6953,7 @@ mdb_cursor_set(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 						 nkeys-1, nodekey.mv_size);
 				} else {
 					leaf = NODEPTR(mp, nkeys-1);
-					MDB_GET_KEY2(leaf, nodekey);
+					RZDB_GET_KEY2(leaf, nodekey);
 				}
 				rc = mc->mc_dbx->md_cmp(key, &nodekey, mc->mc_dbx->md_cmpctx);
 				if (rc == 0) {
@@ -6971,7 +6971,7 @@ mdb_cursor_set(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 								 mc->mc_ki[mc->mc_top], nodekey.mv_size);
 						} else {
 							leaf = NODEPTR(mp, mc->mc_ki[mc->mc_top]);
-							MDB_GET_KEY2(leaf, nodekey);
+							RZDB_GET_KEY2(leaf, nodekey);
 						}
 						rc = mc->mc_dbx->md_cmp(key, &nodekey, mc->mc_dbx->md_cmpctx);
 						if (rc == 0) {
@@ -6996,24 +6996,24 @@ mdb_cursor_set(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 			if (i == mc->mc_top) {
 				/* There are no other pages */
 				mc->mc_ki[mc->mc_top] = nkeys;
-				return MDB_NOTFOUND;
+				return RZDB_NOTFOUND;
 			}
 		}
 		if (!mc->mc_top) {
 			/* There are no other pages */
 			mc->mc_ki[mc->mc_top] = 0;
-			if (op == MDB_SET_RANGE && !exactp) {
+			if (op == RZDB_SET_RANGE && !exactp) {
 				rc = 0;
 				goto set1;
 			} else
-				return MDB_NOTFOUND;
+				return RZDB_NOTFOUND;
 		}
 	} else {
 		mc->mc_pg[0] = 0;
 	}
 
 	rc = mdb_page_search(mc, key, 0);
-	if (rc != MDB_SUCCESS)
+	if (rc != RZDB_SUCCESS)
 		return rc;
 
 	mp = mc->mc_pg[mc->mc_top];
@@ -7022,13 +7022,13 @@ mdb_cursor_set(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 set2:
 	leaf = mdb_node_search(mc, key, exactp);
 	if (exactp != NULL && !*exactp) {
-		/* MDB_SET specified and not an exact match. */
-		return MDB_NOTFOUND;
+		/* RZDB_SET specified and not an exact match. */
+		return RZDB_NOTFOUND;
 	}
 
 	if (leaf == NULL) {
 		DPUTS("===> inexact leaf not found, goto sibling");
-		if ((rc = mdb_cursor_sibling(mc, 1)) != MDB_SUCCESS) {
+		if ((rc = mdb_cursor_sibling(mc, 1)) != RZDB_SUCCESS) {
 			mc->mc_flags |= C_EOF;
 			return rc;		/* no entries matched */
 		}
@@ -7042,11 +7042,11 @@ set1:
 	mc->mc_flags &= ~C_EOF;
 
 	if (IS_LEAF2(mp)) {
-		if (op == MDB_SET_RANGE || op == MDB_SET_KEY) {
+		if (op == RZDB_SET_RANGE || op == RZDB_SET_KEY) {
 			key->mv_size = mc->mc_db->md_pad;
 			key->mv_data = LEAF2KEY(mp, mc->mc_ki[mc->mc_top], key->mv_size);
 		}
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 
 	if (F_ISSET(leaf->mn_flags, F_DUPDATA)) {
@@ -7054,32 +7054,32 @@ set1:
 	}
 	if (data) {
 		if (F_ISSET(leaf->mn_flags, F_DUPDATA)) {
-			if (op == MDB_SET || op == MDB_SET_KEY || op == MDB_SET_RANGE) {
+			if (op == RZDB_SET || op == RZDB_SET_KEY || op == RZDB_SET_RANGE) {
 				rc = mdb_cursor_first(&mc->mc_xcursor->mx_cursor, data, NULL);
 			} else {
 				int ex2, *ex2p;
-				if (op == MDB_GET_BOTH) {
+				if (op == RZDB_GET_BOTH) {
 					ex2p = &ex2;
 					ex2 = 0;
 				} else {
 					ex2p = NULL;
 				}
-				rc = mdb_cursor_set(&mc->mc_xcursor->mx_cursor, data, NULL, MDB_SET_RANGE, ex2p);
-				if (rc != MDB_SUCCESS)
+				rc = mdb_cursor_set(&mc->mc_xcursor->mx_cursor, data, NULL, RZDB_SET_RANGE, ex2p);
+				if (rc != RZDB_SUCCESS)
 					return rc;
 			}
-		} else if (op == MDB_GET_BOTH || op == MDB_GET_BOTH_RANGE) {
-			MDB_val olddata;
-			MDB_cmp_func *dcmp;
-			if ((rc = mdb_node_read(mc, leaf, &olddata)) != MDB_SUCCESS)
+		} else if (op == RZDB_GET_BOTH || op == RZDB_GET_BOTH_RANGE) {
+			RZDB_val olddata;
+			RZDB_cmp_func *dcmp;
+			if ((rc = mdb_node_read(mc, leaf, &olddata)) != RZDB_SUCCESS)
 				return rc;
 			dcmp = mc->mc_dbx->md_dcmp;
 			if (NEED_CMP_CLONG(dcmp, olddata.mv_size))
 				dcmp = mdb_cmp_clong;
 			rc = dcmp(data, &olddata,mc->mc_dbx->md_dcmp);
 			if (rc) {
-				if (op == MDB_GET_BOTH || rc > 0)
-					return MDB_NOTFOUND;
+				if (op == RZDB_GET_BOTH || rc > 0)
+					return RZDB_NOTFOUND;
 				rc = 0;
 			}
 			*data = olddata;
@@ -7087,14 +7087,14 @@ set1:
 		} else {
 			if (mc->mc_xcursor)
 				mc->mc_xcursor->mx_cursor.mc_flags &= ~(C_INITIALIZED|C_EOF);
-			if ((rc = mdb_node_read(mc, leaf, data)) != MDB_SUCCESS)
+			if ((rc = mdb_node_read(mc, leaf, data)) != RZDB_SUCCESS)
 				return rc;
 		}
 	}
 
 	/* The key already matches in all other cases */
-	if (op == MDB_SET_RANGE || op == MDB_SET_KEY)
-		MDB_GET_KEY(leaf, key);
+	if (op == RZDB_SET_RANGE || op == RZDB_SET_KEY)
+		RZDB_GET_KEY(leaf, key);
 	DPRINTF(("==> cursor placed on key [%s]", DKEY(key)));
 
 	return rc;
@@ -7102,19 +7102,19 @@ set1:
 
 /** Move the cursor to the first item in the database. */
 static int
-mdb_cursor_first(MDB_cursor *mc, MDB_val *key, MDB_val *data)
+mdb_cursor_first(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data)
 {
 	int		 rc;
-	MDB_node	*leaf;
+	RZDB_node	*leaf;
 
 	if (mc->mc_xcursor) {
-		MDB_CURSOR_UNREF(&mc->mc_xcursor->mx_cursor, 0);
+		RZDB_CURSOR_UNREF(&mc->mc_xcursor->mx_cursor, 0);
 		mc->mc_xcursor->mx_cursor.mc_flags &= ~(C_INITIALIZED|C_EOF);
 	}
 
 	if (!(mc->mc_flags & C_INITIALIZED) || mc->mc_top) {
-		rc = mdb_page_search(mc, NULL, MDB_PS_FIRST);
-		if (rc != MDB_SUCCESS)
+		rc = mdb_page_search(mc, NULL, RZDB_PS_FIRST);
+		if (rc != RZDB_SUCCESS)
 			return rc;
 	}
 	mdb_cassert(mc, IS_LEAF(mc->mc_pg[mc->mc_top]));
@@ -7128,7 +7128,7 @@ mdb_cursor_first(MDB_cursor *mc, MDB_val *key, MDB_val *data)
 	if (IS_LEAF2(mc->mc_pg[mc->mc_top])) {
 		key->mv_size = mc->mc_db->md_pad;
 		key->mv_data = LEAF2KEY(mc->mc_pg[mc->mc_top], 0, key->mv_size);
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 
 	if (data) {
@@ -7138,29 +7138,29 @@ mdb_cursor_first(MDB_cursor *mc, MDB_val *key, MDB_val *data)
 			if (rc)
 				return rc;
 		} else {
-			if ((rc = mdb_node_read(mc, leaf, data)) != MDB_SUCCESS)
+			if ((rc = mdb_node_read(mc, leaf, data)) != RZDB_SUCCESS)
 				return rc;
 		}
 	}
-	MDB_GET_KEY(leaf, key);
-	return MDB_SUCCESS;
+	RZDB_GET_KEY(leaf, key);
+	return RZDB_SUCCESS;
 }
 
 /** Move the cursor to the last item in the database. */
 static int
-mdb_cursor_last(MDB_cursor *mc, MDB_val *key, MDB_val *data)
+mdb_cursor_last(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data)
 {
 	int		 rc;
-	MDB_node	*leaf;
+	RZDB_node	*leaf;
 
 	if (mc->mc_xcursor) {
-		MDB_CURSOR_UNREF(&mc->mc_xcursor->mx_cursor, 0);
+		RZDB_CURSOR_UNREF(&mc->mc_xcursor->mx_cursor, 0);
 		mc->mc_xcursor->mx_cursor.mc_flags &= ~(C_INITIALIZED|C_EOF);
 	}
 
 	if (!(mc->mc_flags & C_INITIALIZED) || mc->mc_top) {
-		rc = mdb_page_search(mc, NULL, MDB_PS_LAST);
-		if (rc != MDB_SUCCESS)
+		rc = mdb_page_search(mc, NULL, RZDB_PS_LAST);
+		if (rc != RZDB_SUCCESS)
 			return rc;
 	}
 	mdb_cassert(mc, IS_LEAF(mc->mc_pg[mc->mc_top]));
@@ -7172,7 +7172,7 @@ mdb_cursor_last(MDB_cursor *mc, MDB_val *key, MDB_val *data)
 	if (IS_LEAF2(mc->mc_pg[mc->mc_top])) {
 		key->mv_size = mc->mc_db->md_pad;
 		key->mv_data = LEAF2KEY(mc->mc_pg[mc->mc_top], mc->mc_ki[mc->mc_top], key->mv_size);
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 
 	if (data) {
@@ -7182,51 +7182,51 @@ mdb_cursor_last(MDB_cursor *mc, MDB_val *key, MDB_val *data)
 			if (rc)
 				return rc;
 		} else {
-			if ((rc = mdb_node_read(mc, leaf, data)) != MDB_SUCCESS)
+			if ((rc = mdb_node_read(mc, leaf, data)) != RZDB_SUCCESS)
 				return rc;
 		}
 	}
 
-	MDB_GET_KEY(leaf, key);
-	return MDB_SUCCESS;
+	RZDB_GET_KEY(leaf, key);
+	return RZDB_SUCCESS;
 }
 
 int
-mdb_cursor_get(MDB_cursor *mc, MDB_val *key, MDB_val *data,
-    MDB_cursor_op op)
+mdb_cursor_get(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data,
+    RZDB_cursor_op op)
 {
 	int		 rc;
 	int		 exact = 0;
-	int		 (*mfunc)(MDB_cursor *mc, MDB_val *key, MDB_val *data);
+	int		 (*mfunc)(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data);
 
 	if (mc == NULL)
 		return EINVAL;
 
-	if (mc->mc_txn->mt_flags & MDB_TXN_BLOCKED)
-		return MDB_BAD_TXN;
+	if (mc->mc_txn->mt_flags & RZDB_TXN_BLOCKED)
+		return RZDB_BAD_TXN;
 
 	switch (op) {
-	case MDB_GET_CURRENT:
+	case RZDB_GET_CURRENT:
 		if (!(mc->mc_flags & C_INITIALIZED)) {
 			rc = EINVAL;
 		} else {
-			MDB_page *mp = mc->mc_pg[mc->mc_top];
+			RZDB_page *mp = mc->mc_pg[mc->mc_top];
 			int nkeys = NUMKEYS(mp);
 			if (!nkeys || mc->mc_ki[mc->mc_top] >= nkeys) {
 				mc->mc_ki[mc->mc_top] = nkeys;
-				rc = MDB_NOTFOUND;
+				rc = RZDB_NOTFOUND;
 				break;
 			}
-			rc = MDB_SUCCESS;
+			rc = RZDB_SUCCESS;
 			if (IS_LEAF2(mp)) {
 				key->mv_size = mc->mc_db->md_pad;
 				key->mv_data = LEAF2KEY(mp, mc->mc_ki[mc->mc_top], key->mv_size);
 			} else {
-				MDB_node *leaf = NODEPTR(mp, mc->mc_ki[mc->mc_top]);
-				MDB_GET_KEY(leaf, key);
+				RZDB_node *leaf = NODEPTR(mp, mc->mc_ki[mc->mc_top]);
+				RZDB_GET_KEY(leaf, key);
 				if (data) {
 					if (F_ISSET(leaf->mn_flags, F_DUPDATA)) {
-						rc = mdb_cursor_get(&mc->mc_xcursor->mx_cursor, data, NULL, MDB_GET_CURRENT);
+						rc = mdb_cursor_get(&mc->mc_xcursor->mx_cursor, data, NULL, RZDB_GET_CURRENT);
 					} else {
 						rc = mdb_node_read(mc, leaf, data);
 					}
@@ -7234,54 +7234,54 @@ mdb_cursor_get(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 			}
 		}
 		break;
-	case MDB_GET_BOTH:
-	case MDB_GET_BOTH_RANGE:
+	case RZDB_GET_BOTH:
+	case RZDB_GET_BOTH_RANGE:
 		if (data == NULL) {
 			rc = EINVAL;
 			break;
 		}
 		if (mc->mc_xcursor == NULL) {
-			rc = MDB_INCOMPATIBLE;
+			rc = RZDB_INCOMPATIBLE;
 			break;
 		}
 		/* FALLTHRU */
-	case MDB_SET:
-	case MDB_SET_KEY:
-	case MDB_SET_RANGE:
+	case RZDB_SET:
+	case RZDB_SET_KEY:
+	case RZDB_SET_RANGE:
 		if (key == NULL) {
 			rc = EINVAL;
 		} else {
 			rc = mdb_cursor_set(mc, key, data, op,
-				op == MDB_SET_RANGE ? NULL : &exact);
+				op == RZDB_SET_RANGE ? NULL : &exact);
 		}
 		break;
-	case MDB_GET_MULTIPLE:
+	case RZDB_GET_MULTIPLE:
 		if (data == NULL || !(mc->mc_flags & C_INITIALIZED)) {
 			rc = EINVAL;
 			break;
 		}
-		if (!(mc->mc_db->md_flags & MDB_DUPFIXED)) {
-			rc = MDB_INCOMPATIBLE;
+		if (!(mc->mc_db->md_flags & RZDB_DUPFIXED)) {
+			rc = RZDB_INCOMPATIBLE;
 			break;
 		}
-		rc = MDB_SUCCESS;
+		rc = RZDB_SUCCESS;
 		if (!(mc->mc_xcursor->mx_cursor.mc_flags & C_INITIALIZED) ||
 			(mc->mc_xcursor->mx_cursor.mc_flags & C_EOF))
 			break;
 		goto fetchm;
-	case MDB_NEXT_MULTIPLE:
+	case RZDB_NEXT_MULTIPLE:
 		if (data == NULL) {
 			rc = EINVAL;
 			break;
 		}
-		if (!(mc->mc_db->md_flags & MDB_DUPFIXED)) {
-			rc = MDB_INCOMPATIBLE;
+		if (!(mc->mc_db->md_flags & RZDB_DUPFIXED)) {
+			rc = RZDB_INCOMPATIBLE;
 			break;
 		}
-		rc = mdb_cursor_next(mc, key, data, MDB_NEXT_DUP);
-		if (rc == MDB_SUCCESS) {
+		rc = mdb_cursor_next(mc, key, data, RZDB_NEXT_DUP);
+		if (rc == RZDB_SUCCESS) {
 			if (mc->mc_xcursor->mx_cursor.mc_flags & C_INITIALIZED) {
-				MDB_cursor *mx;
+				RZDB_cursor *mx;
 fetchm:
 				mx = &mc->mc_xcursor->mx_cursor;
 				data->mv_size = NUMKEYS(mx->mc_pg[mx->mc_top]) *
@@ -7289,48 +7289,48 @@ fetchm:
 				data->mv_data = METADATA(mx->mc_pg[mx->mc_top]);
 				mx->mc_ki[mx->mc_top] = NUMKEYS(mx->mc_pg[mx->mc_top])-1;
 			} else {
-				rc = MDB_NOTFOUND;
+				rc = RZDB_NOTFOUND;
 			}
 		}
 		break;
-	case MDB_PREV_MULTIPLE:
+	case RZDB_PREV_MULTIPLE:
 		if (data == NULL) {
 			rc = EINVAL;
 			break;
 		}
-		if (!(mc->mc_db->md_flags & MDB_DUPFIXED)) {
-			rc = MDB_INCOMPATIBLE;
+		if (!(mc->mc_db->md_flags & RZDB_DUPFIXED)) {
+			rc = RZDB_INCOMPATIBLE;
 			break;
 		}
 		if (!(mc->mc_flags & C_INITIALIZED))
 			rc = mdb_cursor_last(mc, key, data);
 		else
-			rc = MDB_SUCCESS;
-		if (rc == MDB_SUCCESS) {
-			MDB_cursor *mx = &mc->mc_xcursor->mx_cursor;
+			rc = RZDB_SUCCESS;
+		if (rc == RZDB_SUCCESS) {
+			RZDB_cursor *mx = &mc->mc_xcursor->mx_cursor;
 			if (mx->mc_flags & C_INITIALIZED) {
 				rc = mdb_cursor_sibling(mx, 0);
-				if (rc == MDB_SUCCESS)
+				if (rc == RZDB_SUCCESS)
 					goto fetchm;
 			} else {
-				rc = MDB_NOTFOUND;
+				rc = RZDB_NOTFOUND;
 			}
 		}
 		break;
-	case MDB_NEXT:
-	case MDB_NEXT_DUP:
-	case MDB_NEXT_NODUP:
+	case RZDB_NEXT:
+	case RZDB_NEXT_DUP:
+	case RZDB_NEXT_NODUP:
 		rc = mdb_cursor_next(mc, key, data, op);
 		break;
-	case MDB_PREV:
-	case MDB_PREV_DUP:
-	case MDB_PREV_NODUP:
+	case RZDB_PREV:
+	case RZDB_PREV_DUP:
+	case RZDB_PREV_NODUP:
 		rc = mdb_cursor_prev(mc, key, data, op);
 		break;
-	case MDB_FIRST:
+	case RZDB_FIRST:
 		rc = mdb_cursor_first(mc, key, data);
 		break;
-	case MDB_FIRST_DUP:
+	case RZDB_FIRST_DUP:
 		mfunc = mdb_cursor_first;
 	mmove:
 		if (data == NULL || !(mc->mc_flags & C_INITIALIZED)) {
@@ -7338,18 +7338,18 @@ fetchm:
 			break;
 		}
 		if (mc->mc_xcursor == NULL) {
-			rc = MDB_INCOMPATIBLE;
+			rc = RZDB_INCOMPATIBLE;
 			break;
 		}
 		if (mc->mc_ki[mc->mc_top] >= NUMKEYS(mc->mc_pg[mc->mc_top])) {
 			mc->mc_ki[mc->mc_top] = NUMKEYS(mc->mc_pg[mc->mc_top]);
-			rc = MDB_NOTFOUND;
+			rc = RZDB_NOTFOUND;
 			break;
 		}
 		{
-			MDB_node *leaf = NODEPTR(mc->mc_pg[mc->mc_top], mc->mc_ki[mc->mc_top]);
+			RZDB_node *leaf = NODEPTR(mc->mc_pg[mc->mc_top], mc->mc_ki[mc->mc_top]);
 			if (!F_ISSET(leaf->mn_flags, F_DUPDATA)) {
-				MDB_GET_KEY(leaf, key);
+				RZDB_GET_KEY(leaf, key);
 				rc = mdb_node_read(mc, leaf, data);
 				break;
 			}
@@ -7360,10 +7360,10 @@ fetchm:
 		}
 		rc = mfunc(&mc->mc_xcursor->mx_cursor, data, NULL);
 		break;
-	case MDB_LAST:
+	case RZDB_LAST:
 		rc = mdb_cursor_last(mc, key, data);
 		break;
-	case MDB_LAST_DUP:
+	case RZDB_LAST_DUP:
 		mfunc = mdb_cursor_last;
 		goto mmove;
 	default:
@@ -7383,18 +7383,18 @@ fetchm:
  * @param[in] mc The cursor to operate on.
  */
 static int
-mdb_cursor_touch(MDB_cursor *mc)
+mdb_cursor_touch(RZDB_cursor *mc)
 {
-	int rc = MDB_SUCCESS;
+	int rc = RZDB_SUCCESS;
 
 	if (mc->mc_dbi >= CORE_DBS && !(*mc->mc_dbflag & (DB_DIRTY|DB_DUPDATA))) {
 		/* Touch DB record of named DB */
-		MDB_cursor mc2;
-		MDB_xcursor mcx;
+		RZDB_cursor mc2;
+		RZDB_xcursor mcx;
 		if (TXN_DBI_CHANGED(mc->mc_txn, mc->mc_dbi))
-			return MDB_BAD_DBI;
+			return RZDB_BAD_DBI;
 		mdb_cursor_init(&mc2, mc->mc_txn, MAIN_DBI, &mcx);
-		rc = mdb_page_search(&mc2, &mc->mc_dbx->md_name, MDB_PS_MODIFY);
+		rc = mdb_page_search(&mc2, &mc->mc_dbx->md_name, RZDB_PS_MODIFY);
 		if (rc)
 			 return rc;
 		*mc->mc_dbflag |= DB_DIRTY;
@@ -7410,18 +7410,18 @@ mdb_cursor_touch(MDB_cursor *mc)
 }
 
 /** Do not spill pages to disk if txn is getting full, may fail instead */
-#define MDB_NOSPILL	0x8000
+#define RZDB_NOSPILL	0x8000
 
 int
-mdb_cursor_put(MDB_cursor *mc, MDB_val *key, MDB_val *data,
+mdb_cursor_put(RZDB_cursor *mc, RZDB_val *key, RZDB_val *data,
     unsigned int flags)
 {
-	MDB_env		*env;
-	MDB_node	*leaf = NULL;
-	MDB_page	*fp, *mp, *sub_root = NULL;
+	RZDB_env		*env;
+	RZDB_node	*leaf = NULL;
+	RZDB_page	*fp, *mp, *sub_root = NULL;
 	uint16_t	fp_flags;
-	MDB_val		xdata, *rdata, dkey, olddata;
-	MDB_db dummy;
+	RZDB_val		xdata, *rdata, dkey, olddata;
+	RZDB_db dummy;
 	int do_sub = 0, insert_key, insert_data;
 	unsigned int mcount = 0, dcount = 0, nospill;
 	size_t nsize;
@@ -7437,28 +7437,28 @@ mdb_cursor_put(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 	/* Check this first so counter will always be zero on any
 	 * early failures.
 	 */
-	if (flags & MDB_MULTIPLE) {
+	if (flags & RZDB_MULTIPLE) {
 		dcount = data[1].mv_size;
 		data[1].mv_size = 0;
-		if (!F_ISSET(mc->mc_db->md_flags, MDB_DUPFIXED))
-			return MDB_INCOMPATIBLE;
+		if (!F_ISSET(mc->mc_db->md_flags, RZDB_DUPFIXED))
+			return RZDB_INCOMPATIBLE;
 	}
 
-	nospill = flags & MDB_NOSPILL;
-	flags &= ~MDB_NOSPILL;
+	nospill = flags & RZDB_NOSPILL;
+	flags &= ~RZDB_NOSPILL;
 
-	if (mc->mc_txn->mt_flags & (MDB_TXN_RDONLY|MDB_TXN_BLOCKED))
-		return (mc->mc_txn->mt_flags & MDB_TXN_RDONLY) ? EACCES : MDB_BAD_TXN;
+	if (mc->mc_txn->mt_flags & (RZDB_TXN_RDONLY|RZDB_TXN_BLOCKED))
+		return (mc->mc_txn->mt_flags & RZDB_TXN_RDONLY) ? EACCES : RZDB_BAD_TXN;
 
 	if (key->mv_size-1 >= ENV_MAXKEY(env))
-		return MDB_BAD_VALSIZE;
+		return RZDB_BAD_VALSIZE;
 
 #if SIZE_MAX > MAXDATASIZE
-	if (data->mv_size > ((mc->mc_db->md_flags & MDB_DUPSORT) ? ENV_MAXKEY(env) : MAXDATASIZE))
-		return MDB_BAD_VALSIZE;
+	if (data->mv_size > ((mc->mc_db->md_flags & RZDB_DUPSORT) ? ENV_MAXKEY(env) : MAXDATASIZE))
+		return RZDB_BAD_VALSIZE;
 #else
-	if ((mc->mc_db->md_flags & MDB_DUPSORT) && data->mv_size > ENV_MAXKEY(env))
-		return MDB_BAD_VALSIZE;
+	if ((mc->mc_db->md_flags & RZDB_DUPSORT) && data->mv_size > ENV_MAXKEY(env))
+		return RZDB_BAD_VALSIZE;
 #endif
 
 	DPRINTF(("==> put db %d key [%s], size %"Z"u, data size %"Z"u",
@@ -7466,41 +7466,41 @@ mdb_cursor_put(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 
 	dkey.mv_size = 0;
 
-	if (flags == MDB_CURRENT) {
+	if (flags == RZDB_CURRENT) {
 		if (!(mc->mc_flags & C_INITIALIZED))
 			return EINVAL;
-		rc = MDB_SUCCESS;
+		rc = RZDB_SUCCESS;
 	} else if (mc->mc_db->md_root == P_INVALID) {
 		/* new database, cursor has nothing to point to */
 		mc->mc_snum = 0;
 		mc->mc_top = 0;
 		mc->mc_flags &= ~C_INITIALIZED;
-		rc = MDB_NO_ROOT;
+		rc = RZDB_NO_ROOT;
 	} else {
 		int exact = 0;
-		MDB_val d2;
-		if (flags & MDB_APPEND) {
-			MDB_val k2;
+		RZDB_val d2;
+		if (flags & RZDB_APPEND) {
+			RZDB_val k2;
 			rc = mdb_cursor_last(mc, &k2, &d2);
 			if (rc == 0) {
 				rc = mc->mc_dbx->md_cmp(key, &k2, mc->mc_dbx->md_cmpctx);
 				if (rc > 0) {
-					rc = MDB_NOTFOUND;
+					rc = RZDB_NOTFOUND;
 					mc->mc_ki[mc->mc_top]++;
 				} else {
 					/* new key is <= last key */
-					rc = MDB_KEYEXIST;
+					rc = RZDB_KEYEXIST;
 				}
 			}
 		} else {
-			rc = mdb_cursor_set(mc, key, &d2, MDB_SET, &exact);
+			rc = mdb_cursor_set(mc, key, &d2, RZDB_SET, &exact);
 		}
-		if ((flags & MDB_NOOVERWRITE) && rc == 0) {
+		if ((flags & RZDB_NOOVERWRITE) && rc == 0) {
 			DPRINTF(("duplicate key [%s]", DKEY(key)));
 			*data = d2;
-			return MDB_KEYEXIST;
+			return RZDB_KEYEXIST;
 		}
-		if (rc && rc != MDB_NOTFOUND)
+		if (rc && rc != RZDB_NOTFOUND)
 			return rc;
 	}
 
@@ -7509,7 +7509,7 @@ mdb_cursor_put(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 
 	/* Cursor is positioned, check for room in the dirty list */
 	if (!nospill) {
-		if (flags & MDB_MULTIPLE) {
+		if (flags & RZDB_MULTIPLE) {
 			rdata = &xdata;
 			xdata.mv_size = data->mv_size * dcount;
 		} else {
@@ -7519,8 +7519,8 @@ mdb_cursor_put(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 			return rc2;
 	}
 
-	if (rc == MDB_NO_ROOT) {
-		MDB_page *np;
+	if (rc == RZDB_NO_ROOT) {
+		RZDB_page *np;
 		/* new database, write a root leaf page */
 		DPUTS("allocating new root leaf page");
 		if ((rc2 = mdb_page_new(mc, P_LEAF, 1, &np))) {
@@ -7530,8 +7530,8 @@ mdb_cursor_put(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 		mc->mc_db->md_root = np->mp_pgno;
 		mc->mc_db->md_depth++;
 		*mc->mc_dbflag |= DB_DIRTY;
-		if ((mc->mc_db->md_flags & (MDB_DUPSORT|MDB_DUPFIXED))
-			== MDB_DUPFIXED)
+		if ((mc->mc_db->md_flags & (RZDB_DUPSORT|RZDB_DUPFIXED))
+			== RZDB_DUPFIXED)
 			np->mp_flags |= P_LEAF2;
 		mc->mc_flags |= C_INITIALIZED;
 	} else {
@@ -7545,7 +7545,7 @@ mdb_cursor_put(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 	if (insert_key) {
 		/* The key does not exist */
 		DPRINTF(("inserting key at index %i", mc->mc_ki[mc->mc_top]));
-		if ((mc->mc_db->md_flags & MDB_DUPSORT) &&
+		if ((mc->mc_db->md_flags & RZDB_DUPSORT) &&
 			LEAFSIZE(key, data) > env->me_nodemax)
 		{
 			/* Too big for a node, insert in sub-DB.  Set up an empty
@@ -7553,7 +7553,7 @@ mdb_cursor_put(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 			 */
 			fp_flags = P_LEAF|P_DIRTY;
 			fp = env->me_pbuf;
-			fp->mp_pad = data->mv_size; /* used if MDB_DUPFIXED */
+			fp->mp_pad = data->mv_size; /* used if RZDB_DUPFIXED */
 			fp->mp_lower = fp->mp_upper = (PAGEHDRSZ-PAGEBASE);
 			olddata.mv_size = PAGEHDRSZ;
 			goto prep_subDB;
@@ -7564,7 +7564,7 @@ mdb_cursor_put(MDB_cursor *mc, MDB_val *key, MDB_val *data,
 			char *ptr;
 			unsigned int ksize = mc->mc_db->md_pad;
 			if (key->mv_size != ksize)
-				return MDB_BAD_VALSIZE;
+				return RZDB_BAD_VALSIZE;
 			ptr = LEAF2KEY(mc->mc_pg[mc->mc_top], mc->mc_ki[mc->mc_top], ksize);
 			memcpy(ptr, key->mv_data, ksize);
 fix_parent:
@@ -7582,12 +7582,12 @@ fix_parent:
 				if (mc->mc_ki[mc->mc_top])
 					rc2 = mdb_update_key(mc, key);
 				else
-					rc2 = MDB_SUCCESS;
+					rc2 = RZDB_SUCCESS;
 				mc->mc_top += dtop;
 				if (rc2)
 					return rc2;
 			}
-			return MDB_SUCCESS;
+			return RZDB_SUCCESS;
 		}
 
 more:
@@ -7596,7 +7596,7 @@ more:
 		olddata.mv_data = NODEDATA(leaf);
 
 		/* DB has dups? */
-		if (F_ISSET(mc->mc_db->md_flags, MDB_DUPSORT)) {
+		if (F_ISSET(mc->mc_db->md_flags, RZDB_DUPSORT)) {
 			/* Prepare (sub-)page/sub-DB to accept the new item,
 			 * if needed.  fp: old sub-page or a header faking
 			 * it.  mp: new (sub-)page.  offset: growth in page
@@ -7608,17 +7608,17 @@ more:
 
 			/* Was a single item before, must convert now */
 			if (!F_ISSET(leaf->mn_flags, F_DUPDATA)) {
-				MDB_cmp_func *dcmp;
+				RZDB_cmp_func *dcmp;
 				/* Just overwrite the current item */
-				if (flags == MDB_CURRENT)
+				if (flags == RZDB_CURRENT)
 					goto current;
 				dcmp = mc->mc_dbx->md_dcmp;
 				if (NEED_CMP_CLONG(dcmp, olddata.mv_size))
 					dcmp = mdb_cmp_clong;
 				/* does data match? */
 				if (!dcmp(data, &olddata, mc->mc_dbx->md_dcmpctx)) {
-					if (flags & (MDB_NODUPDATA|MDB_APPENDDUP))
-						return MDB_KEYEXIST;
+					if (flags & (RZDB_NODUPDATA|RZDB_APPENDDUP))
+						return RZDB_KEYEXIST;
 					/* overwrite it */
 					goto current;
 				}
@@ -7631,7 +7631,7 @@ more:
 				fp->mp_flags = P_LEAF|P_DIRTY|P_SUBP;
 				fp->mp_lower = (PAGEHDRSZ-PAGEBASE);
 				xdata.mv_size = PAGEHDRSZ + dkey.mv_size + data->mv_size;
-				if (mc->mc_db->md_flags & MDB_DUPFIXED) {
+				if (mc->mc_db->md_flags & RZDB_DUPFIXED) {
 					fp->mp_flags |= P_LEAF2;
 					fp->mp_pad = data->mv_size;
 					xdata.mv_size += 2 * data->mv_size;	/* leave space for 2 more */
@@ -7650,7 +7650,7 @@ more:
 				fp = olddata.mv_data;
 				switch (flags) {
 				default:
-					if (!(mc->mc_db->md_flags & MDB_DUPFIXED)) {
+					if (!(mc->mc_db->md_flags & RZDB_DUPFIXED)) {
 						offset = EVEN(NODESIZE + sizeof(indx_t) +
 							data->mv_size);
 						break;
@@ -7660,8 +7660,8 @@ more:
 						offset *= 4; /* space for 4 more */
 						break;
 					}
-					/* FALLTHRU: Big enough MDB_DUPFIXED sub-page */
-				case MDB_CURRENT:
+					/* FALLTHRU: Big enough RZDB_DUPFIXED sub-page */
+				case RZDB_CURRENT:
 					fp->mp_flags |= P_DIRTY;
 					COPY_PGNO(fp->mp_pgno, mp->mp_pgno);
 					mc->mc_xcursor->mx_cursor.mc_pg[0] = fp;
@@ -7676,12 +7676,12 @@ more:
 					/* Too big for a sub-page, convert to sub-DB */
 					fp_flags &= ~P_SUBP;
 prep_subDB:
-					if (mc->mc_db->md_flags & MDB_DUPFIXED) {
+					if (mc->mc_db->md_flags & RZDB_DUPFIXED) {
 						fp_flags |= P_LEAF2;
 						dummy.md_pad = fp->mp_pad;
-						dummy.md_flags = MDB_DUPFIXED;
-						if (mc->mc_db->md_flags & MDB_INTEGERDUP)
-							dummy.md_flags |= MDB_INTEGERKEY;
+						dummy.md_flags = RZDB_DUPFIXED;
+						if (mc->mc_db->md_flags & RZDB_INTEGERDUP)
+							dummy.md_flags |= RZDB_INTEGERKEY;
 					} else {
 						dummy.md_pad = 0;
 						dummy.md_flags = 0;
@@ -7691,7 +7691,7 @@ prep_subDB:
 					dummy.md_leaf_pages = 1;
 					dummy.md_overflow_pages = 0;
 					dummy.md_entries = NUMKEYS(fp);
-					xdata.mv_size = sizeof(MDB_db);
+					xdata.mv_size = sizeof(RZDB_db);
 					xdata.mv_data = &dummy;
 					if ((rc = mdb_page_alloc(mc, 1, &mp)))
 						return rc;
@@ -7726,10 +7726,10 @@ prep_subDB:
 current:
 		/* LMDB passes F_SUBDATA in 'flags' to write a DB record */
 		if ((leaf->mn_flags ^ flags) & F_SUBDATA)
-			return MDB_INCOMPATIBLE;
+			return RZDB_INCOMPATIBLE;
 		/* overflow page overwrites need special handling */
 		if (F_ISSET(leaf->mn_flags, F_BIGDATA)) {
-			MDB_page *omp;
+			RZDB_page *omp;
 			pgno_t pg;
 			int level, ovpages, dpages = OVPAGES(data->mv_size, env->me_psize);
 
@@ -7741,7 +7741,7 @@ current:
 			/* Is the ov page large enough? */
 			if (ovpages >= dpages) {
 			  if (!(omp->mp_flags & P_DIRTY) &&
-				  (level || (env->me_flags & MDB_WRITEMAP)))
+				  (level || (env->me_flags & RZDB_WRITEMAP)))
 			  {
 				rc = mdb_page_unspill(mc->mc_txn, omp, &omp);
 				if (rc)
@@ -7757,8 +7757,8 @@ current:
 				if (level > 1) {
 					/* It is writable only in a parent txn */
 					size_t sz = (size_t) env->me_psize * ovpages, off;
-					MDB_page *np = mdb_page_malloc(mc->mc_txn, ovpages);
-					MDB_ID2 id2;
+					RZDB_page *np = mdb_page_malloc(mc->mc_txn, ovpages);
+					RZDB_ID2 id2;
 					if (!np)
 						return ENOMEM;
 					id2.mid = pg;
@@ -7767,10 +7767,10 @@ current:
 					rc2 = mdb_mid2l_insert(mc->mc_txn->mt_u.dirty_list, &id2);
 					mdb_cassert(mc, rc2 == 0);
 					/* Currently we make the page look as with put() in the
-					 * parent txn, in case the user peeks at MDB_RESERVEd
+					 * parent txn, in case the user peeks at RZDB_RESERVEd
 					 * or unused parts. Some users treat ovpages specially.
 					 */
-					if (!(flags & MDB_RESERVE)) {
+					if (!(flags & RZDB_RESERVE)) {
 						/* Skip the part where LMDB will put *data.
 						 * Copy end of page, adjusting alignment so
 						 * compiler may copy words instead of bytes.
@@ -7784,21 +7784,21 @@ current:
 					omp = np;
 				}
 				SETDSZ(leaf, data->mv_size);
-				if (F_ISSET(flags, MDB_RESERVE))
+				if (F_ISSET(flags, RZDB_RESERVE))
 					data->mv_data = METADATA(omp);
 				else
 					memcpy(METADATA(omp), data->mv_data, data->mv_size);
-				return MDB_SUCCESS;
+				return RZDB_SUCCESS;
 			  }
 			}
-			if ((rc2 = mdb_ovpage_free(mc, omp)) != MDB_SUCCESS)
+			if ((rc2 = mdb_ovpage_free(mc, omp)) != RZDB_SUCCESS)
 				return rc2;
 		} else if (data->mv_size == olddata.mv_size) {
 			/* same size, just replace it. Note that we could
 			 * also reuse this node if the new data is smaller,
 			 * but instead we opt to shrink the node in that case.
 			 */
-			if (F_ISSET(flags, MDB_RESERVE))
+			if (F_ISSET(flags, RZDB_RESERVE))
 				data->mv_data = olddata.mv_data;
 			else if (!(mc->mc_flags & C_SUB))
 				memcpy(olddata.mv_data, data->mv_data, data->mv_size);
@@ -7806,7 +7806,7 @@ current:
 				memcpy(NODEKEY(leaf), key->mv_data, key->mv_size);
 				goto fix_parent;
 			}
-			return MDB_SUCCESS;
+			return RZDB_SUCCESS;
 		}
 		mdb_node_del(mc, 0);
 	}
@@ -7818,19 +7818,19 @@ new_sub:
 	nsize = IS_LEAF2(mc->mc_pg[mc->mc_top]) ? key->mv_size : mdb_leaf_size(env, key, rdata);
 	if (SIZELEFT(mc->mc_pg[mc->mc_top]) < nsize) {
 		if (( flags & (F_DUPDATA|F_SUBDATA)) == F_DUPDATA )
-			nflags &= ~MDB_APPEND; /* sub-page may need room to grow */
+			nflags &= ~RZDB_APPEND; /* sub-page may need room to grow */
 		if (!insert_key)
-			nflags |= MDB_SPLIT_REPLACE;
+			nflags |= RZDB_SPLIT_REPLACE;
 		rc = mdb_page_split(mc, key, rdata, P_INVALID, nflags);
 	} else {
 		/* There is room already in this leaf page. */
 		rc = mdb_node_add(mc, mc->mc_ki[mc->mc_top], key, rdata, 0, nflags);
 		if (rc == 0) {
 			/* Adjust other cursors pointing to mp */
-			MDB_cursor *m2, *m3;
-			MDB_dbi dbi = mc->mc_dbi;
+			RZDB_cursor *m2, *m3;
+			RZDB_dbi dbi = mc->mc_dbi;
 			unsigned i = mc->mc_top;
-			MDB_page *mp = mc->mc_pg[i];
+			RZDB_page *mp = mc->mc_pg[i];
 
 			for (m2 = mc->mc_txn->mt_cursors[dbi]; m2; m2=m2->mc_next) {
 				if (mc->mc_flags & C_SUB)
@@ -7846,7 +7846,7 @@ new_sub:
 		}
 	}
 
-	if (rc == MDB_SUCCESS) {
+	if (rc == RZDB_SUCCESS) {
 		/* Now store the actual data in the child DB. Note that we're
 		 * storing the user data in the keys field, so there are strict
 		 * size limits on dupdata. The actual data fields of the child
@@ -7859,12 +7859,12 @@ put_sub:
 			xdata.mv_size = 0;
 			xdata.mv_data = "";
 			leaf = NODEPTR(mc->mc_pg[mc->mc_top], mc->mc_ki[mc->mc_top]);
-			if (flags & MDB_CURRENT) {
-				xflags = MDB_CURRENT|MDB_NOSPILL;
+			if (flags & RZDB_CURRENT) {
+				xflags = RZDB_CURRENT|RZDB_NOSPILL;
 			} else {
 				mdb_xcursor_init1(mc, leaf);
-				xflags = (flags & MDB_NODUPDATA) ?
-					MDB_NOOVERWRITE|MDB_NOSPILL : MDB_NOSPILL;
+				xflags = (flags & RZDB_NODUPDATA) ?
+					RZDB_NOOVERWRITE|RZDB_NOSPILL : RZDB_NOSPILL;
 			}
 			if (sub_root)
 				mc->mc_xcursor->mx_cursor.mc_pg[0] = sub_root;
@@ -7879,10 +7879,10 @@ put_sub:
 			}
 			if (!(leaf->mn_flags & F_SUBDATA) || sub_root) {
 				/* Adjust other cursors pointing to mp */
-				MDB_cursor *m2;
-				MDB_xcursor *mx = mc->mc_xcursor;
+				RZDB_cursor *m2;
+				RZDB_xcursor *mx = mc->mc_xcursor;
 				unsigned i = mc->mc_top;
-				MDB_page *mp = mc->mc_pg[i];
+				RZDB_page *mp = mc->mc_pg[i];
 
 				for (m2 = mc->mc_txn->mt_cursors[mc->mc_dbi]; m2; m2=m2->mc_next) {
 					if (m2 == mc || m2->mc_snum < mc->mc_snum) continue;
@@ -7897,12 +7897,12 @@ put_sub:
 				}
 			}
 			ecount = mc->mc_xcursor->mx_db.md_entries;
-			if (flags & MDB_APPENDDUP)
-				xflags |= MDB_APPEND;
+			if (flags & RZDB_APPENDDUP)
+				xflags |= RZDB_APPEND;
 			rc = mdb_cursor_put(&mc->mc_xcursor->mx_cursor, data, &xdata, xflags);
 			if (flags & F_SUBDATA) {
 				void *db = NODEDATA(leaf);
-				memcpy(db, &mc->mc_xcursor->mx_db, sizeof(MDB_db));
+				memcpy(db, &mc->mc_xcursor->mx_db, sizeof(RZDB_db));
 			}
 			insert_data = mc->mc_xcursor->mx_db.md_entries - ecount;
 		}
@@ -7918,7 +7918,7 @@ put_sub:
 			 */
 			mc->mc_flags |= C_INITIALIZED;
 		}
-		if (flags & MDB_MULTIPLE) {
+		if (flags & RZDB_MULTIPLE) {
 			if (!rc) {
 				mcount++;
 				/* let caller know how many succeeded, if any */
@@ -7932,30 +7932,30 @@ put_sub:
 		}
 		return rc;
 bad_sub:
-		if (rc == MDB_KEYEXIST)	/* should not happen, we deleted that item */
-			rc = MDB_PROBLEM;
+		if (rc == RZDB_KEYEXIST)	/* should not happen, we deleted that item */
+			rc = RZDB_PROBLEM;
 	}
-	mc->mc_txn->mt_flags |= MDB_TXN_ERROR;
+	mc->mc_txn->mt_flags |= RZDB_TXN_ERROR;
 	return rc;
 }
 
 int
-mdb_cursor_del(MDB_cursor *mc, unsigned int flags)
+mdb_cursor_del(RZDB_cursor *mc, unsigned int flags)
 {
-	MDB_node	*leaf;
-	MDB_page	*mp;
+	RZDB_node	*leaf;
+	RZDB_page	*mp;
 	int rc;
 
-	if (mc->mc_txn->mt_flags & (MDB_TXN_RDONLY|MDB_TXN_BLOCKED))
-		return (mc->mc_txn->mt_flags & MDB_TXN_RDONLY) ? EACCES : MDB_BAD_TXN;
+	if (mc->mc_txn->mt_flags & (RZDB_TXN_RDONLY|RZDB_TXN_BLOCKED))
+		return (mc->mc_txn->mt_flags & RZDB_TXN_RDONLY) ? EACCES : RZDB_BAD_TXN;
 
 	if (!(mc->mc_flags & C_INITIALIZED))
 		return EINVAL;
 
 	if (mc->mc_ki[mc->mc_top] >= NUMKEYS(mc->mc_pg[mc->mc_top]))
-		return MDB_NOTFOUND;
+		return RZDB_NOTFOUND;
 
-	if (!(flags & MDB_NOSPILL) && (rc = mdb_page_spill(mc, NULL, NULL)))
+	if (!(flags & RZDB_NOSPILL) && (rc = mdb_page_spill(mc, NULL, NULL)))
 		return rc;
 
 	rc = mdb_cursor_touch(mc);
@@ -7968,7 +7968,7 @@ mdb_cursor_del(MDB_cursor *mc, unsigned int flags)
 	leaf = NODEPTR(mp, mc->mc_ki[mc->mc_top]);
 
 	if (F_ISSET(leaf->mn_flags, F_DUPDATA)) {
-		if (flags & MDB_NODUPDATA) {
+		if (flags & RZDB_NODUPDATA) {
 			/* mdb_cursor_del0() will subtract the final entry */
 			mc->mc_db->md_entries -= mc->mc_xcursor->mx_db.md_entries - 1;
 			mc->mc_xcursor->mx_cursor.mc_flags &= ~C_INITIALIZED;
@@ -7976,7 +7976,7 @@ mdb_cursor_del(MDB_cursor *mc, unsigned int flags)
 			if (!F_ISSET(leaf->mn_flags, F_SUBDATA)) {
 				mc->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(leaf);
 			}
-			rc = mdb_cursor_del(&mc->mc_xcursor->mx_cursor, MDB_NOSPILL);
+			rc = mdb_cursor_del(&mc->mc_xcursor->mx_cursor, RZDB_NOSPILL);
 			if (rc)
 				return rc;
 			/* If sub-DB still has entries, we're done */
@@ -7984,9 +7984,9 @@ mdb_cursor_del(MDB_cursor *mc, unsigned int flags)
 				if (leaf->mn_flags & F_SUBDATA) {
 					/* update subDB info */
 					void *db = NODEDATA(leaf);
-					memcpy(db, &mc->mc_xcursor->mx_db, sizeof(MDB_db));
+					memcpy(db, &mc->mc_xcursor->mx_db, sizeof(RZDB_db));
 				} else {
-					MDB_cursor *m2;
+					RZDB_cursor *m2;
 					/* shrink fake page */
 					mdb_node_shrink(mp, mc->mc_ki[mc->mc_top]);
 					leaf = NODEPTR(mp, mc->mc_ki[mc->mc_top]);
@@ -8017,13 +8017,13 @@ mdb_cursor_del(MDB_cursor *mc, unsigned int flags)
 	}
 	/* LMDB passes F_SUBDATA in 'flags' to delete a DB record */
 	else if ((leaf->mn_flags ^ flags) & F_SUBDATA) {
-		rc = MDB_INCOMPATIBLE;
+		rc = RZDB_INCOMPATIBLE;
 		goto fail;
 	}
 
 	/* add overflow pages to free list */
 	if (F_ISSET(leaf->mn_flags, F_BIGDATA)) {
-		MDB_page *omp;
+		RZDB_page *omp;
 		pgno_t pg;
 
 		memcpy(&pg, NODEDATA(leaf), sizeof(pg));
@@ -8036,12 +8036,12 @@ del_key:
 	return mdb_cursor_del0(mc);
 
 fail:
-	mc->mc_txn->mt_flags |= MDB_TXN_ERROR;
+	mc->mc_txn->mt_flags |= RZDB_TXN_ERROR;
 	return rc;
 }
 
 /** Allocate and initialize new pages for a database.
- * Set #MDB_TXN_ERROR on failure.
+ * Set #RZDB_TXN_ERROR on failure.
  * @param[in] mc a cursor on the database being added to.
  * @param[in] flags flags defining what type of page is being allocated.
  * @param[in] num the number of pages to allocate. This is usually 1,
@@ -8050,9 +8050,9 @@ fail:
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_page_new(MDB_cursor *mc, uint32_t flags, int num, MDB_page **mp)
+mdb_page_new(RZDB_cursor *mc, uint32_t flags, int num, RZDB_page **mp)
 {
-	MDB_page	*np;
+	RZDB_page	*np;
 	int rc;
 
 	if ((rc = mdb_page_alloc(mc, num, &np)))
@@ -8081,14 +8081,14 @@ mdb_page_new(MDB_cursor *mc, uint32_t flags, int num, MDB_page **mp)
  * is too large it will be put onto an overflow page and the node
  * size will only include the key and not the data. Sizes are always
  * rounded up to an even number of bytes, to guarantee 2-byte alignment
- * of the #MDB_node headers.
+ * of the #RZDB_node headers.
  * @param[in] env The environment handle.
  * @param[in] key The key for the node.
  * @param[in] data The data for the node.
  * @return The number of bytes needed to store the node.
  */
 static size_t
-mdb_leaf_size(MDB_env *env, MDB_val *key, MDB_val *data)
+mdb_leaf_size(RZDB_env *env, RZDB_val *key, RZDB_val *data)
 {
 	size_t		 sz;
 
@@ -8104,15 +8104,15 @@ mdb_leaf_size(MDB_env *env, MDB_val *key, MDB_val *data)
 /** Calculate the size of a branch node.
  * The size should depend on the environment's page size but since
  * we currently don't support spilling large keys onto overflow
- * pages, it's simply the size of the #MDB_node header plus the
+ * pages, it's simply the size of the #RZDB_node header plus the
  * size of the key. Sizes are always rounded up to an even number
- * of bytes, to guarantee 2-byte alignment of the #MDB_node headers.
+ * of bytes, to guarantee 2-byte alignment of the #RZDB_node headers.
  * @param[in] env The environment handle.
  * @param[in] key The key for the node.
  * @return The number of bytes needed to store the node.
  */
 static size_t
-mdb_branch_size(MDB_env *env, MDB_val *key)
+mdb_branch_size(RZDB_env *env, RZDB_val *key)
 {
 	size_t		 sz;
 
@@ -8127,7 +8127,7 @@ mdb_branch_size(MDB_env *env, MDB_val *key)
 }
 
 /** Add a node to the page pointed to by the cursor.
- * Set #MDB_TXN_ERROR on failure.
+ * Set #RZDB_TXN_ERROR on failure.
  * @param[in] mc The cursor for this operation.
  * @param[in] indx The index on the page where the new node should be added.
  * @param[in] key The key for the new node.
@@ -8137,22 +8137,22 @@ mdb_branch_size(MDB_env *env, MDB_val *key)
  * @return 0 on success, non-zero on failure. Possible errors are:
  * <ul>
  *	<li>ENOMEM - failed to allocate overflow pages for the node.
- *	<li>MDB_PAGE_FULL - there is insufficient room in the page. This error
+ *	<li>RZDB_PAGE_FULL - there is insufficient room in the page. This error
  *	should never happen since all callers already calculate the
  *	page's free space before calling this function.
  * </ul>
  */
 static int
-mdb_node_add(MDB_cursor *mc, indx_t indx,
-    MDB_val *key, MDB_val *data, pgno_t pgno, unsigned int flags)
+mdb_node_add(RZDB_cursor *mc, indx_t indx,
+    RZDB_val *key, RZDB_val *data, pgno_t pgno, unsigned int flags)
 {
 	unsigned int	 i;
 	size_t		 node_size = NODESIZE;
 	ssize_t		 room;
 	indx_t		 ofs;
-	MDB_node	*node;
-	MDB_page	*mp = mc->mc_pg[mc->mc_top];
-	MDB_page	*ofp = NULL;		/* overflow page */
+	RZDB_node	*node;
+	RZDB_page	*mp = mc->mc_pg[mc->mc_top];
+	RZDB_page	*ofp = NULL;		/* overflow page */
 	void		*ndata;
 	DKBUF;
 
@@ -8177,7 +8177,7 @@ mdb_node_add(MDB_cursor *mc, indx_t indx,
 		/* Just using these for counting */
 		mp->mp_lower += sizeof(indx_t);
 		mp->mp_upper -= ksize - sizeof(indx_t);
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 
 	room = (ssize_t)SIZELEFT(mp) - (ssize_t)sizeof(indx_t);
@@ -8239,44 +8239,44 @@ update:
 		if (ofp == NULL) {
 			if (F_ISSET(flags, F_BIGDATA))
 				memcpy(ndata, data->mv_data, sizeof(pgno_t));
-			else if (F_ISSET(flags, MDB_RESERVE))
+			else if (F_ISSET(flags, RZDB_RESERVE))
 				data->mv_data = ndata;
 			else
 				memcpy(ndata, data->mv_data, data->mv_size);
 		} else {
 			memcpy(ndata, &ofp->mp_pgno, sizeof(pgno_t));
 			ndata = METADATA(ofp);
-			if (F_ISSET(flags, MDB_RESERVE))
+			if (F_ISSET(flags, RZDB_RESERVE))
 				data->mv_data = ndata;
 			else
 				memcpy(ndata, data->mv_data, data->mv_size);
 		}
 	}
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 
 full:
 	DPRINTF(("not enough room in page %"Yu", got %u ptrs",
 		mdb_dbg_pgno(mp), NUMKEYS(mp)));
 	DPRINTF(("upper-lower = %u - %u = %"Z"d", mp->mp_upper,mp->mp_lower,room));
 	DPRINTF(("node size = %"Z"u", node_size));
-	mc->mc_txn->mt_flags |= MDB_TXN_ERROR;
-	return MDB_PAGE_FULL;
+	mc->mc_txn->mt_flags |= RZDB_TXN_ERROR;
+	return RZDB_PAGE_FULL;
 }
 
 /** Delete the specified node from a page.
  * @param[in] mc Cursor pointing to the node to delete.
  * @param[in] ksize The size of a node. Only used if the page is
- * part of a #MDB_DUPFIXED database.
+ * part of a #RZDB_DUPFIXED database.
  */
 static void
-mdb_node_del(MDB_cursor *mc, int ksize)
+mdb_node_del(RZDB_cursor *mc, int ksize)
 {
-	MDB_page *mp = mc->mc_pg[mc->mc_top];
+	RZDB_page *mp = mc->mc_pg[mc->mc_top];
 	indx_t	indx = mc->mc_ki[mc->mc_top];
 	unsigned int	 sz;
 	indx_t		 i, j, numkeys, ptr;
-	MDB_node	*node;
+	RZDB_node	*node;
 	char		*base;
 
 	DPRINTF(("delete node %u on %s page %"Yu, indx,
@@ -8326,16 +8326,16 @@ mdb_node_del(MDB_cursor *mc, int ksize)
  * @param[in] indx The index of the subpage on the main page.
  */
 static void
-mdb_node_shrink(MDB_page *mp, indx_t indx)
+mdb_node_shrink(RZDB_page *mp, indx_t indx)
 {
-	MDB_node *node;
-	MDB_page *sp, *xp;
+	RZDB_node *node;
+	RZDB_page *sp, *xp;
 	char *base;
 	indx_t delta, nsize, len, ptr;
 	int i;
 
 	node = NODEPTR(mp, indx);
-	sp = (MDB_page *)NODEDATA(node);
+	sp = (RZDB_page *)NODEDATA(node);
 	delta = SIZELEFT(sp);
 	nsize = NODEDSZ(node) - delta;
 
@@ -8345,7 +8345,7 @@ mdb_node_shrink(MDB_page *mp, indx_t indx)
 		if (nsize & 1)
 			return;		/* do not make the node uneven-sized */
 	} else {
-		xp = (MDB_page *)((char *)sp + delta); /* destination subpage */
+		xp = (RZDB_page *)((char *)sp + delta); /* destination subpage */
 		for (i = NUMKEYS(sp); --i >= 0; )
 			xp->mp_ptrs[i] = sp->mp_ptrs[i] - delta;
 		len = PAGEHDRSZ;
@@ -8376,9 +8376,9 @@ mdb_node_shrink(MDB_page *mp, indx_t indx)
  * @param[in] mc The main cursor whose sorted-dups cursor is to be initialized.
  */
 static void
-mdb_xcursor_init0(MDB_cursor *mc)
+mdb_xcursor_init0(RZDB_cursor *mc)
 {
-	MDB_xcursor *mx = mc->mc_xcursor;
+	RZDB_xcursor *mx = mc->mc_xcursor;
 
 	mx->mx_cursor.mc_xcursor = NULL;
 	mx->mx_cursor.mc_txn = mc->mc_txn;
@@ -8401,22 +8401,22 @@ mdb_xcursor_init0(MDB_cursor *mc)
 /** Final setup of a sorted-dups cursor.
  *	Sets up the fields that depend on the data from the main cursor.
  * @param[in] mc The main cursor whose sorted-dups cursor is to be initialized.
- * @param[in] node The data containing the #MDB_db record for the
+ * @param[in] node The data containing the #RZDB_db record for the
  * sorted-dup database.
  */
 static void
-mdb_xcursor_init1(MDB_cursor *mc, MDB_node *node)
+mdb_xcursor_init1(RZDB_cursor *mc, RZDB_node *node)
 {
-	MDB_xcursor *mx = mc->mc_xcursor;
+	RZDB_xcursor *mx = mc->mc_xcursor;
 
 	mx->mx_cursor.mc_flags &= C_SUB|C_ORIG_RDONLY|C_WRITEMAP;
 	if (node->mn_flags & F_SUBDATA) {
-		memcpy(&mx->mx_db, NODEDATA(node), sizeof(MDB_db));
+		memcpy(&mx->mx_db, NODEDATA(node), sizeof(RZDB_db));
 		mx->mx_cursor.mc_pg[0] = 0;
 		mx->mx_cursor.mc_snum = 0;
 		mx->mx_cursor.mc_top = 0;
 	} else {
-		MDB_page *fp = NODEDATA(node);
+		RZDB_page *fp = NODEDATA(node);
 		mx->mx_db.md_pad = 0;
 		mx->mx_db.md_flags = 0;
 		mx->mx_db.md_depth = 1;
@@ -8430,11 +8430,11 @@ mdb_xcursor_init1(MDB_cursor *mc, MDB_node *node)
 		mx->mx_cursor.mc_flags |= C_INITIALIZED;
 		mx->mx_cursor.mc_pg[0] = fp;
 		mx->mx_cursor.mc_ki[0] = 0;
-		if (mc->mc_db->md_flags & MDB_DUPFIXED) {
-			mx->mx_db.md_flags = MDB_DUPFIXED;
+		if (mc->mc_db->md_flags & RZDB_DUPFIXED) {
+			mx->mx_db.md_flags = RZDB_DUPFIXED;
 			mx->mx_db.md_pad = fp->mp_pad;
-			if (mc->mc_db->md_flags & MDB_INTEGERDUP)
-				mx->mx_db.md_flags |= MDB_INTEGERKEY;
+			if (mc->mc_db->md_flags & RZDB_INTEGERDUP)
+				mx->mx_db.md_flags |= RZDB_INTEGERKEY;
 		}
 	}
 	DPRINTF(("Sub-db -%u root page %"Yu, mx->mx_cursor.mc_dbi,
@@ -8454,9 +8454,9 @@ mdb_xcursor_init1(MDB_cursor *mc, MDB_node *node)
  * @param[in] new_dupdata True if converting from a non-#F_DUPDATA item.
  */
 static void
-mdb_xcursor_init2(MDB_cursor *mc, MDB_xcursor *src_mx, int new_dupdata)
+mdb_xcursor_init2(RZDB_cursor *mc, RZDB_xcursor *src_mx, int new_dupdata)
 {
-	MDB_xcursor *mx = mc->mc_xcursor;
+	RZDB_xcursor *mx = mc->mc_xcursor;
 
 	if (new_dupdata) {
 		mx->mx_cursor.mc_snum = 1;
@@ -8464,7 +8464,7 @@ mdb_xcursor_init2(MDB_cursor *mc, MDB_xcursor *src_mx, int new_dupdata)
 		mx->mx_cursor.mc_flags |= C_INITIALIZED;
 		mx->mx_cursor.mc_ki[0] = 0;
 		mx->mx_dbflag = DB_VALID|DB_USRVALID|DB_DUPDATA;
-#if UINT_MAX < MDB_SIZE_MAX	/* matches mdb_xcursor_init1:NEED_CMP_CLONG() */
+#if UINT_MAX < RZDB_SIZE_MAX	/* matches mdb_xcursor_init1:NEED_CMP_CLONG() */
 		mx->mx_dbx.md_cmp = src_mx->mx_dbx.md_cmp;
 #endif
 	} else if (!(mx->mx_cursor.mc_flags & C_INITIALIZED)) {
@@ -8478,7 +8478,7 @@ mdb_xcursor_init2(MDB_cursor *mc, MDB_xcursor *src_mx, int new_dupdata)
 
 /** Initialize a cursor for a given transaction and database. */
 static void
-mdb_cursor_init(MDB_cursor *mc, MDB_txn *txn, MDB_dbi dbi, MDB_xcursor *mx)
+mdb_cursor_init(RZDB_cursor *mc, RZDB_txn *txn, RZDB_dbi dbi, RZDB_xcursor *mx)
 {
 	mc->mc_next = NULL;
 	mc->mc_backup = NULL;
@@ -8493,7 +8493,7 @@ mdb_cursor_init(MDB_cursor *mc, MDB_txn *txn, MDB_dbi dbi, MDB_xcursor *mx)
 	mc->mc_ki[0] = 0;
 	MC_SET_OVPG(mc, NULL);
 	mc->mc_flags = txn->mt_flags & (C_ORIG_RDONLY|C_WRITEMAP);
-	if (txn->mt_dbs[dbi].md_flags & MDB_DUPSORT) {
+	if (txn->mt_dbs[dbi].md_flags & RZDB_DUPSORT) {
 		mdb_tassert(txn, mx != NULL);
 		mc->mc_xcursor = mx;
 		mdb_xcursor_init0(mc);
@@ -8501,30 +8501,30 @@ mdb_cursor_init(MDB_cursor *mc, MDB_txn *txn, MDB_dbi dbi, MDB_xcursor *mx)
 		mc->mc_xcursor = NULL;
 	}
 	if (*mc->mc_dbflag & DB_STALE) {
-		mdb_page_search(mc, NULL, MDB_PS_ROOTONLY);
+		mdb_page_search(mc, NULL, RZDB_PS_ROOTONLY);
 	}
 }
 
 int
-mdb_cursor_open(MDB_txn *txn, MDB_dbi dbi, MDB_cursor **ret)
+mdb_cursor_open(RZDB_txn *txn, RZDB_dbi dbi, RZDB_cursor **ret)
 {
-	MDB_cursor	*mc;
-	size_t size = sizeof(MDB_cursor);
+	RZDB_cursor	*mc;
+	size_t size = sizeof(RZDB_cursor);
 
 	if (!ret || !TXN_DBI_EXIST(txn, dbi, DB_VALID))
 		return EINVAL;
 
-	if (txn->mt_flags & MDB_TXN_BLOCKED)
-		return MDB_BAD_TXN;
+	if (txn->mt_flags & RZDB_TXN_BLOCKED)
+		return RZDB_BAD_TXN;
 
-	if (dbi == FREE_DBI && !F_ISSET(txn->mt_flags, MDB_TXN_RDONLY))
+	if (dbi == FREE_DBI && !F_ISSET(txn->mt_flags, RZDB_TXN_RDONLY))
 		return EINVAL;
 
-	if (txn->mt_dbs[dbi].md_flags & MDB_DUPSORT)
-		size += sizeof(MDB_xcursor);
+	if (txn->mt_dbs[dbi].md_flags & RZDB_DUPSORT)
+		size += sizeof(RZDB_xcursor);
 
 	if ((mc = malloc(size)) != NULL) {
-		mdb_cursor_init(mc, txn, dbi, (MDB_xcursor *)(mc + 1));
+		mdb_cursor_init(mc, txn, dbi, (RZDB_xcursor *)(mc + 1));
 		if (txn->mt_cursors) {
 			mc->mc_next = txn->mt_cursors[dbi];
 			txn->mt_cursors[dbi] = mc;
@@ -8536,11 +8536,11 @@ mdb_cursor_open(MDB_txn *txn, MDB_dbi dbi, MDB_cursor **ret)
 
 	*ret = mc;
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int
-mdb_cursor_renew(MDB_txn *txn, MDB_cursor *mc)
+mdb_cursor_renew(RZDB_txn *txn, RZDB_cursor *mc)
 {
 	if (!mc || !TXN_DBI_EXIST(txn, mc->mc_dbi, DB_VALID))
 		return EINVAL;
@@ -8548,37 +8548,37 @@ mdb_cursor_renew(MDB_txn *txn, MDB_cursor *mc)
 	if ((mc->mc_flags & C_UNTRACK) || txn->mt_cursors)
 		return EINVAL;
 
-	if (txn->mt_flags & MDB_TXN_BLOCKED)
-		return MDB_BAD_TXN;
+	if (txn->mt_flags & RZDB_TXN_BLOCKED)
+		return RZDB_BAD_TXN;
 
 	mdb_cursor_init(mc, txn, mc->mc_dbi, mc->mc_xcursor);
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /* Return the count of duplicate data items for the current key */
 int
-mdb_cursor_count(MDB_cursor *mc, mdb_size_t *countp)
+mdb_cursor_count(RZDB_cursor *mc, mdb_size_t *countp)
 {
-	MDB_node	*leaf;
+	RZDB_node	*leaf;
 
 	if (mc == NULL || countp == NULL)
 		return EINVAL;
 
 	if (mc->mc_xcursor == NULL)
-		return MDB_INCOMPATIBLE;
+		return RZDB_INCOMPATIBLE;
 
-	if (mc->mc_txn->mt_flags & MDB_TXN_BLOCKED)
-		return MDB_BAD_TXN;
+	if (mc->mc_txn->mt_flags & RZDB_TXN_BLOCKED)
+		return RZDB_BAD_TXN;
 
 	if (!(mc->mc_flags & C_INITIALIZED))
 		return EINVAL;
 
 	if (!mc->mc_snum)
-		return MDB_NOTFOUND;
+		return RZDB_NOTFOUND;
 
 	if (mc->mc_flags & C_EOF) {
 		if (mc->mc_ki[mc->mc_top] >= NUMKEYS(mc->mc_pg[mc->mc_top]))
-			return MDB_NOTFOUND;
+			return RZDB_NOTFOUND;
 		mc->mc_flags ^= C_EOF;
 	}
 
@@ -8591,14 +8591,14 @@ mdb_cursor_count(MDB_cursor *mc, mdb_size_t *countp)
 
 		*countp = mc->mc_xcursor->mx_db.md_entries;
 	}
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 void
-mdb_cursor_close(MDB_cursor *mc)
+mdb_cursor_close(RZDB_cursor *mc)
 {
 	if (mc) {
-		MDB_CURSOR_UNREF(mc, 0);
+		RZDB_CURSOR_UNREF(mc, 0);
 	}
 	if (mc && !mc->mc_backup) {
 		/* Remove from txn, if tracked.
@@ -8606,7 +8606,7 @@ mdb_cursor_close(MDB_cursor *mc)
 		 * so do not peek inside it.  Only write txns track cursors.
 		 */
 		if ((mc->mc_flags & C_UNTRACK) && mc->mc_txn->mt_cursors) {
-			MDB_cursor **prev = &mc->mc_txn->mt_cursors[mc->mc_dbi];
+			RZDB_cursor **prev = &mc->mc_txn->mt_cursors[mc->mc_dbi];
 			while (*prev && *prev != mc) prev = &(*prev)->mc_next;
 			if (*prev == mc)
 				*prev = mc->mc_next;
@@ -8615,30 +8615,30 @@ mdb_cursor_close(MDB_cursor *mc)
 	}
 }
 
-MDB_txn *
-mdb_cursor_txn(MDB_cursor *mc)
+RZDB_txn *
+mdb_cursor_txn(RZDB_cursor *mc)
 {
 	if (!mc) return NULL;
 	return mc->mc_txn;
 }
 
-MDB_dbi
-mdb_cursor_dbi(MDB_cursor *mc)
+RZDB_dbi
+mdb_cursor_dbi(RZDB_cursor *mc)
 {
 	return mc->mc_dbi;
 }
 
 /** Replace the key for a branch node with a new key.
- * Set #MDB_TXN_ERROR on failure.
+ * Set #RZDB_TXN_ERROR on failure.
  * @param[in] mc Cursor pointing to the node to operate on.
  * @param[in] key The new key to use.
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_update_key(MDB_cursor *mc, MDB_val *key)
+mdb_update_key(RZDB_cursor *mc, RZDB_val *key)
 {
-	MDB_page		*mp;
-	MDB_node		*node;
+	RZDB_page		*mp;
+	RZDB_node		*node;
 	char			*base;
 	size_t			 len;
 	int				 delta, ksize, oksize;
@@ -8649,9 +8649,9 @@ mdb_update_key(MDB_cursor *mc, MDB_val *key)
 	mp = mc->mc_pg[mc->mc_top];
 	node = NODEPTR(mp, indx);
 	ptr = mp->mp_ptrs[indx];
-#if MDB_DEBUG
+#if RZDB_DEBUG
 	{
-		MDB_val	k2;
+		RZDB_val	k2;
 		char kbuf2[DKBUF_MAXKEYSIZE*2+1];
 		k2.mv_data = NODEKEY(node);
 		k2.mv_size = node->mn_ksize;
@@ -8676,7 +8676,7 @@ mdb_update_key(MDB_cursor *mc, MDB_val *key)
 			DPRINTF(("Not enough room, delta = %d, splitting...", delta));
 			pgno = NODEPGNO(node);
 			mdb_node_del(mc, 0);
-			return mdb_page_split(mc, key, NULL, pgno, MDB_SPLIT_REPLACE);
+			return mdb_page_split(mc, key, NULL, pgno, RZDB_SPLIT_REPLACE);
 		}
 
 		numkeys = NUMKEYS(mp);
@@ -8700,18 +8700,18 @@ mdb_update_key(MDB_cursor *mc, MDB_val *key)
 	if (key->mv_size)
 		memcpy(NODEKEY(node), key->mv_data, key->mv_size);
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 static void
-mdb_cursor_copy(const MDB_cursor *csrc, MDB_cursor *cdst);
+mdb_cursor_copy(const RZDB_cursor *csrc, RZDB_cursor *cdst);
 
 /** Perform \b act while tracking temporary cursor \b mn */
 #define WITH_CURSOR_TRACKING(mn, act) do { \
-	MDB_cursor dummy, *tracked, **tp = &(mn).mc_txn->mt_cursors[mn.mc_dbi]; \
+	RZDB_cursor dummy, *tracked, **tp = &(mn).mc_txn->mt_cursors[mn.mc_dbi]; \
 	if ((mn).mc_flags & C_SUB) { \
 		dummy.mc_flags =  C_INITIALIZED; \
-		dummy.mc_xcursor = (MDB_xcursor *)&(mn);	\
+		dummy.mc_xcursor = (RZDB_xcursor *)&(mn);	\
 		tracked = &dummy; \
 	} else { \
 		tracked = &(mn); \
@@ -8725,12 +8725,12 @@ mdb_cursor_copy(const MDB_cursor *csrc, MDB_cursor *cdst);
 /** Move a node from csrc to cdst.
  */
 static int
-mdb_node_move(MDB_cursor *csrc, MDB_cursor *cdst, int fromleft)
+mdb_node_move(RZDB_cursor *csrc, RZDB_cursor *cdst, int fromleft)
 {
-	MDB_node		*srcnode;
-	MDB_val		 key, data;
+	RZDB_node		*srcnode;
+	RZDB_val		 key, data;
 	pgno_t	srcpg;
-	MDB_cursor mn;
+	RZDB_cursor mn;
 	int			 rc;
 	unsigned short flags;
 
@@ -8755,7 +8755,7 @@ mdb_node_move(MDB_cursor *csrc, MDB_cursor *cdst, int fromleft)
 		flags = srcnode->mn_flags;
 		if (csrc->mc_ki[csrc->mc_top] == 0 && IS_BRANCH(csrc->mc_pg[csrc->mc_top])) {
 			unsigned int snum = csrc->mc_snum;
-			MDB_node *s2;
+			RZDB_node *s2;
 			/* must find the lowest key below src */
 			rc = mdb_page_search_lowest(csrc);
 			if (rc)
@@ -8780,8 +8780,8 @@ mdb_node_move(MDB_cursor *csrc, MDB_cursor *cdst, int fromleft)
 	mn.mc_xcursor = NULL;
 	if (IS_BRANCH(cdst->mc_pg[cdst->mc_top]) && cdst->mc_ki[cdst->mc_top] == 0) {
 		unsigned int snum = cdst->mc_snum;
-		MDB_node *s2;
-		MDB_val bkey;
+		RZDB_node *s2;
+		RZDB_val bkey;
 		/* must find the lowest key below dst */
 		mdb_cursor_copy(cdst, &mn);
 		rc = mdb_page_search_lowest(&mn);
@@ -8813,7 +8813,7 @@ mdb_node_move(MDB_cursor *csrc, MDB_cursor *cdst, int fromleft)
 	/* Add the node to the destination page.
 	 */
 	rc = mdb_node_add(cdst, cdst->mc_ki[cdst->mc_top], &key, &data, srcpg, flags);
-	if (rc != MDB_SUCCESS)
+	if (rc != RZDB_SUCCESS)
 		return rc;
 
 	/* Delete the node from the source page.
@@ -8822,9 +8822,9 @@ mdb_node_move(MDB_cursor *csrc, MDB_cursor *cdst, int fromleft)
 
 	{
 		/* Adjust other cursors pointing to mp */
-		MDB_cursor *m2, *m3;
-		MDB_dbi dbi = csrc->mc_dbi;
-		MDB_page *mpd, *mps;
+		RZDB_cursor *m2, *m3;
+		RZDB_dbi dbi = csrc->mc_dbi;
+		RZDB_page *mpd, *mps;
 
 		mps = csrc->mc_pg[csrc->mc_top];
 		/* If we're adding on the left, bump others up */
@@ -8901,13 +8901,13 @@ mdb_node_move(MDB_cursor *csrc, MDB_cursor *cdst, int fromleft)
 				return rc;
 		}
 		if (IS_BRANCH(csrc->mc_pg[csrc->mc_top])) {
-			MDB_val	 nullkey;
+			RZDB_val	 nullkey;
 			indx_t	ix = csrc->mc_ki[csrc->mc_top];
 			nullkey.mv_size = 0;
 			csrc->mc_ki[csrc->mc_top] = 0;
 			rc = mdb_update_key(csrc, &nullkey);
 			csrc->mc_ki[csrc->mc_top] = ix;
-			mdb_cassert(csrc, rc == MDB_SUCCESS);
+			mdb_cassert(csrc, rc == RZDB_SUCCESS);
 		}
 	}
 
@@ -8932,17 +8932,17 @@ mdb_node_move(MDB_cursor *csrc, MDB_cursor *cdst, int fromleft)
 				return rc;
 		}
 		if (IS_BRANCH(cdst->mc_pg[cdst->mc_top])) {
-			MDB_val	 nullkey;
+			RZDB_val	 nullkey;
 			indx_t	ix = cdst->mc_ki[cdst->mc_top];
 			nullkey.mv_size = 0;
 			cdst->mc_ki[cdst->mc_top] = 0;
 			rc = mdb_update_key(cdst, &nullkey);
 			cdst->mc_ki[cdst->mc_top] = ix;
-			mdb_cassert(cdst, rc == MDB_SUCCESS);
+			mdb_cassert(cdst, rc == RZDB_SUCCESS);
 		}
 	}
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /** Merge one page into another.
@@ -8954,11 +8954,11 @@ mdb_node_move(MDB_cursor *csrc, MDB_cursor *cdst, int fromleft)
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_page_merge(MDB_cursor *csrc, MDB_cursor *cdst)
+mdb_page_merge(RZDB_cursor *csrc, RZDB_cursor *cdst)
 {
-	MDB_page	*psrc, *pdst;
-	MDB_node	*srcnode;
-	MDB_val		 key, data;
+	RZDB_page	*psrc, *pdst;
+	RZDB_node	*srcnode;
+	RZDB_val		 key, data;
 	unsigned	 nkeys;
 	int			 rc;
 	indx_t		 i, j;
@@ -8986,7 +8986,7 @@ mdb_page_merge(MDB_cursor *csrc, MDB_cursor *cdst)
 		key.mv_data = METADATA(psrc);
 		for (i = 0; i < NUMKEYS(psrc); i++, j++) {
 			rc = mdb_node_add(cdst, j, &key, NULL, 0, 0);
-			if (rc != MDB_SUCCESS)
+			if (rc != RZDB_SUCCESS)
 				return rc;
 			key.mv_data = (char *)key.mv_data + key.mv_size;
 		}
@@ -8994,8 +8994,8 @@ mdb_page_merge(MDB_cursor *csrc, MDB_cursor *cdst)
 		for (i = 0; i < NUMKEYS(psrc); i++, j++) {
 			srcnode = NODEPTR(psrc, i);
 			if (i == 0 && IS_BRANCH(psrc)) {
-				MDB_cursor mn;
-				MDB_node *s2;
+				RZDB_cursor mn;
+				RZDB_node *s2;
 				mdb_cursor_copy(csrc, &mn);
 				mn.mc_xcursor = NULL;
 				/* must find the lowest key below src */
@@ -9018,7 +9018,7 @@ mdb_page_merge(MDB_cursor *csrc, MDB_cursor *cdst)
 			data.mv_size = NODEDSZ(srcnode);
 			data.mv_data = NODEDATA(srcnode);
 			rc = mdb_node_add(cdst, j, &key, &data, NODEPGNO(srcnode), srcnode->mn_flags);
-			if (rc != MDB_SUCCESS)
+			if (rc != RZDB_SUCCESS)
 				return rc;
 		}
 	}
@@ -9054,8 +9054,8 @@ mdb_page_merge(MDB_cursor *csrc, MDB_cursor *cdst)
 		csrc->mc_db->md_branch_pages--;
 	{
 		/* Adjust other cursors pointing to mp */
-		MDB_cursor *m2, *m3;
-		MDB_dbi dbi = csrc->mc_dbi;
+		RZDB_cursor *m2, *m3;
+		RZDB_dbi dbi = csrc->mc_dbi;
 		unsigned int top = csrc->mc_top;
 
 		for (m2 = csrc->mc_txn->mt_cursors[dbi]; m2; m2=m2->mc_next) {
@@ -9096,7 +9096,7 @@ mdb_page_merge(MDB_cursor *csrc, MDB_cursor *cdst)
  * @param[out] cdst The cursor to copy to.
  */
 static void
-mdb_cursor_copy(const MDB_cursor *csrc, MDB_cursor *cdst)
+mdb_cursor_copy(const RZDB_cursor *csrc, RZDB_cursor *cdst)
 {
 	unsigned int i;
 
@@ -9121,12 +9121,12 @@ mdb_cursor_copy(const MDB_cursor *csrc, MDB_cursor *cdst)
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_rebalance(MDB_cursor *mc)
+mdb_rebalance(RZDB_cursor *mc)
 {
-	MDB_node	*node;
+	RZDB_node	*node;
 	int rc, fromleft;
 	unsigned int ptop, minkeys, thresh;
-	MDB_cursor	mn;
+	RZDB_cursor	mn;
 	indx_t oldki;
 
 	if (IS_BRANCH(mc->mc_pg[mc->mc_top])) {
@@ -9145,14 +9145,14 @@ mdb_rebalance(MDB_cursor *mc)
 		NUMKEYS(mc->mc_pg[mc->mc_top]) >= minkeys) {
 		DPRINTF(("no need to rebalance page %"Yu", above fill threshold",
 		    mdb_dbg_pgno(mc->mc_pg[mc->mc_top])));
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 
 	if (mc->mc_snum < 2) {
-		MDB_page *mp = mc->mc_pg[0];
+		RZDB_page *mp = mc->mc_pg[0];
 		if (IS_SUBP(mp)) {
 			DPUTS("Can't rebalance a subpage, ignoring");
-			return MDB_SUCCESS;
+			return RZDB_SUCCESS;
 		}
 		if (NUMKEYS(mp) == 0) {
 			DPUTS("tree is completely empty");
@@ -9167,8 +9167,8 @@ mdb_rebalance(MDB_cursor *mc)
 			mc->mc_top = 0;
 			mc->mc_flags &= ~C_INITIALIZED;
 			{
-				MDB_cursor *m2, *m3;
-				MDB_dbi dbi = mc->mc_dbi;
+				RZDB_cursor *m2, *m3;
+				RZDB_dbi dbi = mc->mc_dbi;
 
 				for (m2 = mc->mc_txn->mt_cursors[dbi]; m2; m2=m2->mc_next) {
 					if (mc->mc_flags & C_SUB)
@@ -9203,8 +9203,8 @@ mdb_rebalance(MDB_cursor *mc)
 			}
 			{
 				/* Adjust other cursors pointing to mp */
-				MDB_cursor *m2, *m3;
-				MDB_dbi dbi = mc->mc_dbi;
+				RZDB_cursor *m2, *m3;
+				RZDB_dbi dbi = mc->mc_dbi;
 
 				for (m2 = mc->mc_txn->mt_cursors[dbi]; m2; m2=m2->mc_next) {
 					if (mc->mc_flags & C_SUB)
@@ -9226,7 +9226,7 @@ mdb_rebalance(MDB_cursor *mc)
 			}
 		} else
 			DPUTS("root page doesn't need rebalancing");
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 
 	/* The parent (branch page) must have at least 2 pointers,
@@ -9305,14 +9305,14 @@ mdb_rebalance(MDB_cursor *mc)
 
 /** Complete a delete operation started by #mdb_cursor_del(). */
 static int
-mdb_cursor_del0(MDB_cursor *mc)
+mdb_cursor_del0(RZDB_cursor *mc)
 {
 	int rc;
-	MDB_page *mp;
+	RZDB_page *mp;
 	indx_t ki;
 	unsigned int nkeys;
-	MDB_cursor *m2, *m3;
-	MDB_dbi dbi = mc->mc_dbi;
+	RZDB_cursor *m2, *m3;
+	RZDB_dbi dbi = mc->mc_dbi;
 
 	ki = mc->mc_ki[mc->mc_top];
 	mp = mc->mc_pg[mc->mc_top];
@@ -9329,7 +9329,7 @@ mdb_cursor_del0(MDB_cursor *mc)
 			if (m3->mc_pg[mc->mc_top] == mp) {
 				if (m3->mc_ki[mc->mc_top] == ki) {
 					m3->mc_flags |= C_DEL;
-					if (mc->mc_db->md_flags & MDB_DUPSORT) {
+					if (mc->mc_db->md_flags & RZDB_DUPSORT) {
 						/* Sub-cursor referred into dataset which is gone */
 						m3->mc_xcursor->mx_cursor.mc_flags &= ~(C_INITIALIZED|C_EOF);
 					}
@@ -9343,7 +9343,7 @@ mdb_cursor_del0(MDB_cursor *mc)
 	}
 	rc = mdb_rebalance(mc);
 
-	if (rc == MDB_SUCCESS) {
+	if (rc == RZDB_SUCCESS) {
 		/* DB is totally empty now, just bail out.
 		 * Other cursors adjustments were already done
 		 * by mdb_rebalance and aren't needed here.
@@ -9366,14 +9366,14 @@ mdb_cursor_del0(MDB_cursor *mc)
 				if (m3->mc_ki[mc->mc_top] >= mc->mc_ki[mc->mc_top]) {
 					if (m3->mc_ki[mc->mc_top] >= nkeys) {
 						rc = mdb_cursor_sibling(m3, 1);
-						if (rc == MDB_NOTFOUND) {
+						if (rc == RZDB_NOTFOUND) {
 							m3->mc_flags |= C_EOF;
-							rc = MDB_SUCCESS;
+							rc = RZDB_SUCCESS;
 							continue;
 						}
 					}
-					if (mc->mc_db->md_flags & MDB_DUPSORT) {
-						MDB_node *node = NODEPTR(m3->mc_pg[m3->mc_top], m3->mc_ki[m3->mc_top]);
+					if (mc->mc_db->md_flags & RZDB_DUPSORT) {
+						RZDB_node *node = NODEPTR(m3->mc_pg[m3->mc_top], m3->mc_ki[m3->mc_top]);
 						/* If this node has dupdata, it may need to be reinited
 						 * because its data has moved.
 						 * If the xcursor was not initd it must be reinited.
@@ -9397,21 +9397,21 @@ mdb_cursor_del0(MDB_cursor *mc)
 	}
 
 	if (rc)
-		mc->mc_txn->mt_flags |= MDB_TXN_ERROR;
+		mc->mc_txn->mt_flags |= RZDB_TXN_ERROR;
 	return rc;
 }
 
 int
-mdb_del(MDB_txn *txn, MDB_dbi dbi,
-    MDB_val *key, MDB_val *data)
+mdb_del(RZDB_txn *txn, RZDB_dbi dbi,
+    RZDB_val *key, RZDB_val *data)
 {
 	if (!key || !TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 
-	if (txn->mt_flags & (MDB_TXN_RDONLY|MDB_TXN_BLOCKED))
-		return (txn->mt_flags & MDB_TXN_RDONLY) ? EACCES : MDB_BAD_TXN;
+	if (txn->mt_flags & (RZDB_TXN_RDONLY|RZDB_TXN_BLOCKED))
+		return (txn->mt_flags & RZDB_TXN_RDONLY) ? EACCES : RZDB_BAD_TXN;
 
-	if (!F_ISSET(txn->mt_dbs[dbi].md_flags, MDB_DUPSORT)) {
+	if (!F_ISSET(txn->mt_dbs[dbi].md_flags, RZDB_DUPSORT)) {
 		/* must ignore any data */
 		data = NULL;
 	}
@@ -9420,13 +9420,13 @@ mdb_del(MDB_txn *txn, MDB_dbi dbi,
 }
 
 static int
-mdb_del0(MDB_txn *txn, MDB_dbi dbi,
-	MDB_val *key, MDB_val *data, unsigned flags)
+mdb_del0(RZDB_txn *txn, RZDB_dbi dbi,
+	RZDB_val *key, RZDB_val *data, unsigned flags)
 {
-	MDB_cursor mc;
-	MDB_xcursor mx;
-	MDB_cursor_op op;
-	MDB_val rdata, *xdata;
+	RZDB_cursor mc;
+	RZDB_xcursor mx;
+	RZDB_cursor_op op;
+	RZDB_val rdata, *xdata;
 	int		 rc, exact = 0;
 	DKBUF;
 
@@ -9435,13 +9435,13 @@ mdb_del0(MDB_txn *txn, MDB_dbi dbi,
 	mdb_cursor_init(&mc, txn, dbi, &mx);
 
 	if (data) {
-		op = MDB_GET_BOTH;
+		op = RZDB_GET_BOTH;
 		rdata = *data;
 		xdata = &rdata;
 	} else {
-		op = MDB_SET;
+		op = RZDB_SET;
 		xdata = NULL;
-		flags |= MDB_NODUPDATA;
+		flags |= RZDB_NODUPDATA;
 	}
 	rc = mdb_cursor_set(&mc, key, xdata, op, &exact);
 	if (rc == 0) {
@@ -9462,7 +9462,7 @@ mdb_del0(MDB_txn *txn, MDB_dbi dbi,
 }
 
 /** Split a page and insert a new node.
- * Set #MDB_TXN_ERROR on failure.
+ * Set #RZDB_TXN_ERROR on failure.
  * @param[in,out] mc Cursor pointing to the page and desired insertion index.
  * The cursor will be updated to point to the actual page and index where
  * the node got inserted after the split.
@@ -9473,21 +9473,21 @@ mdb_del0(MDB_txn *txn, MDB_dbi dbi,
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno,
+mdb_page_split(RZDB_cursor *mc, RZDB_val *newkey, RZDB_val *newdata, pgno_t newpgno,
 	unsigned int nflags)
 {
 	unsigned int flags;
-	int		 rc = MDB_SUCCESS, new_root = 0, did_split = 0;
+	int		 rc = RZDB_SUCCESS, new_root = 0, did_split = 0;
 	indx_t		 newindx;
 	pgno_t		 pgno = 0;
 	int	 i, j, split_indx, nkeys, pmax;
-	MDB_env 	*env = mc->mc_txn->mt_env;
-	MDB_node	*node;
-	MDB_val	 sepkey, rkey, xdata, *rdata = &xdata;
-	MDB_page	*copy = NULL;
-	MDB_page	*mp, *rp, *pp;
+	RZDB_env 	*env = mc->mc_txn->mt_env;
+	RZDB_node	*node;
+	RZDB_val	 sepkey, rkey, xdata, *rdata = &xdata;
+	RZDB_page	*copy = NULL;
+	RZDB_page	*mp, *rp, *pp;
 	int ptop;
-	MDB_cursor	mn;
+	RZDB_cursor	mn;
 	DKBUF;
 
 	mp = mc->mc_pg[mc->mc_top];
@@ -9524,7 +9524,7 @@ mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno
 		new_root = mc->mc_db->md_depth++;
 
 		/* Add left (implicit) pointer. */
-		if ((rc = mdb_node_add(mc, 0, NULL, NULL, mp->mp_pgno, 0)) != MDB_SUCCESS) {
+		if ((rc = mdb_node_add(mc, 0, NULL, NULL, mp->mp_pgno, 0)) != RZDB_SUCCESS) {
 			/* undo the pre-push */
 			mc->mc_pg[0] = mc->mc_pg[1];
 			mc->mc_ki[0] = mc->mc_ki[1];
@@ -9545,7 +9545,7 @@ mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno
 	mn.mc_pg[mn.mc_top] = rp;
 	mn.mc_ki[ptop] = mc->mc_ki[ptop]+1;
 
-	if (nflags & MDB_APPEND) {
+	if (nflags & RZDB_APPEND) {
 		mn.mc_ki[mn.mc_top] = 0;
 		sepkey = *newkey;
 		split_indx = newindx;
@@ -9651,7 +9651,7 @@ mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno
 						psize += nsize;
 						node = NULL;
 					} else {
-						node = (MDB_node *)((char *)mp + copy->mp_ptrs[i] + PAGEBASE);
+						node = (RZDB_node *)((char *)mp + copy->mp_ptrs[i] + PAGEBASE);
 						psize += NODESIZE + NODEKSZ(node) + sizeof(indx_t);
 						if (IS_LEAF(mp)) {
 							if (F_ISSET(node->mn_flags, F_BIGDATA))
@@ -9671,7 +9671,7 @@ mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno
 				sepkey.mv_size = newkey->mv_size;
 				sepkey.mv_data = newkey->mv_data;
 			} else {
-				node = (MDB_node *)((char *)mp + copy->mp_ptrs[split_indx] + PAGEBASE);
+				node = (RZDB_node *)((char *)mp + copy->mp_ptrs[split_indx] + PAGEBASE);
 				sepkey.mv_size = node->mn_ksize;
 				sepkey.mv_data = NODEKEY(node);
 			}
@@ -9720,12 +9720,12 @@ mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno
 		rc = mdb_node_add(&mn, mn.mc_ki[ptop], &sepkey, NULL, rp->mp_pgno, 0);
 		mn.mc_top++;
 	}
-	if (rc != MDB_SUCCESS) {
-		if (rc == MDB_NOTFOUND) /* improper mdb_cursor_sibling() result */
-			rc = MDB_PROBLEM;
+	if (rc != RZDB_SUCCESS) {
+		if (rc == RZDB_NOTFOUND) /* improper mdb_cursor_sibling() result */
+			rc = RZDB_PROBLEM;
 		goto done;
 	}
-	if (nflags & MDB_APPEND) {
+	if (nflags & RZDB_APPEND) {
 		mc->mc_pg[mc->mc_top] = rp;
 		mc->mc_ki[mc->mc_top] = 0;
 		rc = mdb_node_add(mc, 0, newkey, newdata, newpgno, nflags);
@@ -9750,7 +9750,7 @@ mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno
 				/* Update index for the new key. */
 				mc->mc_ki[mc->mc_top] = j;
 			} else {
-				node = (MDB_node *)((char *)mp + copy->mp_ptrs[i] + PAGEBASE);
+				node = (RZDB_node *)((char *)mp + copy->mp_ptrs[i] + PAGEBASE);
 				rkey.mv_data = NODEKEY(node);
 				rkey.mv_size = node->mn_ksize;
 				if (IS_LEAF(mp)) {
@@ -9804,7 +9804,7 @@ mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno
 				}
 			}
 		}
-		if (nflags & MDB_RESERVE) {
+		if (nflags & RZDB_RESERVE) {
 			node = NODEPTR(mc->mc_pg[mc->mc_top], mc->mc_ki[mc->mc_top]);
 			if (!(node->mn_flags & F_BIGDATA))
 				newdata->mv_data = NODEDATA(node);
@@ -9827,8 +9827,8 @@ mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno
 
 	{
 		/* Adjust other cursors pointing to mp */
-		MDB_cursor *m2, *m3;
-		MDB_dbi dbi = mc->mc_dbi;
+		RZDB_cursor *m2, *m3;
+		RZDB_dbi dbi = mc->mc_dbi;
 		nkeys = NUMKEYS(mp);
 
 		for (m2 = mc->mc_txn->mt_cursors[dbi]; m2; m2=m2->mc_next) {
@@ -9860,7 +9860,7 @@ mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno
 				m3->mc_top++;
 			}
 			if (m3->mc_top >= mc->mc_top && m3->mc_pg[mc->mc_top] == mp) {
-				if (m3->mc_ki[mc->mc_top] >= newindx && !(nflags & MDB_SPLIT_REPLACE))
+				if (m3->mc_ki[mc->mc_top] >= newindx && !(nflags & RZDB_SPLIT_REPLACE))
 					m3->mc_ki[mc->mc_top]++;
 				if (m3->mc_ki[mc->mc_top] >= nkeys) {
 					m3->mc_pg[mc->mc_top] = rp;
@@ -9884,26 +9884,26 @@ done:
 	if (copy)					/* tmp page */
 		mdb_page_free(env, copy);
 	if (rc)
-		mc->mc_txn->mt_flags |= MDB_TXN_ERROR;
+		mc->mc_txn->mt_flags |= RZDB_TXN_ERROR;
 	return rc;
 }
 
 int
-mdb_put(MDB_txn *txn, MDB_dbi dbi,
-    MDB_val *key, MDB_val *data, unsigned int flags)
+mdb_put(RZDB_txn *txn, RZDB_dbi dbi,
+    RZDB_val *key, RZDB_val *data, unsigned int flags)
 {
-	MDB_cursor mc;
-	MDB_xcursor mx;
+	RZDB_cursor mc;
+	RZDB_xcursor mx;
 	int rc;
 
 	if (!key || !data || !TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 
-	if (flags & ~(MDB_NOOVERWRITE|MDB_NODUPDATA|MDB_RESERVE|MDB_APPEND|MDB_APPENDDUP))
+	if (flags & ~(RZDB_NOOVERWRITE|RZDB_NODUPDATA|RZDB_RESERVE|RZDB_APPEND|RZDB_APPENDDUP))
 		return EINVAL;
 
-	if (txn->mt_flags & (MDB_TXN_RDONLY|MDB_TXN_BLOCKED))
-		return (txn->mt_flags & MDB_TXN_RDONLY) ? EACCES : MDB_BAD_TXN;
+	if (txn->mt_flags & (RZDB_TXN_RDONLY|RZDB_TXN_BLOCKED))
+		return (txn->mt_flags & RZDB_TXN_RDONLY) ? EACCES : RZDB_BAD_TXN;
 
 	mdb_cursor_init(&mc, txn, dbi, &mx);
 	mc.mc_next = txn->mt_cursors[dbi];
@@ -9913,15 +9913,15 @@ mdb_put(MDB_txn *txn, MDB_dbi dbi,
 	return rc;
 }
 
-#ifndef MDB_WBUF
-#define MDB_WBUF	(1024*1024)
+#ifndef RZDB_WBUF
+#define RZDB_WBUF	(1024*1024)
 #endif
-#define MDB_EOF		0x10	/**< #mdb_env_copyfd1() is done reading */
+#define RZDB_EOF		0x10	/**< #mdb_env_copyfd1() is done reading */
 
 	/** State needed for a double-buffering compacting copy. */
 typedef struct mdb_copy {
-	MDB_env *mc_env;
-	MDB_txn *mc_txn;
+	RZDB_env *mc_env;
+	RZDB_txn *mc_txn;
 	pthread_mutex_t mc_mutex;
 	pthread_cond_t mc_cond;	/**< Condition variable for #mc_new */
 	char *mc_wbuf[2];
@@ -9931,7 +9931,7 @@ typedef struct mdb_copy {
 	pgno_t mc_next_pgno;
 	HANDLE mc_fd;
 	int mc_toggle;			/**< Buffer number in provider */
-	int mc_new;				/**< (0-2 buffers to write) | (#MDB_EOF at end) */
+	int mc_new;				/**< (0-2 buffers to write) | (#RZDB_EOF at end) */
 	/** Error code.  Never cleared if set.  Both threads can set nonzero
 	 *	to fail the copy.  Not mutex-protected, LMDB expects atomic int.
 	 */
@@ -9964,12 +9964,12 @@ mdb_env_copythr(void *arg)
 	for(;;) {
 		while (!my->mc_new)
 			pthread_cond_wait(&my->mc_cond, &my->mc_mutex);
-		if (my->mc_new == 0 + MDB_EOF) /* 0 buffers, just EOF */
+		if (my->mc_new == 0 + RZDB_EOF) /* 0 buffers, just EOF */
 			break;
 		wsize = my->mc_wlen[toggle];
 		ptr = my->mc_wbuf[toggle];
 again:
-		rc = MDB_SUCCESS;
+		rc = RZDB_SUCCESS;
 		while (wsize > 0 && !my->mc_error) {
 			DO_WRITE(rc, my->mc_fd, ptr, wsize, len);
 			if (!rc) {
@@ -9985,7 +9985,7 @@ again:
 #endif
 				break;
 			} else if (len > 0) {
-				rc = MDB_SUCCESS;
+				rc = RZDB_SUCCESS;
 				ptr += len;
 				wsize -= len;
 				continue;
@@ -10015,10 +10015,10 @@ again:
 #undef DO_WRITE
 }
 
-	/** Give buffer and/or #MDB_EOF to writer thread, await unused buffer.
+	/** Give buffer and/or #RZDB_EOF to writer thread, await unused buffer.
 	 *
 	 * @param[in] my control structure.
-	 * @param[in] adjust (1 to hand off 1 buffer) | (MDB_EOF when ending).
+	 * @param[in] adjust (1 to hand off 1 buffer) | (RZDB_EOF when ending).
 	 */
 static int ESECT
 mdb_env_cthr_toggle(mdb_copy *my, int adjust)
@@ -10044,16 +10044,16 @@ mdb_env_cthr_toggle(mdb_copy *my, int adjust)
 static int ESECT
 mdb_env_cwalk(mdb_copy *my, pgno_t *pg, int flags)
 {
-	MDB_cursor mc = {0};
-	MDB_node *ni;
-	MDB_page *mo, *mp, *leaf;
+	RZDB_cursor mc = {0};
+	RZDB_node *ni;
+	RZDB_page *mo, *mp, *leaf;
 	char *buf, *ptr;
 	int rc, toggle;
 	unsigned int i;
 
 	/* Empty DB, nothing to do */
 	if (*pg == P_INVALID)
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 
 	mc.mc_snum = 1;
 	mc.mc_txn = my->mc_txn;
@@ -10062,7 +10062,7 @@ mdb_env_cwalk(mdb_copy *my, pgno_t *pg, int flags)
 	rc = mdb_page_get(&mc, *pg, &mc.mc_pg[0], NULL);
 	if (rc)
 		return rc;
-	rc = mdb_page_search_root(&mc, NULL, MDB_PS_FIRST);
+	rc = mdb_page_search_root(&mc, NULL, RZDB_PS_FIRST);
 	if (rc)
 		return rc;
 
@@ -10072,13 +10072,13 @@ mdb_env_cwalk(mdb_copy *my, pgno_t *pg, int flags)
 		return ENOMEM;
 
 	for (i=0; i<mc.mc_top; i++) {
-		mdb_page_copy((MDB_page *)ptr, mc.mc_pg[i], my->mc_env->me_psize);
-		mc.mc_pg[i] = (MDB_page *)ptr;
+		mdb_page_copy((RZDB_page *)ptr, mc.mc_pg[i], my->mc_env->me_psize);
+		mc.mc_pg[i] = (RZDB_page *)ptr;
 		ptr += my->mc_env->me_psize;
 	}
 
 	/* This is writable space for a leaf page. Usually not needed. */
-	leaf = (MDB_page *)ptr;
+	leaf = (RZDB_page *)ptr;
 
 	toggle = my->mc_toggle;
 	while (mc.mc_snum > 0) {
@@ -10091,7 +10091,7 @@ mdb_env_cwalk(mdb_copy *my, pgno_t *pg, int flags)
 				for (i=0; i<n; i++) {
 					ni = NODEPTR(mp, i);
 					if (ni->mn_flags & F_BIGDATA) {
-						MDB_page *omp;
+						RZDB_page *omp;
 						pgno_t pg;
 
 						/* Need writable leaf */
@@ -10107,13 +10107,13 @@ mdb_env_cwalk(mdb_copy *my, pgno_t *pg, int flags)
 						rc = mdb_page_get(&mc, pg, &omp, NULL);
 						if (rc)
 							goto done;
-						if (my->mc_wlen[toggle] >= MDB_WBUF) {
+						if (my->mc_wlen[toggle] >= RZDB_WBUF) {
 							rc = mdb_env_cthr_toggle(my, 1);
 							if (rc)
 								goto done;
 							toggle = my->mc_toggle;
 						}
-						mo = (MDB_page *)(my->mc_wbuf[toggle] + my->mc_wlen[toggle]);
+						mo = (RZDB_page *)(my->mc_wbuf[toggle] + my->mc_wlen[toggle]);
 						memcpy(mo, omp, my->mc_env->me_psize);
 						mo->mp_pgno = my->mc_next_pgno;
 						my->mc_next_pgno += omp->mp_pages;
@@ -10127,7 +10127,7 @@ mdb_env_cwalk(mdb_copy *my, pgno_t *pg, int flags)
 							toggle = my->mc_toggle;
 						}
 					} else if (ni->mn_flags & F_SUBDATA) {
-						MDB_db db;
+						RZDB_db db;
 
 						/* Need writable leaf */
 						if (mp != leaf) {
@@ -10171,13 +10171,13 @@ again:
 				continue;
 			}
 		}
-		if (my->mc_wlen[toggle] >= MDB_WBUF) {
+		if (my->mc_wlen[toggle] >= RZDB_WBUF) {
 			rc = mdb_env_cthr_toggle(my, 1);
 			if (rc)
 				goto done;
 			toggle = my->mc_toggle;
 		}
-		mo = (MDB_page *)(my->mc_wbuf[toggle] + my->mc_wlen[toggle]);
+		mo = (RZDB_page *)(my->mc_wbuf[toggle] + my->mc_wlen[toggle]);
 		mdb_page_copy(mo, mp, my->mc_env->me_psize);
 		mo->mp_pgno = my->mc_next_pgno++;
 		my->mc_wlen[toggle] += my->mc_env->me_psize;
@@ -10199,15 +10199,15 @@ done:
 
 	/** Copy environment with compaction. */
 static int ESECT
-mdb_env_copyfd1(MDB_env *env, HANDLE fd)
+mdb_env_copyfd1(RZDB_env *env, HANDLE fd)
 {
-	MDB_meta *mm;
-	MDB_page *mp;
+	RZDB_meta *mm;
+	RZDB_page *mp;
 	mdb_copy my = {0};
-	MDB_txn *txn = NULL;
+	RZDB_txn *txn = NULL;
 	pthread_t thr;
 	pgno_t root, new_root;
-	int rc = MDB_SUCCESS;
+	int rc = RZDB_SUCCESS;
 
 #ifdef _WIN32
 	if (!(my.mc_mutex = CreateMutex(NULL, FALSE, NULL)) ||
@@ -10215,7 +10215,7 @@ mdb_env_copyfd1(MDB_env *env, HANDLE fd)
 		rc = ErrCode();
 		goto done;
 	}
-	my.mc_wbuf[0] = _aligned_malloc(MDB_WBUF*2, env->me_os_psize);
+	my.mc_wbuf[0] = _aligned_malloc(RZDB_WBUF*2, env->me_os_psize);
 	if (my.mc_wbuf[0] == NULL) {
 		/* _aligned_malloc() sets errno, but we use Windows error codes */
 		rc = ERROR_NOT_ENOUGH_MEMORY;
@@ -10227,7 +10227,7 @@ mdb_env_copyfd1(MDB_env *env, HANDLE fd)
 	if ((rc = pthread_cond_init(&my.mc_cond, NULL)) != 0)
 		goto done2;
 #ifdef HAVE_MEMALIGN
-	my.mc_wbuf[0] = memalign(env->me_os_psize, MDB_WBUF*2);
+	my.mc_wbuf[0] = memalign(env->me_os_psize, RZDB_WBUF*2);
 	if (my.mc_wbuf[0] == NULL) {
 		rc = errno;
 		goto done;
@@ -10235,14 +10235,14 @@ mdb_env_copyfd1(MDB_env *env, HANDLE fd)
 #else
 	{
 		void *p;
-		if ((rc = posix_memalign(&p, env->me_os_psize, MDB_WBUF*2)) != 0)
+		if ((rc = posix_memalign(&p, env->me_os_psize, RZDB_WBUF*2)) != 0)
 			goto done;
 		my.mc_wbuf[0] = p;
 	}
 #endif
 #endif
-	memset(my.mc_wbuf[0], 0, MDB_WBUF*2);
-	my.mc_wbuf[1] = my.mc_wbuf[0] + MDB_WBUF;
+	memset(my.mc_wbuf[0], 0, RZDB_WBUF*2);
+	my.mc_wbuf[1] = my.mc_wbuf[0] + RZDB_WBUF;
 	my.mc_next_pgno = NUM_METAS;
 	my.mc_env = env;
 	my.mc_fd = fd;
@@ -10250,23 +10250,23 @@ mdb_env_copyfd1(MDB_env *env, HANDLE fd)
 	if (rc)
 		goto done;
 
-	rc = mdb_txn_begin(env, NULL, MDB_RDONLY, &txn);
+	rc = mdb_txn_begin(env, NULL, RZDB_RDONLY, &txn);
 	if (rc)
 		goto finish;
 
-	mp = (MDB_page *)my.mc_wbuf[0];
+	mp = (RZDB_page *)my.mc_wbuf[0];
 	memset(mp, 0, NUM_METAS * env->me_psize);
 	mp->mp_pgno = 0;
 	mp->mp_flags = P_META;
-	mm = (MDB_meta *)METADATA(mp);
+	mm = (RZDB_meta *)METADATA(mp);
 	mdb_env_init_meta0(env, mm);
 	mm->mm_address = env->me_metas[0]->mm_address;
 
-	mp = (MDB_page *)(my.mc_wbuf[0] + env->me_psize);
+	mp = (RZDB_page *)(my.mc_wbuf[0] + env->me_psize);
 	mp->mp_pgno = 1;
 	mp->mp_flags = P_META;
-	*(MDB_meta *)METADATA(mp) = *mm;
-	mm = (MDB_meta *)METADATA(mp);
+	*(RZDB_meta *)METADATA(mp) = *mm;
+	mm = (RZDB_meta *)METADATA(mp);
 
 	/* Set metapage 1 with current main DB */
 	root = new_root = txn->mt_dbs[MAIN_DBI].md_root;
@@ -10274,13 +10274,13 @@ mdb_env_copyfd1(MDB_env *env, HANDLE fd)
 		/* Count free pages + freeDB pages.  Subtract from last_pg
 		 * to find the new last_pg, which also becomes the new root.
 		 */
-		MDB_ID freecount = 0;
-		MDB_cursor mc;
-		MDB_val key, data;
+		RZDB_ID freecount = 0;
+		RZDB_cursor mc;
+		RZDB_val key, data;
 		mdb_cursor_init(&mc, txn, FREE_DBI, NULL);
-		while ((rc = mdb_cursor_get(&mc, &key, &data, MDB_NEXT)) == 0)
-			freecount += *(MDB_ID *)data.mv_data;
-		if (rc != MDB_NOTFOUND)
+		while ((rc = mdb_cursor_get(&mc, &key, &data, RZDB_NEXT)) == 0)
+			freecount += *(RZDB_ID *)data.mv_data;
+		if (rc != RZDB_NOTFOUND)
 			goto finish;
 		freecount += txn->mt_dbs[FREE_DBI].md_branch_pages +
 			txn->mt_dbs[FREE_DBI].md_leaf_pages +
@@ -10303,14 +10303,14 @@ mdb_env_copyfd1(MDB_env *env, HANDLE fd)
 	my.mc_wlen[0] = env->me_psize * NUM_METAS;
 	my.mc_txn = txn;
 	rc = mdb_env_cwalk(&my, &root, 0);
-	if (rc == MDB_SUCCESS && root != new_root) {
-		rc = MDB_INCOMPATIBLE;	/* page leak or corrupt DB */
+	if (rc == RZDB_SUCCESS && root != new_root) {
+		rc = RZDB_INCOMPATIBLE;	/* page leak or corrupt DB */
 	}
 
 finish:
 	if (rc)
 		my.mc_error = rc;
-	mdb_env_cthr_toggle(&my, 1 | MDB_EOF);
+	mdb_env_cthr_toggle(&my, 1 | RZDB_EOF);
 	rc = THREAD_FINISH(thr);
 	mdb_txn_abort(txn);
 
@@ -10330,9 +10330,9 @@ done2:
 
 	/** Copy environment as-is. */
 static int ESECT
-mdb_env_copyfd0(MDB_env *env, HANDLE fd)
+mdb_env_copyfd0(RZDB_env *env, HANDLE fd)
 {
-	MDB_txn *txn = NULL;
+	RZDB_txn *txn = NULL;
 	mdb_mutexref_t wmutex = NULL;
 	int rc;
 	mdb_size_t wsize, w3;
@@ -10349,13 +10349,13 @@ mdb_env_copyfd0(MDB_env *env, HANDLE fd)
 	/* Do the lock/unlock of the reader mutex before starting the
 	 * write txn.  Otherwise other read txns could block writers.
 	 */
-	rc = mdb_txn_begin(env, NULL, MDB_RDONLY, &txn);
+	rc = mdb_txn_begin(env, NULL, RZDB_RDONLY, &txn);
 	if (rc)
 		return rc;
 
 	if (env->me_txns) {
 		/* We must start the actual read txn after blocking writers */
-		mdb_txn_end(txn, MDB_END_RESET_TMP);
+		mdb_txn_end(txn, RZDB_END_RESET_TMP);
 
 		/* Temporarily block writers until we snapshot the meta pages */
 		wmutex = env->me_wmutex;
@@ -10378,7 +10378,7 @@ mdb_env_copyfd0(MDB_env *env, HANDLE fd)
 			rc = ErrCode();
 			break;
 		} else if (len > 0) {
-			rc = MDB_SUCCESS;
+			rc = RZDB_SUCCESS;
 			ptr += len;
 			w2 -= len;
 			continue;
@@ -10413,7 +10413,7 @@ mdb_env_copyfd0(MDB_env *env, HANDLE fd)
 			rc = ErrCode();
 			break;
 		} else if (len > 0) {
-			rc = MDB_SUCCESS;
+			rc = RZDB_SUCCESS;
 			ptr += len;
 			wsize -= len;
 			continue;
@@ -10429,48 +10429,48 @@ leave:
 }
 
 int ESECT
-mdb_env_copyfd2(MDB_env *env, HANDLE fd, unsigned int flags)
+mdb_env_copyfd2(RZDB_env *env, HANDLE fd, unsigned int flags)
 {
-	if (flags & MDB_CP_COMPACT)
+	if (flags & RZDB_CP_COMPACT)
 		return mdb_env_copyfd1(env, fd);
 	else
 		return mdb_env_copyfd0(env, fd);
 }
 
 int ESECT
-mdb_env_copyfd(MDB_env *env, HANDLE fd)
+mdb_env_copyfd(RZDB_env *env, HANDLE fd)
 {
 	return mdb_env_copyfd2(env, fd, 0);
 }
 
 int ESECT
-mdb_env_copy2(MDB_env *env, const char *path, unsigned int flags)
+mdb_env_copy2(RZDB_env *env, const char *path, unsigned int flags)
 {
 	int rc;
-	MDB_name fname;
+	RZDB_name fname;
 	HANDLE newfd = INVALID_HANDLE_VALUE;
 
-	rc = mdb_fname_init(path, env->me_flags | MDB_NOLOCK, &fname);
-	if (rc == MDB_SUCCESS) {
-		rc = mdb_fopen(env, &fname, MDB_O_COPY, 0666, &newfd);
+	rc = mdb_fname_init(path, env->me_flags | RZDB_NOLOCK, &fname);
+	if (rc == RZDB_SUCCESS) {
+		rc = mdb_fopen(env, &fname, RZDB_O_COPY, 0666, &newfd);
 		mdb_fname_destroy(fname);
 	}
-	if (rc == MDB_SUCCESS) {
+	if (rc == RZDB_SUCCESS) {
 		rc = mdb_env_copyfd2(env, newfd, flags);
-		if (close(newfd) < 0 && rc == MDB_SUCCESS)
+		if (close(newfd) < 0 && rc == RZDB_SUCCESS)
 			rc = ErrCode();
 	}
 	return rc;
 }
 
 int ESECT
-mdb_env_copy(MDB_env *env, const char *path)
+mdb_env_copy(RZDB_env *env, const char *path)
 {
 	return mdb_env_copy2(env, path, 0);
 }
 
 int ESECT
-mdb_env_set_flags(MDB_env *env, unsigned int flag, int onoff)
+mdb_env_set_flags(RZDB_env *env, unsigned int flag, int onoff)
 {
 	if (flag & ~CHANGEABLE)
 		return EINVAL;
@@ -10478,73 +10478,73 @@ mdb_env_set_flags(MDB_env *env, unsigned int flag, int onoff)
 		env->me_flags |= flag;
 	else
 		env->me_flags &= ~flag;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int ESECT
-mdb_env_get_flags(MDB_env *env, unsigned int *arg)
+mdb_env_get_flags(RZDB_env *env, unsigned int *arg)
 {
 	if (!env || !arg)
 		return EINVAL;
 
 	*arg = env->me_flags & (CHANGEABLE|CHANGELESS);
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int ESECT
-mdb_env_set_userctx(MDB_env *env, void *ctx)
+mdb_env_set_userctx(RZDB_env *env, void *ctx)
 {
 	if (!env)
 		return EINVAL;
 	env->me_userctx = ctx;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 void * ESECT
-mdb_env_get_userctx(MDB_env *env)
+mdb_env_get_userctx(RZDB_env *env)
 {
 	return env ? env->me_userctx : NULL;
 }
 
 int ESECT
-mdb_env_set_assert(MDB_env *env, MDB_assert_func *func)
+mdb_env_set_assert(RZDB_env *env, RZDB_assert_func *func)
 {
 	if (!env)
 		return EINVAL;
 #ifndef NDEBUG
 	env->me_assert_func = func;
 #endif
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int ESECT
-mdb_env_get_path(MDB_env *env, const char **arg)
+mdb_env_get_path(RZDB_env *env, const char **arg)
 {
 	if (!env || !arg)
 		return EINVAL;
 
 	*arg = env->me_path;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int ESECT
-mdb_env_get_fd(MDB_env *env, mdb_filehandle_t *arg)
+mdb_env_get_fd(RZDB_env *env, mdb_filehandle_t *arg)
 {
 	if (!env || !arg)
 		return EINVAL;
 
 	*arg = env->me_fd;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /** Common code for #mdb_stat() and #mdb_env_stat().
  * @param[in] env the environment to operate in.
- * @param[in] db the #MDB_db record containing the stats to return.
- * @param[out] arg the address of an #MDB_stat structure to receive the stats.
+ * @param[in] db the #RZDB_db record containing the stats to return.
+ * @param[out] arg the address of an #RZDB_stat structure to receive the stats.
  * @return 0, this function always succeeds.
  */
 static int ESECT
-mdb_stat0(MDB_env *env, MDB_db *db, MDB_stat *arg)
+mdb_stat0(RZDB_env *env, RZDB_db *db, RZDB_stat *arg)
 {
 	arg->ms_psize = env->me_psize;
 	arg->ms_depth = db->md_depth;
@@ -10554,13 +10554,13 @@ mdb_stat0(MDB_env *env, MDB_db *db, MDB_stat *arg)
 	arg->ms_entries = db->md_entries;
 	arg->ms_seq = db->md_seq;
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int ESECT
-mdb_env_stat(MDB_env *env, MDB_stat *arg)
+mdb_env_stat(RZDB_env *env, RZDB_stat *arg)
 {
-	MDB_meta *meta;
+	RZDB_meta *meta;
 
 	if (env == NULL || arg == NULL)
 		return EINVAL;
@@ -10571,9 +10571,9 @@ mdb_env_stat(MDB_env *env, MDB_stat *arg)
 }
 
 int ESECT
-mdb_env_info(MDB_env *env, MDB_envinfo *arg)
+mdb_env_info(RZDB_env *env, RZDB_envinfo *arg)
 {
-	MDB_meta *meta;
+	RZDB_meta *meta;
 
 	if (env == NULL || arg == NULL)
 		return EINVAL;
@@ -10586,7 +10586,7 @@ mdb_env_info(MDB_env *env, MDB_envinfo *arg)
 	arg->me_mapsize = env->me_mapsize;
 	arg->me_maxreaders = env->me_maxreaders;
 	arg->me_numreaders = env->me_txns ? env->me_txns->mti_numreaders : 0;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /** Set the default comparison functions for a database.
@@ -10597,27 +10597,27 @@ mdb_env_info(MDB_env *env, MDB_envinfo *arg)
  * @param[in] dbi A database handle returned by #mdb_dbi_open()
  */
 static void
-mdb_default_cmp(MDB_txn *txn, MDB_dbi dbi)
+mdb_default_cmp(RZDB_txn *txn, RZDB_dbi dbi)
 {
 	uint16_t f = txn->mt_dbs[dbi].md_flags;
 
 	txn->mt_dbxs[dbi].md_cmp =
-		(f & MDB_REVERSEKEY) ? mdb_cmp_memnr :
-		(f & MDB_INTEGERKEY) ? mdb_cmp_cint  : mdb_cmp_memn;
+		(f & RZDB_REVERSEKEY) ? mdb_cmp_memnr :
+		(f & RZDB_INTEGERKEY) ? mdb_cmp_cint  : mdb_cmp_memn;
 
 	txn->mt_dbxs[dbi].md_dcmp =
-		!(f & MDB_DUPSORT) ? 0 :
-		((f & MDB_INTEGERDUP)
-		 ? ((f & MDB_DUPFIXED)   ? mdb_cmp_int   : mdb_cmp_cint)
-		 : ((f & MDB_REVERSEDUP) ? mdb_cmp_memnr : mdb_cmp_memn));
+		!(f & RZDB_DUPSORT) ? 0 :
+		((f & RZDB_INTEGERDUP)
+		 ? ((f & RZDB_DUPFIXED)   ? mdb_cmp_int   : mdb_cmp_cint)
+		 : ((f & RZDB_REVERSEDUP) ? mdb_cmp_memnr : mdb_cmp_memn));
 }
 
-int mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *dbi)
+int mdb_dbi_open(RZDB_txn *txn, const char *name, unsigned int flags, RZDB_dbi *dbi)
 {
-	MDB_val key, data;
-	MDB_dbi i;
-	MDB_cursor mc;
-	MDB_db dummy;
+	RZDB_val key, data;
+	RZDB_dbi i;
+	RZDB_cursor mc;
+	RZDB_db dummy;
 	int rc, dbflag, exact;
 	unsigned int unused = 0, seq;
 	char *namedup;
@@ -10625,8 +10625,8 @@ int mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *db
 
 	if (flags & ~VALID_FLAGS)
 		return EINVAL;
-	if (txn->mt_flags & MDB_TXN_BLOCKED)
-		return MDB_BAD_TXN;
+	if (txn->mt_flags & RZDB_TXN_BLOCKED)
+		return RZDB_BAD_TXN;
 
 	/* main DB? */
 	if (!name) {
@@ -10636,11 +10636,11 @@ int mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *db
 			/* make sure flag changes get committed */
 			if ((txn->mt_dbs[MAIN_DBI].md_flags | f2) != txn->mt_dbs[MAIN_DBI].md_flags) {
 				txn->mt_dbs[MAIN_DBI].md_flags |= f2;
-				txn->mt_flags |= MDB_TXN_DIRTY;
+				txn->mt_flags |= RZDB_TXN_DIRTY;
 			}
 		}
 		mdb_default_cmp(txn, MAIN_DBI);
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 
 	if (txn->mt_dbxs[MAIN_DBI].md_cmp == NULL) {
@@ -10658,17 +10658,17 @@ int mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *db
 		if (len == txn->mt_dbxs[i].md_name.mv_size &&
 			!strncmp(name, txn->mt_dbxs[i].md_name.mv_data, len)) {
 			*dbi = i;
-			return MDB_SUCCESS;
+			return RZDB_SUCCESS;
 		}
 	}
 
 	/* If no free slot and max hit, fail */
 	if (!unused && txn->mt_numdbs >= txn->mt_env->me_maxdbs)
-		return MDB_DBS_FULL;
+		return RZDB_DBS_FULL;
 
 	/* Cannot mix named databases with some mainDB flags */
-	if (txn->mt_dbs[MAIN_DBI].md_flags & (MDB_DUPSORT|MDB_INTEGERKEY))
-		return (flags & MDB_CREATE) ? MDB_INCOMPATIBLE : MDB_NOTFOUND;
+	if (txn->mt_dbs[MAIN_DBI].md_flags & (RZDB_DUPSORT|RZDB_INTEGERKEY))
+		return (flags & RZDB_CREATE) ? RZDB_INCOMPATIBLE : RZDB_NOTFOUND;
 
 	/* Find the DB info */
 	dbflag = DB_NEW|DB_VALID|DB_USRVALID;
@@ -10676,16 +10676,16 @@ int mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *db
 	key.mv_size = len;
 	key.mv_data = (void *)name;
 	mdb_cursor_init(&mc, txn, MAIN_DBI, NULL);
-	rc = mdb_cursor_set(&mc, &key, &data, MDB_SET, &exact);
-	if (rc == MDB_SUCCESS) {
+	rc = mdb_cursor_set(&mc, &key, &data, RZDB_SET, &exact);
+	if (rc == RZDB_SUCCESS) {
 		/* make sure this is actually a DB */
-		MDB_node *node = NODEPTR(mc.mc_pg[mc.mc_top], mc.mc_ki[mc.mc_top]);
+		RZDB_node *node = NODEPTR(mc.mc_pg[mc.mc_top], mc.mc_ki[mc.mc_top]);
 		if ((node->mn_flags & (F_DUPDATA|F_SUBDATA)) != F_SUBDATA)
-			return MDB_INCOMPATIBLE;
+			return RZDB_INCOMPATIBLE;
 	} else {
-		if (rc != MDB_NOTFOUND || !(flags & MDB_CREATE))
+		if (rc != RZDB_NOTFOUND || !(flags & RZDB_CREATE))
 			return rc;
-		if (F_ISSET(txn->mt_flags, MDB_TXN_RDONLY))
+		if (F_ISSET(txn->mt_flags, RZDB_TXN_RDONLY))
 			return EACCES;
 	}
 
@@ -10694,8 +10694,8 @@ int mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *db
 		return ENOMEM;
 
 	if (rc) {
-		/* MDB_NOTFOUND and MDB_CREATE: Create new DB */
-		data.mv_size = sizeof(MDB_db);
+		/* RZDB_NOTFOUND and RZDB_CREATE: Create new DB */
+		data.mv_size = sizeof(RZDB_db);
 		data.mv_data = &dummy;
 		memset(&dummy, 0, sizeof(dummy));
 		dummy.md_root = P_INVALID;
@@ -10719,7 +10719,7 @@ int mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *db
 		seq = ++txn->mt_env->me_dbiseqs[slot];
 		txn->mt_dbiseqs[slot] = seq;
 
-		memcpy(&txn->mt_dbs[slot], data.mv_data, sizeof(MDB_db));
+		memcpy(&txn->mt_dbs[slot], data.mv_data, sizeof(RZDB_db));
 		*dbi = slot;
 		mdb_default_cmp(txn, slot);
 		if (!unused) {
@@ -10731,24 +10731,24 @@ int mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *db
 }
 
 int ESECT
-mdb_stat(MDB_txn *txn, MDB_dbi dbi, MDB_stat *arg)
+mdb_stat(RZDB_txn *txn, RZDB_dbi dbi, RZDB_stat *arg)
 {
 	if (!arg || !TXN_DBI_EXIST(txn, dbi, DB_VALID))
 		return EINVAL;
 
-	if (txn->mt_flags & MDB_TXN_BLOCKED)
-		return MDB_BAD_TXN;
+	if (txn->mt_flags & RZDB_TXN_BLOCKED)
+		return RZDB_BAD_TXN;
 
 	if (txn->mt_dbflags[dbi] & DB_STALE) {
-		MDB_cursor mc;
-		MDB_xcursor mx;
+		RZDB_cursor mc;
+		RZDB_xcursor mx;
 		/* Stale, must read the DB's root. cursor_init does it for us. */
 		mdb_cursor_init(&mc, txn, dbi, &mx);
 	}
 	return mdb_stat0(txn->mt_env, &txn->mt_dbs[dbi], arg);
 }
 
-void mdb_dbi_close(MDB_env *env, MDB_dbi dbi)
+void mdb_dbi_close(RZDB_env *env, RZDB_dbi dbi)
 {
 	char *ptr;
 	if (dbi < CORE_DBS || dbi >= env->me_maxdbs)
@@ -10764,13 +10764,13 @@ void mdb_dbi_close(MDB_env *env, MDB_dbi dbi)
 	}
 }
 
-int mdb_dbi_flags(MDB_txn *txn, MDB_dbi dbi, unsigned int *flags)
+int mdb_dbi_flags(RZDB_txn *txn, RZDB_dbi dbi, unsigned int *flags)
 {
 	/* We could return the flags for the FREE_DBI too but what's the point? */
 	if (!TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 	*flags = txn->mt_dbs[dbi].md_flags & PERSISTENT_FLAGS;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 /** Add all the DB's pages to the free list.
@@ -10779,15 +10779,15 @@ int mdb_dbi_flags(MDB_txn *txn, MDB_dbi dbi, unsigned int *flags)
  * @return 0 on success, non-zero on failure.
  */
 static int
-mdb_drop0(MDB_cursor *mc, int subs)
+mdb_drop0(RZDB_cursor *mc, int subs)
 {
 	int rc;
 
-	rc = mdb_page_search(mc, NULL, MDB_PS_FIRST);
-	if (rc == MDB_SUCCESS) {
-		MDB_txn *txn = mc->mc_txn;
-		MDB_node *ni;
-		MDB_cursor mx;
+	rc = mdb_page_search(mc, NULL, RZDB_PS_FIRST);
+	if (rc == RZDB_SUCCESS) {
+		RZDB_txn *txn = mc->mc_txn;
+		RZDB_node *ni;
+		RZDB_cursor mx;
 		unsigned int i;
 
 		/* DUPSORT sub-DBs have no ovpages/DBs. Omit scanning leaves.
@@ -10800,19 +10800,19 @@ mdb_drop0(MDB_cursor *mc, int subs)
 			mdb_cursor_pop(mc);
 
 		mdb_cursor_copy(mc, &mx);
-#ifdef MDB_VL32
+#ifdef RZDB_VL32
 		/* bump refcount for mx's pages */
 		for (i=0; i<mc->mc_snum; i++)
 			mdb_page_get(&mx, mc->mc_pg[i]->mp_pgno, &mx.mc_pg[i], NULL);
 #endif
 		while (mc->mc_snum > 0) {
-			MDB_page *mp = mc->mc_pg[mc->mc_top];
+			RZDB_page *mp = mc->mc_pg[mc->mc_top];
 			unsigned n = NUMKEYS(mp);
 			if (IS_LEAF(mp)) {
 				for (i=0; i<n; i++) {
 					ni = NODEPTR(mp, i);
 					if (ni->mn_flags & F_BIGDATA) {
-						MDB_page *omp;
+						RZDB_page *omp;
 						pgno_t pg;
 						memcpy(&pg, NODEDATA(ni), sizeof(pg));
 						rc = mdb_page_get(mc, pg, &omp, NULL);
@@ -10851,7 +10851,7 @@ mdb_drop0(MDB_cursor *mc, int subs)
 			mc->mc_ki[mc->mc_top] = i;
 			rc = mdb_cursor_sibling(mc, 1);
 			if (rc) {
-				if (rc != MDB_NOTFOUND)
+				if (rc != RZDB_NOTFOUND)
 					goto done;
 				/* no more siblings, go back to beginning
 				 * of previous level.
@@ -10869,35 +10869,35 @@ pop:
 		rc = mdb_midl_append(&txn->mt_free_pgs, mc->mc_db->md_root);
 done:
 		if (rc)
-			txn->mt_flags |= MDB_TXN_ERROR;
+			txn->mt_flags |= RZDB_TXN_ERROR;
 		/* drop refcount for mx's pages */
-		MDB_CURSOR_UNREF(&mx, 0);
-	} else if (rc == MDB_NOTFOUND) {
-		rc = MDB_SUCCESS;
+		RZDB_CURSOR_UNREF(&mx, 0);
+	} else if (rc == RZDB_NOTFOUND) {
+		rc = RZDB_SUCCESS;
 	}
 	mc->mc_flags &= ~C_INITIALIZED;
 	return rc;
 }
 
-int mdb_drop(MDB_txn *txn, MDB_dbi dbi, int del)
+int mdb_drop(RZDB_txn *txn, RZDB_dbi dbi, int del)
 {
-	MDB_cursor *mc, *m2;
+	RZDB_cursor *mc, *m2;
 	int rc;
 
 	if ((unsigned)del > 1 || !TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 
-	if (F_ISSET(txn->mt_flags, MDB_TXN_RDONLY))
+	if (F_ISSET(txn->mt_flags, RZDB_TXN_RDONLY))
 		return EACCES;
 
 	if (TXN_DBI_CHANGED(txn, dbi))
-		return MDB_BAD_DBI;
+		return RZDB_BAD_DBI;
 
 	rc = mdb_cursor_open(txn, dbi, &mc);
 	if (rc)
 		return rc;
 
-	rc = mdb_drop0(mc, mc->mc_db->md_flags & MDB_DUPSORT);
+	rc = mdb_drop0(mc, mc->mc_db->md_flags & RZDB_DUPSORT);
 	/* Invalidate the dropped DB's cursors */
 	for (m2 = txn->mt_cursors[dbi]; m2; m2 = m2->mc_next)
 		m2->mc_flags &= ~(C_INITIALIZED|C_EOF);
@@ -10911,7 +10911,7 @@ int mdb_drop(MDB_txn *txn, MDB_dbi dbi, int del)
 			txn->mt_dbflags[dbi] = DB_STALE;
 			mdb_dbi_close(txn->mt_env, dbi);
 		} else {
-			txn->mt_flags |= MDB_TXN_ERROR;
+			txn->mt_flags |= RZDB_TXN_ERROR;
 		}
 	} else {
 		/* reset the DB record, mark it dirty */
@@ -10924,78 +10924,78 @@ int mdb_drop(MDB_txn *txn, MDB_dbi dbi, int del)
 		txn->mt_dbs[dbi].md_root = P_INVALID;
 		txn->mt_dbs[dbi].md_seq = 0;
 
-		txn->mt_flags |= MDB_TXN_DIRTY;
+		txn->mt_flags |= RZDB_TXN_DIRTY;
 	}
 leave:
 	mdb_cursor_close(mc);
 	return rc;
 }
 
-int mdb_set_compare(MDB_txn *txn, MDB_dbi dbi, MDB_cmp_func *cmp)
+int mdb_set_compare(RZDB_txn *txn, RZDB_dbi dbi, RZDB_cmp_func *cmp)
 {
 	if (!TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 
 	txn->mt_dbxs[dbi].md_cmp = cmp;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
-int mdb_set_dupsort(MDB_txn *txn, MDB_dbi dbi, MDB_cmp_func *cmp)
+int mdb_set_dupsort(RZDB_txn *txn, RZDB_dbi dbi, RZDB_cmp_func *cmp)
 {
 	if (!TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 
 	txn->mt_dbxs[dbi].md_dcmp = cmp;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
-int mdb_set_cmpctx(MDB_txn *txn, MDB_dbi dbi, void *ctx)
+int mdb_set_cmpctx(RZDB_txn *txn, RZDB_dbi dbi, void *ctx)
 {
 	if (dbi == FREE_DBI || !TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 
 	txn->mt_dbxs[dbi].md_cmpctx = ctx;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
-int mdb_set_dcmpctx(MDB_txn *txn, MDB_dbi dbi, void *ctx)
+int mdb_set_dcmpctx(RZDB_txn *txn, RZDB_dbi dbi, void *ctx)
 {
 	if (dbi == FREE_DBI || !TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 
 	txn->mt_dbxs[dbi].md_dcmpctx = ctx;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
-int mdb_get_cmpctx(MDB_txn *txn, MDB_dbi dbi, void **ctx)
+int mdb_get_cmpctx(RZDB_txn *txn, RZDB_dbi dbi, void **ctx)
 {
 	if (dbi == FREE_DBI || !TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 
     *ctx = txn->mt_dbxs[dbi].md_cmpctx;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
-int mdb_get_dcmpctx(MDB_txn *txn, MDB_dbi dbi, void **ctx)
+int mdb_get_dcmpctx(RZDB_txn *txn, RZDB_dbi dbi, void **ctx)
 {
 	if (dbi == FREE_DBI || !TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 
     *ctx = txn->mt_dbxs[dbi].md_dcmpctx;
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int ESECT
-mdb_env_get_maxkeysize(MDB_env *env)
+mdb_env_get_maxkeysize(RZDB_env *env)
 {
 	return ENV_MAXKEY(env);
 }
 
 int ESECT
-mdb_reader_list(MDB_env *env, MDB_msg_func *func, void *ctx)
+mdb_reader_list(RZDB_env *env, RZDB_msg_func *func, void *ctx)
 {
 	unsigned int i, rdrs;
-	MDB_reader *mr;
+	RZDB_reader *mr;
 	char buf[64];
 	int rc = 0, first = 1;
 
@@ -11033,7 +11033,7 @@ mdb_reader_list(MDB_env *env, MDB_msg_func *func, void *ctx)
  * return -1 if already present.
  */
 static int ESECT
-mdb_pid_insert(MDB_PID_T *ids, MDB_PID_T pid)
+mdb_pid_insert(RZDB_PID_T *ids, RZDB_PID_T pid)
 {
 	/* binary search of pid in list */
 	unsigned base = 0;
@@ -11070,27 +11070,27 @@ mdb_pid_insert(MDB_PID_T *ids, MDB_PID_T pid)
 }
 
 int ESECT
-mdb_reader_check(MDB_env *env, int *dead)
+mdb_reader_check(RZDB_env *env, int *dead)
 {
 	if (!env)
 		return EINVAL;
 	if (dead)
 		*dead = 0;
-	return env->me_txns ? mdb_reader_check0(env, 0, dead) : MDB_SUCCESS;
+	return env->me_txns ? mdb_reader_check0(env, 0, dead) : RZDB_SUCCESS;
 }
 
 /** As #mdb_reader_check(). \b rlocked is set if caller locked #me_rmutex. */
 static int ESECT
-mdb_reader_check0(MDB_env *env, int rlocked, int *dead)
+mdb_reader_check0(RZDB_env *env, int rlocked, int *dead)
 {
 	mdb_mutexref_t rmutex = rlocked ? NULL : env->me_rmutex;
 	unsigned int i, j, rdrs;
-	MDB_reader *mr;
-	MDB_PID_T *pids, pid;
-	int rc = MDB_SUCCESS, count = 0;
+	RZDB_reader *mr;
+	RZDB_PID_T *pids, pid;
+	int rc = RZDB_SUCCESS, count = 0;
 
 	rdrs = env->me_txns->mti_numreaders;
-	pids = malloc((rdrs+1) * sizeof(MDB_PID_T));
+	pids = malloc((rdrs+1) * sizeof(RZDB_PID_T));
 	if (!pids)
 		return ENOMEM;
 	pids[0] = 0;
@@ -11132,7 +11132,7 @@ mdb_reader_check0(MDB_env *env, int rlocked, int *dead)
 	return rc;
 }
 
-#ifdef MDB_ROBUST_SUPPORTED
+#ifdef RZDB_ROBUST_SUPPORTED
 /** Handle #LOCK_MUTEX0() failure.
  * Try to repair the lock file if the mutex owner died.
  * @param[in] env	the environment handle
@@ -11141,14 +11141,14 @@ mdb_reader_check0(MDB_env *env, int rlocked, int *dead)
  * @return 0 on success with the mutex locked, or an error code on failure.
  */
 static int ESECT
-mdb_mutex_failed(MDB_env *env, mdb_mutexref_t mutex, int rc)
+mdb_mutex_failed(RZDB_env *env, mdb_mutexref_t mutex, int rc)
 {
 	int rlocked, rc2;
-	MDB_meta *meta;
+	RZDB_meta *meta;
 
-	if (rc == MDB_OWNERDEAD) {
+	if (rc == RZDB_OWNERDEAD) {
 		/* We own the mutex. Clean up after dead previous owner. */
-		rc = MDB_SUCCESS;
+		rc = RZDB_SUCCESS;
 		rlocked = (mutex == env->me_rmutex);
 		if (!rlocked) {
 			/* Keep mti_txnid updated, otherwise next writer can
@@ -11158,9 +11158,9 @@ mdb_mutex_failed(MDB_env *env, mdb_mutexref_t mutex, int rc)
 			env->me_txns->mti_txnid = meta->mm_txnid;
 			/* env is hosed if the dead thread was ours */
 			if (env->me_txn) {
-				env->me_flags |= MDB_FATAL_ERROR;
+				env->me_flags |= RZDB_FATAL_ERROR;
 				env->me_txn = NULL;
-				rc = MDB_PANIC;
+				rc = RZDB_PANIC;
 			}
 		}
 		DPRINTF(("%cmutex owner died, %s", (rlocked ? 'r' : 'w'),
@@ -11181,10 +11181,10 @@ mdb_mutex_failed(MDB_env *env, mdb_mutexref_t mutex, int rc)
 
 	return rc;
 }
-#endif	/* MDB_ROBUST_SUPPORTED */
+#endif	/* RZDB_ROBUST_SUPPORTED */
 
 int
-mdb_dbi_set_seq(MDB_txn *txn, MDB_dbi dbi, uint64_t seq, uint64_t *old)
+mdb_dbi_set_seq(RZDB_txn *txn, RZDB_dbi dbi, uint64_t seq, uint64_t *old)
 {
 	if (txn == NULL)
 		return EINVAL;
@@ -11192,29 +11192,29 @@ mdb_dbi_set_seq(MDB_txn *txn, MDB_dbi dbi, uint64_t seq, uint64_t *old)
 	if (!TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
 		return EINVAL;
 
-	if (txn->mt_flags & MDB_TXN_BLOCKED)
-	  return MDB_BAD_TXN;
+	if (txn->mt_flags & RZDB_TXN_BLOCKED)
+	  return RZDB_BAD_TXN;
 
-	if (txn->mt_flags & MDB_TXN_RDONLY)
+	if (txn->mt_flags & RZDB_TXN_RDONLY)
 	  return EACCES;
 
-	MDB_db *dbs = &txn->mt_dbs[dbi];
+	RZDB_db *dbs = &txn->mt_dbs[dbi];
 
 	if (old != NULL)
 		*old = dbs->md_seq;
 
 	dbs->md_seq = seq;
-	txn->mt_flags |= MDB_TXN_DIRTY;
+	txn->mt_flags |= RZDB_TXN_DIRTY;
 	txn->mt_dbflags[dbi] |= DB_DIRTY;
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 int
-mdb_dbi_inc_seq(MDB_txn *txn, MDB_dbi dbi, int64_t incr, uint64_t *old)
+mdb_dbi_inc_seq(RZDB_txn *txn, RZDB_dbi dbi, int64_t incr, uint64_t *old)
 {
 	uint64_t seq;
-	MDB_db *dbs;
+	RZDB_db *dbs;
 	if (txn == NULL)
 		return EINVAL;
 
@@ -11227,27 +11227,27 @@ mdb_dbi_inc_seq(MDB_txn *txn, MDB_dbi dbi, int64_t incr, uint64_t *old)
 	dbs = &txn->mt_dbs[dbi];
 	seq = dbs->md_seq;
 	if (incr != 0) {
-		if (txn->mt_flags & MDB_TXN_BLOCKED)
-		  return MDB_BAD_TXN;
+		if (txn->mt_flags & RZDB_TXN_BLOCKED)
+		  return RZDB_BAD_TXN;
 
-		if (txn->mt_flags & MDB_TXN_RDONLY)
+		if (txn->mt_flags & RZDB_TXN_RDONLY)
 		  return EACCES;
 
 		dbs->md_seq += incr;
-		txn->mt_flags |= MDB_TXN_DIRTY;
+		txn->mt_flags |= RZDB_TXN_DIRTY;
 		txn->mt_dbflags[dbi] |= DB_DIRTY;
 	}
 
 	if (old != NULL)
 		*old = seq;
 
-	return MDB_SUCCESS;
+	return RZDB_SUCCESS;
 }
 
 #if defined(_WIN32)
 /** Convert \b src to new wchar_t[] string with room for \b xtra extra chars */
 static int ESECT
-utf8_to_utf16(const char *src, MDB_name *dst, int xtra)
+utf8_to_utf16(const char *src, RZDB_name *dst, int xtra)
 {
 	int rc, need = 0;
 	wchar_t *result = NULL;
@@ -11267,7 +11267,7 @@ utf8_to_utf16(const char *src, MDB_name *dst, int xtra)
 		dst->mn_alloced = 1;
 		dst->mn_len = need - 1;
 		dst->mn_val = result;
-		return MDB_SUCCESS;
+		return RZDB_SUCCESS;
 	}
 }
 #endif /* defined(_WIN32) */

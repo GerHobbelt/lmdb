@@ -13,9 +13,9 @@
  */
 #ifdef _WIN32
 #include <windows.h>
-#define	MDB_STDOUT	GetStdHandle(STD_OUTPUT_HANDLE)
+#define	RZDB_STDOUT	GetStdHandle(STD_OUTPUT_HANDLE)
 #else
-#define	MDB_STDOUT	1
+#define	RZDB_STDOUT	1
 #endif
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,18 +30,18 @@ sighandle(int sig)
 int main(int argc,char * argv[])
 {
 	int rc;
-	MDB_env *env;
+	RZDB_env *env;
 	const char *progname = argv[0], *act;
-	unsigned flags = MDB_RDONLY;
+	unsigned flags = RZDB_RDONLY;
 	unsigned cpflags = 0;
 
 	for (; argc > 1 && argv[1][0] == '-'; argc--, argv++) {
 		if (argv[1][1] == 'n' && argv[1][2] == '\0')
-			flags |= MDB_NOSUBDIR;
+			flags |= RZDB_NOSUBDIR;
 		else if (argv[1][1] == 'c' && argv[1][2] == '\0')
-			cpflags |= MDB_CP_COMPACT;
+			cpflags |= RZDB_CP_COMPACT;
 		else if (argv[1][1] == 'V' && argv[1][2] == '\0') {
-			printf("%s\n", MDB_VERSION_STRING);
+			printf("%s\n", RZDB_VERSION_STRING);
 			exit(0);
 		} else
 			argc = 0;
@@ -63,13 +63,13 @@ int main(int argc,char * argv[])
 
 	act = "opening environment";
 	rc = mdb_env_create(&env);
-	if (rc == MDB_SUCCESS) {
+	if (rc == RZDB_SUCCESS) {
 		rc = mdb_env_open(env, argv[1], flags, 0600);
 	}
-	if (rc == MDB_SUCCESS) {
+	if (rc == RZDB_SUCCESS) {
 		act = "copying";
 		if (argc == 2)
-			rc = mdb_env_copyfd2(env, MDB_STDOUT, cpflags);
+			rc = mdb_env_copyfd2(env, RZDB_STDOUT, cpflags);
 		else
 			rc = mdb_env_copy2(env, argv[2], cpflags);
 	}

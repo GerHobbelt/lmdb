@@ -17,10 +17,10 @@
 #include <unistd.h>
 #include "rzdb.h"
 
-#define Z	MDB_FMT_Z
-#define Yu	MDB_PRIy(u)
+#define Z	RZDB_FMT_Z
+#define Yu	RZDB_PRIy(u)
 
-static void prstat(MDB_stat *ms)
+static void prstat(RZDB_stat *ms)
 {
 #if 0
 	printf("  Page size: %u\n", ms->ms_psize);
@@ -41,11 +41,11 @@ static void usage(char *prog)
 int main(int argc, char *argv[])
 {
 	int i, rc;
-	MDB_env *env;
-	MDB_txn *txn;
-	MDB_dbi dbi;
-	MDB_stat mst;
-	MDB_envinfo mei;
+	RZDB_env *env;
+	RZDB_txn *txn;
+	RZDB_dbi dbi;
+	RZDB_stat mst;
+	RZDB_envinfo mei;
 	char *prog = argv[0];
 	char *envname;
 	char *subname = NULL;
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 	while ((i = getopt(argc, argv, "Vaefnrs:")) != EOF) {
 		switch(i) {
 		case 'V':
-			printf("%s\n", MDB_VERSION_STRING);
+			printf("%s\n", RZDB_VERSION_STRING);
 			exit(0);
 			break;
 		case 'a':
@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
 			freinfo++;
 			break;
 		case 'n':
-			envflags |= MDB_NOSUBDIR;
+			envflags |= RZDB_NOSUBDIR;
 			break;
 		case 'r':
 			rdrinfo++;
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
 		mdb_env_set_maxdbs(env, 4);
 	}
 
-	rc = mdb_env_open(env, envname, envflags | MDB_RDONLY, 0664);
+	rc = mdb_env_open(env, envname, envflags | RZDB_RDONLY, 0664);
 	if (rc) {
 		fprintf(stderr, "mdb_env_open failed, error %d %s\n", rc, mdb_strerror(rc));
 		goto env_close;
@@ -133,26 +133,26 @@ int main(int argc, char *argv[])
 
 	if (rdrinfo) {
 		printf("Reader Table Status\n");
-		rc = mdb_reader_list(env, (MDB_msg_func *)fputs, stdout);
+		rc = mdb_reader_list(env, (RZDB_msg_func *)fputs, stdout);
 		if (rdrinfo > 1) {
 			int dead;
 			mdb_reader_check(env, &dead);
 			printf("  %d stale readers cleared.\n", dead);
-			rc = mdb_reader_list(env, (MDB_msg_func *)fputs, stdout);
+			rc = mdb_reader_list(env, (RZDB_msg_func *)fputs, stdout);
 		}
 		if (!(subname || alldbs || freinfo))
 			goto env_close;
 	}
 
-	rc = mdb_txn_begin(env, NULL, MDB_RDONLY, &txn);
+	rc = mdb_txn_begin(env, NULL, RZDB_RDONLY, &txn);
 	if (rc) {
 		fprintf(stderr, "mdb_txn_begin failed, error %d %s\n", rc, mdb_strerror(rc));
 		goto env_close;
 	}
 
 	if (freinfo) {
-		MDB_cursor *cursor;
-		MDB_val key, data;
+		RZDB_cursor *cursor;
+		RZDB_val key, data;
 		mdb_size_t pages = 0, *iptr;
 
 		printf("Freelist Status\n");
@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
 			goto txn_abort;
 		}
 		prstat(&mst);
-		while ((rc = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0) {
+		while ((rc = mdb_cursor_get(cursor, &key, &data, RZDB_NEXT)) == 0) {
 			iptr = data.mv_data;
 			pages += *iptr;
 			if (freinfo > 1) {
@@ -215,24 +215,24 @@ int main(int argc, char *argv[])
 	prstat(&mst);
 
 	if (alldbs) {
-		MDB_cursor *cursor;
-		MDB_val key;
+		RZDB_cursor *cursor;
+		RZDB_val key;
 
 		rc = mdb_cursor_open(txn, dbi, &cursor);
 		if (rc) {
 			fprintf(stderr, "mdb_cursor_open failed, error %d %s\n", rc, mdb_strerror(rc));
 			goto txn_abort;
 		}
-		while ((rc = mdb_cursor_get(cursor, &key, NULL, MDB_NEXT_NODUP)) == 0) {
+		while ((rc = mdb_cursor_get(cursor, &key, NULL, RZDB_NEXT_NODUP)) == 0) {
 			char *str;
-			MDB_dbi db2;
+			RZDB_dbi db2;
 			if (memchr(key.mv_data, '\0', key.mv_size))
 				continue;
 			str = malloc(key.mv_size+1);
 			memcpy(str, key.mv_data, key.mv_size);
 			str[key.mv_size] = '\0';
 			rc = mdb_open(txn, str, 0, &db2);
-			if (rc == MDB_SUCCESS)
+			if (rc == RZDB_SUCCESS)
 				printf("Status of %s\n", str);
 			free(str);
 			if (rc) continue;
@@ -247,8 +247,8 @@ int main(int argc, char *argv[])
 		mdb_cursor_close(cursor);
 	}
 
-	if (rc == MDB_NOTFOUND)
-		rc = MDB_SUCCESS;
+	if (rc == RZDB_NOTFOUND)
+		rc = RZDB_SUCCESS;
 
 	mdb_close(env, dbi);
 txn_abort:

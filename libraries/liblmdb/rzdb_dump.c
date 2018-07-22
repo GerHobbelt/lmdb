@@ -20,7 +20,7 @@
 #include <signal.h>
 #include "rzdb.h"
 
-#define Yu	MDB_PRIy(u)
+#define Yu	RZDB_PRIy(u)
 
 #define PRINT	1
 static int mode;
@@ -31,12 +31,12 @@ typedef struct flagbit {
 } flagbit;
 
 flagbit dbflags[] = {
-	{ MDB_REVERSEKEY, "reversekey" },
-	{ MDB_DUPSORT, "dupsort" },
-	{ MDB_INTEGERKEY, "integerkey" },
-	{ MDB_DUPFIXED, "dupfixed" },
-	{ MDB_INTEGERDUP, "integerdup" },
-	{ MDB_REVERSEDUP, "reversedup" },
+	{ RZDB_REVERSEKEY, "reversekey" },
+	{ RZDB_DUPSORT, "dupsort" },
+	{ RZDB_INTEGERKEY, "integerkey" },
+	{ RZDB_DUPFIXED, "dupfixed" },
+	{ RZDB_INTEGERDUP, "integerdup" },
+	{ RZDB_REVERSEDUP, "reversedup" },
 	{ 0, NULL }
 };
 
@@ -55,7 +55,7 @@ static void hex(unsigned char c)
 	putchar(hexc[c & 0xf]);
 }
 
-static void text(MDB_val *v)
+static void text(RZDB_val *v)
 {
 	unsigned char *c, *end;
 
@@ -74,7 +74,7 @@ static void text(MDB_val *v)
 	putchar('\n');
 }
 
-static void byte(MDB_val *v)
+static void byte(RZDB_val *v)
 {
 	unsigned char *c, *end;
 
@@ -88,12 +88,12 @@ static void byte(MDB_val *v)
 }
 
 /* Dump in BDB-compatible format */
-static int dumpit(MDB_txn *txn, MDB_dbi dbi, char *name)
+static int dumpit(RZDB_txn *txn, RZDB_dbi dbi, char *name)
 {
-	MDB_cursor *mc;
-	MDB_stat ms;
-	MDB_val key, data;
-	MDB_envinfo info;
+	RZDB_cursor *mc;
+	RZDB_stat ms;
+	RZDB_val key, data;
+	RZDB_envinfo info;
 	unsigned int flags;
 	int rc, i;
 
@@ -116,7 +116,7 @@ static int dumpit(MDB_txn *txn, MDB_dbi dbi, char *name)
 		printf("mapaddr=%p\n", info.me_mapaddr);
 	printf("maxreaders=%u\n", info.me_maxreaders);
 
-	if (flags & MDB_DUPSORT)
+	if (flags & RZDB_DUPSORT)
 		printf("duplicates=1\n");
 
 	for (i=0; dbflags[i].bit; i++)
@@ -129,7 +129,7 @@ static int dumpit(MDB_txn *txn, MDB_dbi dbi, char *name)
 	rc = mdb_cursor_open(txn, dbi, &mc);
 	if (rc) return rc;
 
-	while ((rc = mdb_cursor_get(mc, &key, &data, MDB_NEXT) == MDB_SUCCESS)) {
+	while ((rc = mdb_cursor_get(mc, &key, &data, RZDB_NEXT) == RZDB_SUCCESS)) {
 		if (gotsig) {
 			rc = EINTR;
 			break;
@@ -143,8 +143,8 @@ static int dumpit(MDB_txn *txn, MDB_dbi dbi, char *name)
 		}
 	}
 	printf("DATA=END\n");
-	if (rc == MDB_NOTFOUND)
-		rc = MDB_SUCCESS;
+	if (rc == RZDB_NOTFOUND)
+		rc = RZDB_SUCCESS;
 
 	return rc;
 }
@@ -158,9 +158,9 @@ static void usage(char *prog)
 int main(int argc, char *argv[])
 {
 	int i, rc;
-	MDB_env *env;
-	MDB_txn *txn;
-	MDB_dbi dbi;
+	RZDB_env *env;
+	RZDB_txn *txn;
+	RZDB_dbi dbi;
 	char *prog = argv[0];
 	char *envname;
 	char *subname = NULL;
@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
 	while ((i = getopt(argc, argv, "af:lnps:V")) != EOF) {
 		switch(i) {
 		case 'V':
-			printf("%s\n", MDB_VERSION_STRING);
+			printf("%s\n", RZDB_VERSION_STRING);
 			exit(0);
 			break;
 		case 'l':
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
 			}
 			break;
 		case 'n':
-			envflags |= MDB_NOSUBDIR;
+			envflags |= RZDB_NOSUBDIR;
 			break;
 		case 'p':
 			mode |= PRINT;
@@ -238,13 +238,13 @@ int main(int argc, char *argv[])
 		mdb_env_set_maxdbs(env, 2);
 	}
 
-	rc = mdb_env_open(env, envname, envflags | MDB_RDONLY, 0664);
+	rc = mdb_env_open(env, envname, envflags | RZDB_RDONLY, 0664);
 	if (rc) {
 		fprintf(stderr, "mdb_env_open failed, error %d %s\n", rc, mdb_strerror(rc));
 		goto env_close;
 	}
 
-	rc = mdb_txn_begin(env, NULL, MDB_RDONLY, &txn);
+	rc = mdb_txn_begin(env, NULL, RZDB_RDONLY, &txn);
 	if (rc) {
 		fprintf(stderr, "mdb_txn_begin failed, error %d %s\n", rc, mdb_strerror(rc));
 		goto env_close;
@@ -257,8 +257,8 @@ int main(int argc, char *argv[])
 	}
 
 	if (alldbs) {
-		MDB_cursor *cursor;
-		MDB_val key;
+		RZDB_cursor *cursor;
+		RZDB_val key;
 		int count = 0;
 
 		rc = mdb_cursor_open(txn, dbi, &cursor);
@@ -266,9 +266,9 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "mdb_cursor_open failed, error %d %s\n", rc, mdb_strerror(rc));
 			goto txn_abort;
 		}
-		while ((rc = mdb_cursor_get(cursor, &key, NULL, MDB_NEXT_NODUP)) == 0) {
+		while ((rc = mdb_cursor_get(cursor, &key, NULL, RZDB_NEXT_NODUP)) == 0) {
 			char *str;
-			MDB_dbi db2;
+			RZDB_dbi db2;
 			if (memchr(key.mv_data, '\0', key.mv_size))
 				continue;
 			count++;
@@ -276,7 +276,7 @@ int main(int argc, char *argv[])
 			memcpy(str, key.mv_data, key.mv_size);
 			str[key.mv_size] = '\0';
 			rc = mdb_open(txn, str, 0, &db2);
-			if (rc == MDB_SUCCESS) {
+			if (rc == RZDB_SUCCESS) {
 				if (list) {
 					printf("%s\n", str);
 					list++;
@@ -293,14 +293,14 @@ int main(int argc, char *argv[])
 		mdb_cursor_close(cursor);
 		if (!count) {
 			fprintf(stderr, "%s: %s does not contain multiple databases\n", prog, envname);
-			rc = MDB_NOTFOUND;
-		} else if (rc == MDB_NOTFOUND) {
-			rc = MDB_SUCCESS;
+			rc = RZDB_NOTFOUND;
+		} else if (rc == RZDB_NOTFOUND) {
+			rc = RZDB_SUCCESS;
 		}
 	} else {
 		rc = dumpit(txn, dbi, subname);
 	}
-	if (rc && rc != MDB_NOTFOUND)
+	if (rc && rc != RZDB_NOTFOUND)
 		fprintf(stderr, "%s: %s: %s\n", prog, envname, mdb_strerror(rc));
 
 	mdb_close(env, dbi);

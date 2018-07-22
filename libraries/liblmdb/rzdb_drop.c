@@ -18,7 +18,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <signal.h>
-#include "lmdb.h"
+#include "rzdb.h"
 
 static volatile sig_atomic_t gotsig;
 
@@ -36,9 +36,9 @@ static void usage(char *prog)
 int main(int argc, char *argv[])
 {
 	int i, rc;
-	MDB_env *env;
-	MDB_txn *txn;
-	MDB_dbi dbi;
+	RZDB_env *env;
+	RZDB_txn *txn;
+	RZDB_dbi dbi;
 	char *prog = argv[0];
 	char *envname;
 	char *subname = NULL;
@@ -57,14 +57,14 @@ int main(int argc, char *argv[])
 	while ((i = getopt(argc, argv, "dns:V")) != EOF) {
 		switch(i) {
 		case 'V':
-			printf("%s\n", MDB_VERSION_STRING);
+			printf("%s\n", RZDB_VERSION_STRING);
 			exit(0);
 			break;
 		case 'd':
 			delete = 1;
 			break;
 		case 'n':
-			envflags |= MDB_NOSUBDIR;
+			envflags |= RZDB_NOSUBDIR;
 			break;
 		case 's':
 			subname = optarg;

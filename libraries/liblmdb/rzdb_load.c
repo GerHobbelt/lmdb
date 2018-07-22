@@ -34,11 +34,11 @@ static char *prog;
 
 static int Eof;
 
-static MDB_envinfo info;
+static RZDB_envinfo info;
 
-static MDB_val kbuf, dbuf;
+static RZDB_val kbuf, dbuf;
 
-#define Yu	MDB_PRIy(u)
+#define Yu	RZDB_PRIy(u)
 
 #define STRLENOF(s)	(sizeof(s)-1)
 
@@ -51,12 +51,12 @@ typedef struct flagbit {
 #define S(s)	s, STRLENOF(s)
 
 flagbit dbflags[] = {
-	{ MDB_REVERSEKEY, S("reversekey") },
-	{ MDB_DUPSORT, S("dupsort") },
-	{ MDB_INTEGERKEY, S("integerkey") },
-	{ MDB_DUPFIXED, S("dupfixed") },
-	{ MDB_INTEGERDUP, S("integerdup") },
-	{ MDB_REVERSEDUP, S("reversedup") },
+	{ RZDB_REVERSEKEY, S("reversekey") },
+	{ RZDB_DUPSORT, S("dupsort") },
+	{ RZDB_INTEGERKEY, S("integerkey") },
+	{ RZDB_DUPFIXED, S("dupfixed") },
+	{ RZDB_INTEGERDUP, S("integerdup") },
+	{ RZDB_REVERSEDUP, S("reversedup") },
 	{ 0, NULL, 0 }
 };
 
@@ -110,7 +110,7 @@ static void readhdr(void)
 			ptr = memchr(dbuf.mv_data, '\n', dbuf.mv_size);
 			if (ptr) *ptr = '\0';
 			i = sscanf((char *)dbuf.mv_data+STRLENOF("mapsize="),
-				"%" MDB_SCNy(u), &info.me_mapsize);
+				"%" RZDB_SCNy(u), &info.me_mapsize);
 			if (i != 1) {
 				fprintf(stderr, "%s: line %"Yu": invalid mapsize %s\n",
 					prog, lineno, (char *)dbuf.mv_data+STRLENOF("mapsize="));
@@ -171,7 +171,7 @@ static int unhex(unsigned char *c2)
 	return c;
 }
 
-static int readline(MDB_val *out, MDB_val *buf)
+static int readline(RZDB_val *out, RZDB_val *buf)
 {
 	unsigned char *c1, *c2, *end;
 	size_t len, l2;
@@ -282,10 +282,10 @@ static void usage(void)
 int main(int argc, char *argv[])
 {
 	int i, rc;
-	MDB_env *env;
-	MDB_txn *txn;
-	MDB_cursor *mc;
-	MDB_dbi dbi;
+	RZDB_env *env;
+	RZDB_txn *txn;
+	RZDB_cursor *mc;
+	RZDB_dbi dbi;
 	char *envname;
 	int envflags = 0, putflags = 0;
 	int dohdr = 0;
@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
 	while ((i = getopt(argc, argv, "f:ns:NTV")) != EOF) {
 		switch(i) {
 		case 'V':
-			printf("%s\n", MDB_VERSION_STRING);
+			printf("%s\n", RZDB_VERSION_STRING);
 			exit(0);
 			break;
 		case 'f':
@@ -317,13 +317,13 @@ int main(int argc, char *argv[])
 			}
 			break;
 		case 'n':
-			envflags |= MDB_NOSUBDIR;
+			envflags |= RZDB_NOSUBDIR;
 			break;
 		case 's':
 			subname = strdup(optarg);
 			break;
 		case 'N':
-			putflags = MDB_NOOVERWRITE|MDB_NODUPDATA;
+			putflags = RZDB_NOOVERWRITE|RZDB_NODUPDATA;
 			break;
 		case 'T':
 			mode |= NOHDR | PRINT;
@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
 		mdb_env_set_mapsize(env, info.me_mapsize);
 
 	if (info.me_mapaddr)
-		envflags |= MDB_FIXEDMAP;
+		envflags |= RZDB_FIXEDMAP;
 
 	rc = mdb_env_open(env, envname, envflags, 0664);
 	if (rc) {
@@ -370,7 +370,7 @@ int main(int argc, char *argv[])
 	kbuf.mv_data = malloc(kbuf.mv_size);
 
 	while(!Eof) {
-		MDB_val key, data;
+		RZDB_val key, data;
 		int batch = 0;
 
 		if (!dohdr) {
@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
 			goto env_close;
 		}
 
-		rc = mdb_open(txn, subname, flags|MDB_CREATE, &dbi);
+		rc = mdb_open(txn, subname, flags|RZDB_CREATE, &dbi);
 		if (rc) {
 			fprintf(stderr, "mdb_open failed, error %d %s\n", rc, mdb_strerror(rc));
 			goto txn_abort;
@@ -408,7 +408,7 @@ int main(int argc, char *argv[])
 			}
 
 			rc = mdb_cursor_put(mc, &key, &data, putflags);
-			if (rc == MDB_KEYEXIST && putflags)
+			if (rc == RZDB_KEYEXIST && putflags)
 				continue;
 			if (rc) {
 				fprintf(stderr, "mdb_cursor_put failed, error %d %s\n", rc, mdb_strerror(rc));

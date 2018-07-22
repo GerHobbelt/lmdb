@@ -60,8 +60,8 @@
  *	  Otherwise just make all programs using the database close it;
  *	  the lockfile is always reset on first open of the environment.
  *
- *	- On BSD systems or others configured with MDB_USE_SYSV_SEM or
- *	  MDB_USE_POSIX_SEM,
+ *	- On BSD systems or others configured with RZDB_USE_SYSV_SEM or
+ *	  RZDB_USE_POSIX_SEM,
  *	  startup can fail due to semaphores owned by another userid.
  *
  *	  Fix: Open and close the database as the user which owns the
@@ -71,12 +71,12 @@
  *	Restrictions/caveats (in addition to those listed for some functions):
  *
  *	- Only the database owner should normally use the database on
- *	  BSD systems or when otherwise configured with MDB_USE_POSIX_SEM.
+ *	  BSD systems or when otherwise configured with RZDB_USE_POSIX_SEM.
  *	  Multiple users can cause startup to fail later, as noted above.
  *
  *	- There is normally no pure read-only mode, since readers need write
  *	  access to locks and lock file. Exceptions: On read-only filesystems
- *	  or with the #MDB_NOLOCK flag described under #mdb_env_open().
+ *	  or with the #RZDB_NOLOCK flag described under #mdb_env_open().
  *
  *	- An LMDB configuration will often reserve considerable \b unused
  *	  memory address space and maybe file size for future growth.
@@ -85,19 +85,19 @@
  *
  *	- By default, in versions before 0.9.10, unused portions of the data
  *	  file might receive garbage data from memory freed by other code.
- *	  (This does not happen when using the #MDB_WRITEMAP flag.) As of
+ *	  (This does not happen when using the #RZDB_WRITEMAP flag.) As of
  *	  0.9.10 the default behavior is to initialize such memory before
  *	  writing to the data file. Since there may be a slight performance
  *	  cost due to this initialization, applications may disable it using
- *	  the #MDB_NOMEMINIT flag. Applications handling sensitive data
+ *	  the #RZDB_NOMEMINIT flag. Applications handling sensitive data
  *	  which must not be written should not use this flag. This flag is
- *	  irrelevant when using #MDB_WRITEMAP.
+ *	  irrelevant when using #RZDB_WRITEMAP.
  *
  *	- A thread can only use one transaction at a time, plus any child
  *	  transactions.  Each transaction belongs to one thread.  See below.
- *	  The #MDB_NOTLS flag changes this for read-only transactions.
+ *	  The #RZDB_NOTLS flag changes this for read-only transactions.
  *
- *	- Use an MDB_env* in the process which opened it, not after fork().
+ *	- Use an RZDB_env* in the process which opened it, not after fork().
  *
  *	- Do not have open an LMDB database twice in the same process at
  *	  the same time.  Not even from a plain open() call - close()ing it
@@ -163,8 +163,8 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#ifndef _LMDB_H_
-#define _LMDB_H_
+#ifndef _RZDB_H_
+#define _RZDB_H_
 
 #include <sys/types.h>
 #include <inttypes.h>
@@ -182,28 +182,28 @@ typedef	mode_t	mdb_mode_t;
 #endif
 
 #ifdef _WIN32
-# define MDB_FMT_Z	"I"
+# define RZDB_FMT_Z	"I"
 #else
-# define MDB_FMT_Z	"z"			/**< printf/scanf format modifier for size_t */
+# define RZDB_FMT_Z	"z"			/**< printf/scanf format modifier for size_t */
 #endif
 
-#ifndef MDB_VL32
+#ifndef RZDB_VL32
 /** Unsigned type used for mapsize, entry counts and page/transaction IDs.
  *
- *	It is normally size_t, hence the name. Defining MDB_VL32 makes it
+ *	It is normally size_t, hence the name. Defining RZDB_VL32 makes it
  *	uint64_t, but do not try this unless you know what you are doing.
  */
 typedef size_t	mdb_size_t;
-# define MDB_SIZE_MAX	SIZE_MAX	/**< max #mdb_size_t */
+# define RZDB_SIZE_MAX	SIZE_MAX	/**< max #mdb_size_t */
 /** #mdb_size_t printf formats, \b t = one of [diouxX] without quotes */
-# define MDB_PRIy(t)	MDB_FMT_Z #t
+# define RZDB_PRIy(t)	RZDB_FMT_Z #t
 /** #mdb_size_t scanf formats, \b t = one of [dioux] without quotes */
-# define MDB_SCNy(t)	MDB_FMT_Z #t
+# define RZDB_SCNy(t)	RZDB_FMT_Z #t
 #else
 typedef uint64_t	mdb_size_t;
-# define MDB_SIZE_MAX	UINT64_MAX
-# define MDB_PRIy(t)	PRI##t##64
-# define MDB_SCNy(t)	SCN##t##64
+# define RZDB_SIZE_MAX	UINT64_MAX
+# define RZDB_PRIy(t)	PRI##t##64
+# define RZDB_SCNy(t)	SCN##t##64
 # define mdb_env_create	mdb_env_create_vl32	/**< Prevent mixing with non-VL32 builds */
 #endif
 
@@ -225,31 +225,31 @@ typedef int mdb_filehandle_t;
  *	@{
  */
 /** Library major version */
-#define MDB_VERSION_MAJOR	0
+#define RZDB_VERSION_MAJOR	0
 /** Library minor version */
-#define MDB_VERSION_MINOR	9
+#define RZDB_VERSION_MINOR	9
 /** Library patch version */
-#define MDB_VERSION_PATCH	70
+#define RZDB_VERSION_PATCH	70
 
 /** Combine args a,b,c into a single integer for easy version comparisons */
-#define MDB_VERINT(a,b,c)	(((a) << 24) | ((b) << 16) | (c))
+#define RZDB_VERINT(a,b,c)	(((a) << 24) | ((b) << 16) | (c))
 
 /** The full library version as a single integer */
-#define MDB_VERSION_FULL	\
-	MDB_VERINT(MDB_VERSION_MAJOR,MDB_VERSION_MINOR,MDB_VERSION_PATCH)
+#define RZDB_VERSION_FULL	\
+	RZDB_VERINT(RZDB_VERSION_MAJOR,RZDB_VERSION_MINOR,RZDB_VERSION_PATCH)
 
 /** The release date of this library version */
-#define MDB_VERSION_DATE	"December 19, 2015"
+#define RZDB_VERSION_DATE	"December 19, 2015"
 
 /** A stringifier for the version info */
-#define MDB_VERSTR(a,b,c,d)	"LMDB " #a "." #b "." #c ": (" d ")"
+#define RZDB_VERSTR(a,b,c,d)	"LMDB " #a "." #b "." #c ": (" d ")"
 
 /** A helper for the stringifier macro */
-#define MDB_VERFOO(a,b,c,d)	MDB_VERSTR(a,b,c,d)
+#define RZDB_VERFOO(a,b,c,d)	RZDB_VERSTR(a,b,c,d)
 
 /** The full library version as a C string */
-#define	MDB_VERSION_STRING	\
-	MDB_VERFOO(MDB_VERSION_MAJOR,MDB_VERSION_MINOR,MDB_VERSION_PATCH,MDB_VERSION_DATE)
+#define	RZDB_VERSION_STRING	\
+	RZDB_VERFOO(RZDB_VERSION_MAJOR,RZDB_VERSION_MINOR,RZDB_VERSION_PATCH,RZDB_VERSION_DATE)
 /**	@} */
 
 /** @brief Opaque structure for a database environment.
@@ -257,20 +257,20 @@ typedef int mdb_filehandle_t;
  * A DB environment supports multiple databases, all residing in the same
  * shared-memory map.
  */
-typedef struct MDB_env MDB_env;
+typedef struct RZDB_env RZDB_env;
 
 /** @brief Opaque structure for a transaction handle.
  *
  * All database operations require a transaction handle. Transactions may be
  * read-only or read-write.
  */
-typedef struct MDB_txn MDB_txn;
+typedef struct RZDB_txn RZDB_txn;
 
 /** @brief A handle for an individual database in the DB environment. */
-typedef unsigned int	MDB_dbi;
+typedef unsigned int	RZDB_dbi;
 
 /** @brief Opaque structure for navigating through a database */
-typedef struct MDB_cursor MDB_cursor;
+typedef struct RZDB_cursor RZDB_cursor;
 
 /** @brief Generic structure used for passing keys and data in and out
  * of the database.
@@ -280,89 +280,89 @@ typedef struct MDB_cursor MDB_cursor;
  * free them, they commonly point into the database itself.
  *
  * Key sizes must be between 1 and #mdb_env_get_maxkeysize() inclusive.
- * The same applies to data sizes in databases with the #MDB_DUPSORT flag.
+ * The same applies to data sizes in databases with the #RZDB_DUPSORT flag.
  * Other data items can in theory be from 0 to 0xffffffff bytes long.
  */
-typedef struct MDB_val {
+typedef struct RZDB_val {
 	size_t		 mv_size;	/**< size of the data item */
 	void		*mv_data;	/**< address of the data item */
-} MDB_val;
+} RZDB_val;
 
 /** @brief A callback function used to compare two keys in a database */
-typedef int  (MDB_cmp_func)(const MDB_val *a, const MDB_val *b, void* ctx);
+typedef int  (RZDB_cmp_func)(const RZDB_val *a, const RZDB_val *b, void* ctx);
 
 /** @defgroup	mdb_env	Environment Flags
  *	@{
  */
 	/** mmap at a fixed address (experimental) */
-#define MDB_FIXEDMAP	0x01
+#define RZDB_FIXEDMAP	0x01
 	/** no environment directory */
-#define MDB_NOSUBDIR	0x4000
+#define RZDB_NOSUBDIR	0x4000
 	/** don't fsync after commit */
-#define MDB_NOSYNC		0x10000
+#define RZDB_NOSYNC		0x10000
 	/** read only */
-#define MDB_RDONLY		0x20000
+#define RZDB_RDONLY		0x20000
 	/** don't fsync metapage after commit */
-#define MDB_NOMETASYNC		0x40000
+#define RZDB_NOMETASYNC		0x40000
 	/** use writable mmap */
-#define MDB_WRITEMAP		0x80000
-	/** use asynchronous msync when #MDB_WRITEMAP is used */
-#define MDB_MAPASYNC		0x100000
-	/** tie reader locktable slots to #MDB_txn objects instead of to threads */
-#define MDB_NOTLS		0x200000
+#define RZDB_WRITEMAP		0x80000
+	/** use asynchronous msync when #RZDB_WRITEMAP is used */
+#define RZDB_MAPASYNC		0x100000
+	/** tie reader locktable slots to #RZDB_txn objects instead of to threads */
+#define RZDB_NOTLS		0x200000
 	/** don't do any locking, caller must manage their own locks */
-#define MDB_NOLOCK		0x400000
+#define RZDB_NOLOCK		0x400000
 	/** don't do readahead (no effect on Windows) */
-#define MDB_NORDAHEAD	0x800000
+#define RZDB_NORDAHEAD	0x800000
 	/** don't initialize malloc'd memory before writing to datafile */
-#define MDB_NOMEMINIT	0x1000000
+#define RZDB_NOMEMINIT	0x1000000
 	/** use the previous meta page rather than the latest one */
-#define MDB_PREVMETA	0x2000000
+#define RZDB_PREVMETA	0x2000000
 /** @} */
 
 /**	@defgroup	mdb_dbi_open	Database Flags
  *	@{
  */
 	/** use reverse string keys */
-#define MDB_REVERSEKEY	0x02
+#define RZDB_REVERSEKEY	0x02
 	/** use sorted duplicates */
-#define MDB_DUPSORT		0x04
+#define RZDB_DUPSORT		0x04
 	/** numeric keys in native byte order, either unsigned int or #mdb_size_t.
 	 *	(rzdb expects 32-bit int <= size_t <= 32/64-bit mdb_size_t.)
 	 *  The keys must all be of the same size. */
-#define MDB_INTEGERKEY	0x08
-	/** with #MDB_DUPSORT, sorted dup items have fixed size */
-#define MDB_DUPFIXED	0x10
-	/** with #MDB_DUPSORT, dups are #MDB_INTEGERKEY-style integers */
-#define MDB_INTEGERDUP	0x20
-	/** with #MDB_DUPSORT, use reverse string dups */
-#define MDB_REVERSEDUP	0x40
+#define RZDB_INTEGERKEY	0x08
+	/** with #RZDB_DUPSORT, sorted dup items have fixed size */
+#define RZDB_DUPFIXED	0x10
+	/** with #RZDB_DUPSORT, dups are #RZDB_INTEGERKEY-style integers */
+#define RZDB_INTEGERDUP	0x20
+	/** with #RZDB_DUPSORT, use reverse string dups */
+#define RZDB_REVERSEDUP	0x40
 	/** create DB if not already existing */
-#define MDB_CREATE		0x40000
+#define RZDB_CREATE		0x40000
 /** @} */
 
 /**	@defgroup mdb_put	Write Flags
  *	@{
  */
 /** For put: Don't write if the key already exists. */
-#define MDB_NOOVERWRITE	0x10
-/** Only for #MDB_DUPSORT<br>
+#define RZDB_NOOVERWRITE	0x10
+/** Only for #RZDB_DUPSORT<br>
  * For put: don't write if the key and data pair already exist.<br>
  * For mdb_cursor_del: remove all duplicate data items.
  */
-#define MDB_NODUPDATA	0x20
+#define RZDB_NODUPDATA	0x20
 /** For mdb_cursor_put: overwrite the current key/data pair */
-#define MDB_CURRENT	0x40
+#define RZDB_CURRENT	0x40
 /** For put: Just reserve space for data, don't copy it. Return a
  * pointer to the reserved space.
  */
-#define MDB_RESERVE	0x10000
+#define RZDB_RESERVE	0x10000
 /** Data is being appended, don't split full pages. */
-#define MDB_APPEND	0x20000
+#define RZDB_APPEND	0x20000
 /** Duplicate data is being appended, don't split full pages. */
-#define MDB_APPENDDUP	0x40000
-/** Store multiple data items in one call. Only for #MDB_DUPFIXED. */
-#define MDB_MULTIPLE	0x80000
+#define RZDB_APPENDDUP	0x40000
+/** Store multiple data items in one call. Only for #RZDB_DUPFIXED. */
+#define RZDB_MULTIPLE	0x80000
 /*	@} */
 
 /**	@defgroup mdb_copy	Copy Flags
@@ -371,7 +371,7 @@ typedef int  (MDB_cmp_func)(const MDB_val *a, const MDB_val *b, void* ctx);
 /** Compacting copy: Omit free space from copy, and renumber all
  * pages sequentially.
  */
-#define MDB_CP_COMPACT	0x01
+#define RZDB_CP_COMPACT	0x01
 /*	@} */
 
 /** @brief Cursor Get operations.
@@ -379,36 +379,36 @@ typedef int  (MDB_cmp_func)(const MDB_val *a, const MDB_val *b, void* ctx);
  *	This is the set of all operations for retrieving data
  *	using a cursor.
  */
-typedef enum MDB_cursor_op {
-	MDB_FIRST,				/**< Position at first key/data item */
-	MDB_FIRST_DUP,			/**< Position at first data item of current key.
-								Only for #MDB_DUPSORT */
-	MDB_GET_BOTH,			/**< Position at key/data pair. Only for #MDB_DUPSORT */
-	MDB_GET_BOTH_RANGE,		/**< position at key, nearest data. Only for #MDB_DUPSORT */
-	MDB_GET_CURRENT,		/**< Return key/data at current cursor position */
-	MDB_GET_MULTIPLE,		/**< Return key and up to a page of duplicate data items
+typedef enum RZDB_cursor_op {
+	RZDB_FIRST,				/**< Position at first key/data item */
+	RZDB_FIRST_DUP,			/**< Position at first data item of current key.
+								Only for #RZDB_DUPSORT */
+	RZDB_GET_BOTH,			/**< Position at key/data pair. Only for #RZDB_DUPSORT */
+	RZDB_GET_BOTH_RANGE,		/**< position at key, nearest data. Only for #RZDB_DUPSORT */
+	RZDB_GET_CURRENT,		/**< Return key/data at current cursor position */
+	RZDB_GET_MULTIPLE,		/**< Return key and up to a page of duplicate data items
 								from current cursor position. Move cursor to prepare
-								for #MDB_NEXT_MULTIPLE. Only for #MDB_DUPFIXED */
-	MDB_LAST,				/**< Position at last key/data item */
-	MDB_LAST_DUP,			/**< Position at last data item of current key.
-								Only for #MDB_DUPSORT */
-	MDB_NEXT,				/**< Position at next data item */
-	MDB_NEXT_DUP,			/**< Position at next data item of current key.
-								Only for #MDB_DUPSORT */
-	MDB_NEXT_MULTIPLE,		/**< Return key and up to a page of duplicate data items
+								for #RZDB_NEXT_MULTIPLE. Only for #RZDB_DUPFIXED */
+	RZDB_LAST,				/**< Position at last key/data item */
+	RZDB_LAST_DUP,			/**< Position at last data item of current key.
+								Only for #RZDB_DUPSORT */
+	RZDB_NEXT,				/**< Position at next data item */
+	RZDB_NEXT_DUP,			/**< Position at next data item of current key.
+								Only for #RZDB_DUPSORT */
+	RZDB_NEXT_MULTIPLE,		/**< Return key and up to a page of duplicate data items
 								from next cursor position. Move cursor to prepare
-								for #MDB_NEXT_MULTIPLE. Only for #MDB_DUPFIXED */
-	MDB_NEXT_NODUP,			/**< Position at first data item of next key */
-	MDB_PREV,				/**< Position at previous data item */
-	MDB_PREV_DUP,			/**< Position at previous data item of current key.
-								Only for #MDB_DUPSORT */
-	MDB_PREV_NODUP,			/**< Position at last data item of previous key */
-	MDB_SET,				/**< Position at specified key */
-	MDB_SET_KEY,			/**< Position at specified key, return key + data */
-	MDB_SET_RANGE,			/**< Position at first key greater than or equal to specified key. */
-	MDB_PREV_MULTIPLE		/**< Position at previous page and return key and up to
-								a page of duplicate data items. Only for #MDB_DUPFIXED */
-} MDB_cursor_op;
+								for #RZDB_NEXT_MULTIPLE. Only for #RZDB_DUPFIXED */
+	RZDB_NEXT_NODUP,			/**< Position at first data item of next key */
+	RZDB_PREV,				/**< Position at previous data item */
+	RZDB_PREV_DUP,			/**< Position at previous data item of current key.
+								Only for #RZDB_DUPSORT */
+	RZDB_PREV_NODUP,			/**< Position at last data item of previous key */
+	RZDB_SET,				/**< Position at specified key */
+	RZDB_SET_KEY,			/**< Position at specified key, return key + data */
+	RZDB_SET_RANGE,			/**< Position at first key greater than or equal to specified key. */
+	RZDB_PREV_MULTIPLE		/**< Position at previous page and return key and up to
+								a page of duplicate data items. Only for #RZDB_DUPFIXED */
+} RZDB_cursor_op;
 
 /** @defgroup  errors	Return Codes
  *
@@ -416,62 +416,62 @@ typedef enum MDB_cursor_op {
  *	@{
  */
 	/**	Successful result */
-#define MDB_SUCCESS	 0
+#define RZDB_SUCCESS	 0
 	/** key/data pair already exists */
-#define MDB_KEYEXIST	(-30799)
+#define RZDB_KEYEXIST	(-30799)
 	/** key/data pair not found (EOF) */
-#define MDB_NOTFOUND	(-30798)
+#define RZDB_NOTFOUND	(-30798)
 	/** Requested page not found - this usually indicates corruption */
-#define MDB_PAGE_NOTFOUND	(-30797)
+#define RZDB_PAGE_NOTFOUND	(-30797)
 	/** Located page was wrong type */
-#define MDB_CORRUPTED	(-30796)
+#define RZDB_CORRUPTED	(-30796)
 	/** Update of meta page failed or environment had fatal error */
-#define MDB_PANIC		(-30795)
+#define RZDB_PANIC		(-30795)
 	/** Environment version mismatch */
-#define MDB_VERSION_MISMATCH	(-30794)
+#define RZDB_VERSION_MISMATCH	(-30794)
 	/** File is not a valid LMDB file */
-#define MDB_INVALID	(-30793)
+#define RZDB_INVALID	(-30793)
 	/** Environment mapsize reached */
-#define MDB_MAP_FULL	(-30792)
+#define RZDB_MAP_FULL	(-30792)
 	/** Environment maxdbs reached */
-#define MDB_DBS_FULL	(-30791)
+#define RZDB_DBS_FULL	(-30791)
 	/** Environment maxreaders reached */
-#define MDB_READERS_FULL	(-30790)
+#define RZDB_READERS_FULL	(-30790)
 	/** Too many TLS keys in use - Windows only */
-#define MDB_TLS_FULL	(-30789)
+#define RZDB_TLS_FULL	(-30789)
 	/** Txn has too many dirty pages */
-#define MDB_TXN_FULL	(-30788)
+#define RZDB_TXN_FULL	(-30788)
 	/** Cursor stack too deep - internal error */
-#define MDB_CURSOR_FULL	(-30787)
+#define RZDB_CURSOR_FULL	(-30787)
 	/** Page has not enough space - internal error */
-#define MDB_PAGE_FULL	(-30786)
+#define RZDB_PAGE_FULL	(-30786)
 	/** Database contents grew beyond environment mapsize */
-#define MDB_MAP_RESIZED	(-30785)
+#define RZDB_MAP_RESIZED	(-30785)
 	/** Operation and DB incompatible, or DB type changed. This can mean:
 	 *	<ul>
-	 *	<li>The operation expects an #MDB_DUPSORT / #MDB_DUPFIXED database.
-	 *	<li>Opening a named DB when the unnamed DB has #MDB_DUPSORT / #MDB_INTEGERKEY.
+	 *	<li>The operation expects an #RZDB_DUPSORT / #RZDB_DUPFIXED database.
+	 *	<li>Opening a named DB when the unnamed DB has #RZDB_DUPSORT / #RZDB_INTEGERKEY.
 	 *	<li>Accessing a data record as a database, or vice versa.
 	 *	<li>The database was dropped and recreated with different flags.
 	 *	</ul>
 	 */
-#define MDB_INCOMPATIBLE	(-30784)
+#define RZDB_INCOMPATIBLE	(-30784)
 	/** Invalid reuse of reader locktable slot */
-#define MDB_BAD_RSLOT		(-30783)
+#define RZDB_BAD_RSLOT		(-30783)
 	/** Transaction must abort, has a child, or is invalid */
-#define MDB_BAD_TXN			(-30782)
+#define RZDB_BAD_TXN			(-30782)
 	/** Unsupported size of key/DB name/data, or wrong DUPFIXED size */
-#define MDB_BAD_VALSIZE		(-30781)
+#define RZDB_BAD_VALSIZE		(-30781)
 	/** The specified DBI was changed unexpectedly */
-#define MDB_BAD_DBI		(-30780)
+#define RZDB_BAD_DBI		(-30780)
 	/** Unexpected problem - txn should abort */
-#define MDB_PROBLEM		(-30779)
+#define RZDB_PROBLEM		(-30779)
 	/** The last defined error code */
-#define MDB_LAST_ERRCODE	MDB_PROBLEM
+#define RZDB_LAST_ERRCODE	RZDB_PROBLEM
 /** @} */
 
 /** @brief Statistics for a database in the environment */
-typedef struct MDB_stat {
+typedef struct RZDB_stat {
 	unsigned int	ms_psize;			/**< Size of a database page.
 											This is currently the same for all databases. */
 	unsigned int	ms_depth;			/**< Depth (height) of the B-tree */
@@ -480,17 +480,17 @@ typedef struct MDB_stat {
 	mdb_size_t		ms_overflow_pages;	/**< Number of overflow pages */
 	mdb_size_t		ms_entries;			/**< Number of data items */
 	uint64_t		ms_seq;				/**< Current sequence */
-} MDB_stat;
+} RZDB_stat;
 
 /** @brief Information about the environment */
-typedef struct MDB_envinfo {
+typedef struct RZDB_envinfo {
 	void	*me_mapaddr;			/**< Address of map, if fixed */
 	mdb_size_t	me_mapsize;				/**< Size of the data memory map */
 	mdb_size_t	me_last_pgno;			/**< ID of the last used page */
 	mdb_size_t	me_last_txnid;			/**< ID of the last committed transaction */
 	unsigned int me_maxreaders;		/**< max reader slots in the environment */
 	unsigned int me_numreaders;		/**< max reader slots used in the environment */
-} MDB_envinfo;
+} RZDB_envinfo;
 
 	/** @brief Return the LMDB library version information.
 	 *
@@ -515,7 +515,7 @@ char *mdb_strerror(int err);
 
 	/** @brief Create an LMDB environment handle.
 	 *
-	 * This function allocates memory for a #MDB_env structure. To release
+	 * This function allocates memory for a #RZDB_env structure. To release
 	 * the allocated memory and discard the handle, call #mdb_env_close().
 	 * Before the handle may be used, it must be opened using #mdb_env_open().
 	 * Various other options may also need to be set before opening the handle,
@@ -524,11 +524,11 @@ char *mdb_strerror(int err);
 	 * @param[out] env The address where the new handle will be stored
 	 * @return A non-zero error value on failure and 0 on success.
 	 */
-int  mdb_env_create(MDB_env **env);
+int  mdb_env_create(RZDB_env **env);
 
 	/** @brief Open an environment handle.
 	 *
-	 * If this function fails, #mdb_env_close() must be called to discard the #MDB_env handle.
+	 * If this function fails, #mdb_env_close() must be called to discard the #RZDB_env handle.
 	 * @param[in] env An environment handle returned by #mdb_env_create()
 	 * @param[in] path The directory in which the database files reside. This
 	 * directory must already exist and be writable.
@@ -537,7 +537,7 @@ int  mdb_env_create(MDB_env **env);
 	 * values described here.
 	 * Flags set by mdb_env_set_flags() are also used.
 	 * <ul>
-	 *	<li>#MDB_FIXEDMAP
+	 *	<li>#RZDB_FIXEDMAP
 	 *      use a fixed address for the mmap region. This flag must be specified
 	 *      when creating the environment, and is stored persistently in the environment.
 	 *		If successful, the memory map will always reside at the same virtual address
@@ -545,76 +545,76 @@ int  mdb_env_create(MDB_env **env);
 	 *		across multiple invocations. This option may not always work, depending on
 	 *		how the operating system has allocated memory to shared libraries and other uses.
 	 *		The feature is highly experimental.
-	 *	<li>#MDB_NOSUBDIR
+	 *	<li>#RZDB_NOSUBDIR
 	 *		By default, LMDB creates its environment in a directory whose
 	 *		pathname is given in \b path, and creates its data and lock files
 	 *		under that directory. With this option, \b path is used as-is for
 	 *		the database main data file. The database lock file is the \b path
 	 *		with "-lock" appended.
-	 *	<li>#MDB_RDONLY
+	 *	<li>#RZDB_RDONLY
 	 *		Open the environment in read-only mode. No write operations will be
 	 *		allowed. LMDB will still modify the lock file - except on read-only
 	 *		filesystems, where LMDB does not use locks.
-	 *	<li>#MDB_WRITEMAP
-	 *		Use a writeable memory map unless MDB_RDONLY is set. This uses
+	 *	<li>#RZDB_WRITEMAP
+	 *		Use a writeable memory map unless RZDB_RDONLY is set. This uses
 	 *		fewer mallocs but loses protection from application bugs
 	 *		like wild pointer writes and other bad updates into the database.
 	 *		This may be slightly faster for DBs that fit entirely in RAM, but
 	 *		is slower for DBs larger than RAM.
 	 *		Incompatible with nested transactions.
-	 *		Do not mix processes with and without MDB_WRITEMAP on the same
+	 *		Do not mix processes with and without RZDB_WRITEMAP on the same
 	 *		environment.  This can defeat durability (#mdb_env_sync etc).
-	 *	<li>#MDB_NOMETASYNC
+	 *	<li>#RZDB_NOMETASYNC
 	 *		Flush system buffers to disk only once per transaction, omit the
 	 *		metadata flush. Defer that until the system flushes files to disk,
-	 *		or next non-MDB_RDONLY commit or #mdb_env_sync(). This optimization
+	 *		or next non-RZDB_RDONLY commit or #mdb_env_sync(). This optimization
 	 *		maintains database integrity, but a system crash may undo the last
 	 *		committed transaction. I.e. it preserves the ACI (atomicity,
 	 *		consistency, isolation) but not D (durability) database property.
 	 *		This flag may be changed at any time using #mdb_env_set_flags().
-	 *	<li>#MDB_NOSYNC
+	 *	<li>#RZDB_NOSYNC
 	 *		Don't flush system buffers to disk when committing a transaction.
 	 *		This optimization means a system crash can corrupt the database or
 	 *		lose the last transactions if buffers are not yet flushed to disk.
 	 *		The risk is governed by how often the system flushes dirty buffers
 	 *		to disk and how often #mdb_env_sync() is called.  However, if the
-	 *		filesystem preserves write order and the #MDB_WRITEMAP flag is not
+	 *		filesystem preserves write order and the #RZDB_WRITEMAP flag is not
 	 *		used, transactions exhibit ACI (atomicity, consistency, isolation)
 	 *		properties and only lose D (durability).  I.e. database integrity
 	 *		is maintained, but a system crash may undo the final transactions.
-	 *		Note that (#MDB_NOSYNC | #MDB_WRITEMAP) leaves the system with no
+	 *		Note that (#RZDB_NOSYNC | #RZDB_WRITEMAP) leaves the system with no
 	 *		hint for when to write transactions to disk, unless #mdb_env_sync()
-	 *		is called. (#MDB_MAPASYNC | #MDB_WRITEMAP) may be preferable.
+	 *		is called. (#RZDB_MAPASYNC | #RZDB_WRITEMAP) may be preferable.
 	 *		This flag may be changed at any time using #mdb_env_set_flags().
-	 *	<li>#MDB_MAPASYNC
-	 *		When using #MDB_WRITEMAP, use asynchronous flushes to disk.
-	 *		As with #MDB_NOSYNC, a system crash can then corrupt the
+	 *	<li>#RZDB_MAPASYNC
+	 *		When using #RZDB_WRITEMAP, use asynchronous flushes to disk.
+	 *		As with #RZDB_NOSYNC, a system crash can then corrupt the
 	 *		database or lose the last transactions. Calling #mdb_env_sync()
 	 *		ensures on-disk database integrity until next commit.
 	 *		This flag may be changed at any time using #mdb_env_set_flags().
-	 *	<li>#MDB_NOTLS
+	 *	<li>#RZDB_NOTLS
 	 *		Don't use Thread-Local Storage. Tie reader locktable slots to
-	 *		#MDB_txn objects instead of to threads. I.e. #mdb_txn_reset() keeps
-	 *		the slot reseved for the #MDB_txn object. A thread may use parallel
+	 *		#RZDB_txn objects instead of to threads. I.e. #mdb_txn_reset() keeps
+	 *		the slot reseved for the #RZDB_txn object. A thread may use parallel
 	 *		read-only transactions. A read-only transaction may span threads if
 	 *		the user synchronizes its use. Applications that multiplex many
 	 *		user threads over individual OS threads need this option. Such an
 	 *		application must also serialize the write transactions in an OS
 	 *		thread, since LMDB's write locking is unaware of the user threads.
-	 *	<li>#MDB_NOLOCK
+	 *	<li>#RZDB_NOLOCK
 	 *		Don't do any locking. If concurrent access is anticipated, the
 	 *		caller must manage all concurrency itself. For proper operation
 	 *		the caller must enforce single-writer semantics, and must ensure
 	 *		that no readers are using old transactions while a writer is
 	 *		active. The simplest approach is to use an exclusive lock so that
 	 *		no readers may be active at all when a writer begins.
-	 *	<li>#MDB_NORDAHEAD
+	 *	<li>#RZDB_NORDAHEAD
 	 *		Turn off readahead. Most operating systems perform readahead on
 	 *		read requests by default. This option turns it off if the OS
 	 *		supports it. Turning it off may help random read performance
 	 *		when the DB is larger than RAM and system RAM is full.
 	 *		The option is not implemented on Windows.
-	 *	<li>#MDB_NOMEMINIT
+	 *	<li>#RZDB_NOMEMINIT
 	 *		Don't initialize malloc'd memory before writing to unused spaces
 	 *		in the data file. By default, memory for pages written to the data
 	 *		file is obtained using malloc. While these pages may be reused in
@@ -627,13 +627,13 @@ int  mdb_env_create(MDB_env **env);
 	 *		modest performance cost so some applications may want to disable
 	 *		it using this flag. This option can be a problem for applications
 	 *		which handle sensitive data like passwords, and it makes memory
-	 *		checkers like Valgrind noisy. This flag is not needed with #MDB_WRITEMAP,
+	 *		checkers like Valgrind noisy. This flag is not needed with #RZDB_WRITEMAP,
 	 *		which writes directly to the mmap instead of using malloc for pages. The
-	 *		initialization is also skipped if #MDB_RESERVE is used; the
+	 *		initialization is also skipped if #RZDB_RESERVE is used; the
 	 *		caller is expected to overwrite all of the memory that was
 	 *		reserved in that case.
 	 *		This flag may be changed at any time using #mdb_env_set_flags().
-	 *	<li>#MDB_PREVMETA
+	 *	<li>#RZDB_PREVMETA
 	 *		Open the environment with the previous meta page rather than the latest
 	 *		one. This loses the latest transaction, but may help work around some
 	 *		types of corruption.
@@ -643,15 +643,15 @@ int  mdb_env_create(MDB_env **env);
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
-	 *	<li>#MDB_VERSION_MISMATCH - the version of the LMDB library doesn't match the
+	 *	<li>#RZDB_VERSION_MISMATCH - the version of the LMDB library doesn't match the
 	 *	version that created the database environment.
-	 *	<li>#MDB_INVALID - the environment file headers are corrupted.
+	 *	<li>#RZDB_INVALID - the environment file headers are corrupted.
 	 *	<li>ENOENT - the directory specified by the path parameter doesn't exist.
 	 *	<li>EACCES - the user didn't have permission to access the environment files.
 	 *	<li>EAGAIN - the environment was locked by another process.
 	 * </ul>
 	 */
-int  mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode);
+int  mdb_env_open(RZDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode);
 
 	/** @brief Copy an LMDB environment to the specified path.
 	 *
@@ -667,7 +667,7 @@ int  mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t
 	 * empty.
 	 * @return A non-zero error value on failure and 0 on success.
 	 */
-int  mdb_env_copy(MDB_env *env, const char *path);
+int  mdb_env_copy(RZDB_env *env, const char *path);
 
 	/** @brief Copy an LMDB environment to the specified file descriptor.
 	 *
@@ -682,7 +682,7 @@ int  mdb_env_copy(MDB_env *env, const char *path);
 	 * have already been opened for Write access.
 	 * @return A non-zero error value on failure and 0 on success.
 	 */
-int  mdb_env_copyfd(MDB_env *env, mdb_filehandle_t fd);
+int  mdb_env_copyfd(RZDB_env *env, mdb_filehandle_t fd);
 
 	/** @brief Copy an LMDB environment to the specified path, with options.
 	 *
@@ -700,14 +700,14 @@ int  mdb_env_copyfd(MDB_env *env, mdb_filehandle_t fd);
 	 * must be set to 0 or by bitwise OR'ing together one or more of the
 	 * values described here.
 	 * <ul>
-	 *	<li>#MDB_CP_COMPACT - Perform compaction while copying: omit free
+	 *	<li>#RZDB_CP_COMPACT - Perform compaction while copying: omit free
 	 *		pages and sequentially renumber all pages in output. This option
 	 *		consumes more CPU and runs more slowly than the default.
 	 *		Currently it fails if the environment has suffered a page leak.
 	 * </ul>
 	 * @return A non-zero error value on failure and 0 on success.
 	 */
-int  mdb_env_copy2(MDB_env *env, const char *path, unsigned int flags);
+int  mdb_env_copy2(RZDB_env *env, const char *path, unsigned int flags);
 
 	/** @brief Copy an LMDB environment to the specified file descriptor,
 	 *	with options.
@@ -726,35 +726,35 @@ int  mdb_env_copy2(MDB_env *env, const char *path, unsigned int flags);
 	 * See #mdb_env_copy2() for options.
 	 * @return A non-zero error value on failure and 0 on success.
 	 */
-int  mdb_env_copyfd2(MDB_env *env, mdb_filehandle_t fd, unsigned int flags);
+int  mdb_env_copyfd2(RZDB_env *env, mdb_filehandle_t fd, unsigned int flags);
 
 	/** @brief Return statistics about the LMDB environment.
 	 *
 	 * @param[in] env An environment handle returned by #mdb_env_create()
-	 * @param[out] stat The address of an #MDB_stat structure
+	 * @param[out] stat The address of an #RZDB_stat structure
 	 * 	where the statistics will be copied
 	 */
-int  mdb_env_stat(MDB_env *env, MDB_stat *stat);
+int  mdb_env_stat(RZDB_env *env, RZDB_stat *stat);
 
 	/** @brief Return information about the LMDB environment.
 	 *
 	 * @param[in] env An environment handle returned by #mdb_env_create()
-	 * @param[out] stat The address of an #MDB_envinfo structure
+	 * @param[out] stat The address of an #RZDB_envinfo structure
 	 * 	where the information will be copied
 	 */
-int  mdb_env_info(MDB_env *env, MDB_envinfo *stat);
+int  mdb_env_info(RZDB_env *env, RZDB_envinfo *stat);
 
 	/** @brief Flush the data buffers to disk.
 	 *
 	 * Data is always written to disk when #mdb_txn_commit() is called,
 	 * but the operating system may keep it buffered. LMDB always flushes
 	 * the OS buffers upon commit as well, unless the environment was
-	 * opened with #MDB_NOSYNC or in part #MDB_NOMETASYNC. This call is
-	 * not valid if the environment was opened with #MDB_RDONLY.
+	 * opened with #RZDB_NOSYNC or in part #RZDB_NOMETASYNC. This call is
+	 * not valid if the environment was opened with #RZDB_RDONLY.
 	 * @param[in] env An environment handle returned by #mdb_env_create()
 	 * @param[in] force If non-zero, force a synchronous flush.  Otherwise
-	 *  if the environment has the #MDB_NOSYNC flag set the flushes
-	 *	will be omitted, and with #MDB_MAPASYNC they will be asynchronous.
+	 *  if the environment has the #RZDB_NOSYNC flag set the flushes
+	 *	will be omitted, and with #RZDB_MAPASYNC they will be asynchronous.
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
@@ -763,7 +763,7 @@ int  mdb_env_info(MDB_env *env, MDB_envinfo *stat);
 	 *	<li>EIO - an error occurred during synchronization.
 	 * </ul>
 	 */
-int  mdb_env_sync(MDB_env *env, int force);
+int  mdb_env_sync(RZDB_env *env, int force);
 
 	/** @brief Close the environment and release the memory map.
 	 *
@@ -773,7 +773,7 @@ int  mdb_env_sync(MDB_env *env, int force);
 	 * The environment handle will be freed and must not be used again after this call.
 	 * @param[in] env An environment handle returned by #mdb_env_create()
 	 */
-void mdb_env_close(MDB_env *env);
+void mdb_env_close(RZDB_env *env);
 
 	/** @brief Clear the environment's page cacge
 	 *
@@ -781,7 +781,7 @@ void mdb_env_close(MDB_env *env);
 	 * must be closed before calling this function.
 	 * @param[in] env An environment handle returned by #mdb_env_create()
 	 */
-void mdb_env_clear_page_cache(MDB_env *env);
+void mdb_env_clear_page_cache(RZDB_env *env);
 
 	/** @brief Set environment flags.
 	 *
@@ -797,7 +797,7 @@ void mdb_env_clear_page_cache(MDB_env *env);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_env_set_flags(MDB_env *env, unsigned int flags, int onoff);
+int  mdb_env_set_flags(RZDB_env *env, unsigned int flags, int onoff);
 
 	/** @brief Get environment flags.
 	 *
@@ -809,7 +809,7 @@ int  mdb_env_set_flags(MDB_env *env, unsigned int flags, int onoff);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_env_get_flags(MDB_env *env, unsigned int *flags);
+int  mdb_env_get_flags(RZDB_env *env, unsigned int *flags);
 
 	/** @brief Return the path that was used in #mdb_env_open().
 	 *
@@ -823,7 +823,7 @@ int  mdb_env_get_flags(MDB_env *env, unsigned int *flags);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_env_get_path(MDB_env *env, const char **path);
+int  mdb_env_get_path(RZDB_env *env, const char **path);
 
 	/** @brief Return the filedescriptor for the given environment.
 	 *
@@ -839,7 +839,7 @@ int  mdb_env_get_path(MDB_env *env, const char **path);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_env_get_fd(MDB_env *env, mdb_filehandle_t *fd);
+int  mdb_env_get_fd(RZDB_env *env, mdb_filehandle_t *fd);
 
 	/** @brief Set the size of the memory map to use for this environment.
 	 *
@@ -859,7 +859,7 @@ int  mdb_env_get_fd(MDB_env *env, mdb_filehandle_t *fd);
 	 *
 	 * If the mapsize is increased by another process, and data has grown
 	 * beyond the range of the current mapsize, #mdb_txn_begin() will
-	 * return #MDB_MAP_RESIZED. This function may be called with a size
+	 * return #RZDB_MAP_RESIZED. This function may be called with a size
 	 * of zero to adopt the new size.
 	 *
 	 * Any attempt to set a size smaller than the space already consumed
@@ -873,7 +873,7 @@ int  mdb_env_get_fd(MDB_env *env, mdb_filehandle_t *fd);
 	 *   	an active write transaction.
 	 * </ul>
 	 */
-int  mdb_env_set_mapsize(MDB_env *env, mdb_size_t size);
+int  mdb_env_set_mapsize(RZDB_env *env, mdb_size_t size);
 
 	/** @brief Set the maximum number of threads/reader slots for the environment.
 	 *
@@ -881,8 +881,8 @@ int  mdb_env_set_mapsize(MDB_env *env, mdb_size_t size);
 	 * the environment. The default is 126.
 	 * Starting a read-only transaction normally ties a lock table slot to the
 	 * current thread until the environment closes or the thread exits. If
-	 * MDB_NOTLS is in use, #mdb_txn_begin() instead ties the slot to the
-	 * MDB_txn object until it or the #MDB_env object is destroyed.
+	 * RZDB_NOTLS is in use, #mdb_txn_begin() instead ties the slot to the
+	 * RZDB_txn object until it or the #RZDB_env object is destroyed.
 	 * This function may only be called after #mdb_env_create() and before #mdb_env_open().
 	 * @param[in] env An environment handle returned by #mdb_env_create()
 	 * @param[in] readers The maximum number of reader lock table slots
@@ -892,7 +892,7 @@ int  mdb_env_set_mapsize(MDB_env *env, mdb_size_t size);
 	 *	<li>EINVAL - an invalid parameter was specified, or the environment is already open.
 	 * </ul>
 	 */
-int  mdb_env_set_maxreaders(MDB_env *env, unsigned int readers);
+int  mdb_env_set_maxreaders(RZDB_env *env, unsigned int readers);
 
 	/** @brief Get the maximum number of threads/reader slots for the environment.
 	 *
@@ -904,7 +904,7 @@ int  mdb_env_set_maxreaders(MDB_env *env, unsigned int readers);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_env_get_maxreaders(MDB_env *env, unsigned int *readers);
+int  mdb_env_get_maxreaders(RZDB_env *env, unsigned int *readers);
 
 	/** @brief Set the maximum number of named databases for the environment.
 	 *
@@ -924,31 +924,31 @@ int  mdb_env_get_maxreaders(MDB_env *env, unsigned int *readers);
 	 *	<li>EINVAL - an invalid parameter was specified, or the environment is already open.
 	 * </ul>
 	 */
-int  mdb_env_set_maxdbs(MDB_env *env, MDB_dbi dbs);
+int  mdb_env_set_maxdbs(RZDB_env *env, RZDB_dbi dbs);
 
-	/** @brief Get the maximum size of keys and #MDB_DUPSORT data we can write.
+	/** @brief Get the maximum size of keys and #RZDB_DUPSORT data we can write.
 	 *
-	 * Depends on the compile-time constant #MDB_MAXKEYSIZE. Default 511.
-	 * See @ref MDB_val.
+	 * Depends on the compile-time constant #RZDB_MAXKEYSIZE. Default 511.
+	 * See @ref RZDB_val.
 	 * @param[in] env An environment handle returned by #mdb_env_create()
 	 * @return The maximum size of a key we can write
 	 */
-int  mdb_env_get_maxkeysize(MDB_env *env);
+int  mdb_env_get_maxkeysize(RZDB_env *env);
 
-	/** @brief Set application information associated with the #MDB_env.
+	/** @brief Set application information associated with the #RZDB_env.
 	 *
 	 * @param[in] env An environment handle returned by #mdb_env_create()
 	 * @param[in] ctx An arbitrary pointer for whatever the application needs.
 	 * @return A non-zero error value on failure and 0 on success.
 	 */
-int  mdb_env_set_userctx(MDB_env *env, void *ctx);
+int  mdb_env_set_userctx(RZDB_env *env, void *ctx);
 
-	/** @brief Get the application information associated with the #MDB_env.
+	/** @brief Get the application information associated with the #RZDB_env.
 	 *
 	 * @param[in] env An environment handle returned by #mdb_env_create()
 	 * @return The pointer set by #mdb_env_set_userctx().
 	 */
-void *mdb_env_get_userctx(MDB_env *env);
+void *mdb_env_get_userctx(RZDB_env *env);
 
 	/** @brief A callback function for most LMDB assert() failures,
 	 * called before printing the message and aborting.
@@ -956,23 +956,23 @@ void *mdb_env_get_userctx(MDB_env *env);
 	 * @param[in] env An environment handle returned by #mdb_env_create().
 	 * @param[in] msg The assertion message, not including newline.
 	 */
-typedef void MDB_assert_func(MDB_env *env, const char *msg);
+typedef void RZDB_assert_func(RZDB_env *env, const char *msg);
 
 	/** Set or reset the assert() callback of the environment.
 	 * Disabled if librzdb is buillt with NDEBUG.
 	 * @note This hack should become obsolete as rzdb's error handling matures.
 	 * @param[in] env An environment handle returned by #mdb_env_create().
-	 * @param[in] func An #MDB_assert_func function, or 0.
+	 * @param[in] func An #RZDB_assert_func function, or 0.
 	 * @return A non-zero error value on failure and 0 on success.
 	 */
-int  mdb_env_set_assert(MDB_env *env, MDB_assert_func *func);
+int  mdb_env_set_assert(RZDB_env *env, RZDB_assert_func *func);
 
 	/** @brief Create a transaction for use with the environment.
 	 *
 	 * The transaction handle may be discarded using #mdb_txn_abort() or #mdb_txn_commit().
 	 * @note A transaction and its cursors must only be used by a single
 	 * thread, and a thread may only have a single transaction at a time.
-	 * If #MDB_NOTLS is in use, this does not apply to read-only transactions.
+	 * If #RZDB_NOTLS is in use, this does not apply to read-only transactions.
 	 * @note Cursors may not span transactions.
 	 * @param[in] env An environment handle returned by #mdb_env_create()
 	 * @param[in] parent If this parameter is non-NULL, the new transaction
@@ -984,34 +984,34 @@ int  mdb_env_set_assert(MDB_env *env, MDB_assert_func *func);
 	 * must be set to 0 or by bitwise OR'ing together one or more of the
 	 * values described here.
 	 * <ul>
-	 *	<li>#MDB_RDONLY
+	 *	<li>#RZDB_RDONLY
 	 *		This transaction will not perform any write operations.
-	 *	<li>#MDB_NOSYNC
+	 *	<li>#RZDB_NOSYNC
 	 *		Don't flush system buffers to disk when committing this transaction.
-	 *	<li>#MDB_NOMETASYNC
+	 *	<li>#RZDB_NOMETASYNC
 	 *		Flush system buffers but omit metadata flush when committing this transaction.
 	 * </ul>
-	 * @param[out] txn Address where the new #MDB_txn handle will be stored
+	 * @param[out] txn Address where the new #RZDB_txn handle will be stored
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
-	 *	<li>#MDB_PANIC - a fatal error occurred earlier and the environment
+	 *	<li>#RZDB_PANIC - a fatal error occurred earlier and the environment
 	 *		must be shut down.
-	 *	<li>#MDB_MAP_RESIZED - another process wrote data beyond this MDB_env's
+	 *	<li>#RZDB_MAP_RESIZED - another process wrote data beyond this RZDB_env's
 	 *		mapsize and this environment's map must be resized as well.
 	 *		See #mdb_env_set_mapsize().
-	 *	<li>#MDB_READERS_FULL - a read-only transaction was requested and
+	 *	<li>#RZDB_READERS_FULL - a read-only transaction was requested and
 	 *		the reader lock table is full. See #mdb_env_set_maxreaders().
 	 *	<li>ENOMEM - out of memory.
 	 * </ul>
 	 */
-int  mdb_txn_begin(MDB_env *env, MDB_txn *parent, unsigned int flags, MDB_txn **txn);
+int  mdb_txn_begin(RZDB_env *env, RZDB_txn *parent, unsigned int flags, RZDB_txn **txn);
 
-	/** @brief Returns the transaction's #MDB_env
+	/** @brief Returns the transaction's #RZDB_env
 	 *
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 */
-MDB_env *mdb_txn_env(MDB_txn *txn);
+RZDB_env *mdb_txn_env(RZDB_txn *txn);
 
 	/** @brief Return the transaction's ID.
 	 *
@@ -1022,7 +1022,7 @@ MDB_env *mdb_txn_env(MDB_txn *txn);
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @return A transaction ID, valid if input is an active transaction.
 	 */
-mdb_size_t mdb_txn_id(MDB_txn *txn);
+mdb_size_t mdb_txn_id(RZDB_txn *txn);
 
 	/** @brief Commit all the operations of a transaction into the database.
 	 *
@@ -1040,7 +1040,7 @@ mdb_size_t mdb_txn_id(MDB_txn *txn);
 	 *	<li>ENOMEM - out of memory.
 	 * </ul>
 	 */
-int  mdb_txn_commit(MDB_txn *txn);
+int  mdb_txn_commit(RZDB_txn *txn);
 
 	/** @brief Abandon all the operations of the transaction instead of saving them.
 	 *
@@ -1050,17 +1050,17 @@ int  mdb_txn_commit(MDB_txn *txn);
 	 * Only write-transactions free cursors.
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 */
-void mdb_txn_abort(MDB_txn *txn);
+void mdb_txn_abort(RZDB_txn *txn);
 
 	/** @brief Reset a read-only transaction.
 	 *
 	 * Abort the transaction like #mdb_txn_abort(), but keep the transaction
 	 * handle. #mdb_txn_renew() may reuse the handle. This saves allocation
 	 * overhead if the process will start a new read-only transaction soon,
-	 * and also locking overhead if #MDB_NOTLS is in use. The reader table
+	 * and also locking overhead if #RZDB_NOTLS is in use. The reader table
 	 * lock is released, but the table slot stays tied to its thread or
-	 * #MDB_txn. Use mdb_txn_abort() to discard a reset handle, and to free
-	 * its lock table slot if MDB_NOTLS is in use.
+	 * #RZDB_txn. Use mdb_txn_abort() to discard a reset handle, and to free
+	 * its lock table slot if RZDB_NOTLS is in use.
 	 * Cursors opened within the transaction must not be used
 	 * again after this call, except with #mdb_cursor_renew().
 	 * Reader locks generally don't interfere with writers, but they keep old
@@ -1069,7 +1069,7 @@ void mdb_txn_abort(MDB_txn *txn);
 	 * the database size may grow much more rapidly than otherwise.
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 */
-void mdb_txn_reset(MDB_txn *txn);
+void mdb_txn_reset(RZDB_txn *txn);
 
 	/** @brief Renew a read-only transaction.
 	 *
@@ -1080,12 +1080,12 @@ void mdb_txn_reset(MDB_txn *txn);
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
-	 *	<li>#MDB_PANIC - a fatal error occurred earlier and the environment
+	 *	<li>#RZDB_PANIC - a fatal error occurred earlier and the environment
 	 *		must be shut down.
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_txn_renew(MDB_txn *txn);
+int  mdb_txn_renew(RZDB_txn *txn);
 
 /** Compat with version <= 0.9.4, avoid clash with libmdb from MDB Tools project */
 #define mdb_open(txn,name,flags,dbi)	mdb_dbi_open(txn,name,flags,dbi)
@@ -1122,46 +1122,46 @@ int  mdb_txn_renew(MDB_txn *txn);
 	 * must be set to 0 or by bitwise OR'ing together one or more of the
 	 * values described here.
 	 * <ul>
-	 *	<li>#MDB_REVERSEKEY
+	 *	<li>#RZDB_REVERSEKEY
 	 *		Keys are strings to be compared in reverse order, from the end
 	 *		of the strings to the beginning. By default, Keys are treated as strings and
 	 *		compared from beginning to end.
-	 *	<li>#MDB_DUPSORT
+	 *	<li>#RZDB_DUPSORT
 	 *		Duplicate keys may be used in the database. (Or, from another perspective,
 	 *		keys may have multiple data items, stored in sorted order.) By default
 	 *		keys must be unique and may have only a single data item.
-	 *	<li>#MDB_INTEGERKEY
+	 *	<li>#RZDB_INTEGERKEY
 	 *		Keys are binary integers in native byte order, either unsigned int
 	 *		or #mdb_size_t, and will be sorted as such.
 	 *		(rzdb expects 32-bit int <= size_t <= 32/64-bit mdb_size_t.)
 	 *		The keys must all be of the same size.
-	 *	<li>#MDB_DUPFIXED
-	 *		This flag may only be used in combination with #MDB_DUPSORT. This option
+	 *	<li>#RZDB_DUPFIXED
+	 *		This flag may only be used in combination with #RZDB_DUPSORT. This option
 	 *		tells the library that the data items for this database are all the same
 	 *		size, which allows further optimizations in storage and retrieval. When
-	 *		all data items are the same size, the #MDB_GET_MULTIPLE, #MDB_NEXT_MULTIPLE
-	 *		and #MDB_PREV_MULTIPLE cursor operations may be used to retrieve multiple
+	 *		all data items are the same size, the #RZDB_GET_MULTIPLE, #RZDB_NEXT_MULTIPLE
+	 *		and #RZDB_PREV_MULTIPLE cursor operations may be used to retrieve multiple
 	 *		items at once.
-	 *	<li>#MDB_INTEGERDUP
+	 *	<li>#RZDB_INTEGERDUP
 	 *		This option specifies that duplicate data items are binary integers,
-	 *		similar to #MDB_INTEGERKEY keys.
-	 *	<li>#MDB_REVERSEDUP
+	 *		similar to #RZDB_INTEGERKEY keys.
+	 *	<li>#RZDB_REVERSEDUP
 	 *		This option specifies that duplicate data items should be compared as
 	 *		strings in reverse order.
-	 *	<li>#MDB_CREATE
+	 *	<li>#RZDB_CREATE
 	 *		Create the named database if it doesn't exist. This option is not
 	 *		allowed in a read-only transaction or a read-only environment.
 	 * </ul>
-	 * @param[out] dbi Address where the new #MDB_dbi handle will be stored
+	 * @param[out] dbi Address where the new #RZDB_dbi handle will be stored
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
-	 *	<li>#MDB_NOTFOUND - the specified database doesn't exist in the environment
-	 *		and #MDB_CREATE was not specified.
-	 *	<li>#MDB_DBS_FULL - too many databases have been opened. See #mdb_env_set_maxdbs().
+	 *	<li>#RZDB_NOTFOUND - the specified database doesn't exist in the environment
+	 *		and #RZDB_CREATE was not specified.
+	 *	<li>#RZDB_DBS_FULL - too many databases have been opened. See #mdb_env_set_maxdbs().
 	 * </ul>
 	 */
-int  mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *dbi);
+int  mdb_dbi_open(RZDB_txn *txn, const char *name, unsigned int flags, RZDB_dbi *dbi);
 
 	/** @brief Set a dbi's sequence
 	 *
@@ -1175,7 +1175,7 @@ int  mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *d
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 * <ul>
-	 *	<li>MDB_BAD_TXN - Transaction must abort, has a child, or is invalid
+	 *	<li>RZDB_BAD_TXN - Transaction must abort, has a child, or is invalid
 	 * </ul>
 	 * <ul>
 	 *	<li>EACCES - Transaction must abort, has a child, or is invalid
@@ -1184,7 +1184,7 @@ int  mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *d
      *  <li>EACCES - an attempt was made to write in a read-only transaction.
      * </ul>
 	 */
-int  mdb_dbi_set_seq(MDB_txn *txn, MDB_dbi dbi, uint64_t seq, uint64_t *old);
+int  mdb_dbi_set_seq(RZDB_txn *txn, RZDB_dbi dbi, uint64_t seq, uint64_t *old);
 
 	/** @brief Increment a dbi's sequence
 	 *
@@ -1198,7 +1198,7 @@ int  mdb_dbi_set_seq(MDB_txn *txn, MDB_dbi dbi, uint64_t seq, uint64_t *old);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 * <ul>
-	 *	<li>MDB_BAD_TXN - Transaction must abort, has a child, or is invalid
+	 *	<li>RZDB_BAD_TXN - Transaction must abort, has a child, or is invalid
 	 * </ul>
 	 * <ul>
 	 *	<li>EACCES - Transaction must abort, has a child, or is invalid
@@ -1207,13 +1207,13 @@ int  mdb_dbi_set_seq(MDB_txn *txn, MDB_dbi dbi, uint64_t seq, uint64_t *old);
      *  <li>EACCES - an attempt was made to write in a read-only transaction.
      * </ul>
 	 */
-int  mdb_dbi_incr_seq(MDB_txn *txn, MDB_dbi dbi, int64_t incr, uint64_t *old);
+int  mdb_dbi_incr_seq(RZDB_txn *txn, RZDB_dbi dbi, int64_t incr, uint64_t *old);
 
 	/** @brief Retrieve statistics for a database.
 	 *
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
-	 * @param[out] stat The address of an #MDB_stat structure
+	 * @param[out] stat The address of an #RZDB_stat structure
 	 * 	where the statistics will be copied
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
@@ -1221,7 +1221,7 @@ int  mdb_dbi_incr_seq(MDB_txn *txn, MDB_dbi dbi, int64_t incr, uint64_t *old);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_stat(MDB_txn *txn, MDB_dbi dbi, MDB_stat *stat);
+int  mdb_stat(RZDB_txn *txn, RZDB_dbi dbi, RZDB_stat *stat);
 
 	/** @brief Retrieve the DB flags for a database handle.
 	 *
@@ -1230,7 +1230,7 @@ int  mdb_stat(MDB_txn *txn, MDB_dbi dbi, MDB_stat *stat);
 	 * @param[out] flags Address where the flags will be returned.
 	 * @return A non-zero error value on failure and 0 on success.
 	 */
-int mdb_dbi_flags(MDB_txn *txn, MDB_dbi dbi, unsigned int *flags);
+int mdb_dbi_flags(RZDB_txn *txn, RZDB_dbi dbi, unsigned int *flags);
 
 	/** @brief Close a database handle. Normally unnecessary. Use with care:
 	 *
@@ -1239,7 +1239,7 @@ int mdb_dbi_flags(MDB_txn *txn, MDB_dbi dbi, unsigned int *flags);
 	 * the database handle or one of its cursors any further. Do not close
 	 * a handle if an existing transaction has modified its database.
 	 * Doing so can cause misbehavior from database corruption to errors
-	 * like MDB_BAD_VALSIZE (since the DB name is gone).
+	 * like RZDB_BAD_VALSIZE (since the DB name is gone).
 	 *
 	 * Closing a database handle is not necessary, but lets #mdb_dbi_open()
 	 * reuse the handle value.  Usually it's better to set a bigger
@@ -1248,7 +1248,7 @@ int mdb_dbi_flags(MDB_txn *txn, MDB_dbi dbi, unsigned int *flags);
 	 * @param[in] env An environment handle returned by #mdb_env_create()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
 	 */
-void mdb_dbi_close(MDB_env *env, MDB_dbi dbi);
+void mdb_dbi_close(RZDB_env *env, RZDB_dbi dbi);
 
 	/** @brief Empty or delete+close a database.
 	 *
@@ -1259,7 +1259,7 @@ void mdb_dbi_close(MDB_env *env, MDB_dbi dbi);
 	 * environment and close the DB handle.
 	 * @return A non-zero error value on failure and 0 on success.
 	 */
-int  mdb_drop(MDB_txn *txn, MDB_dbi dbi, int del);
+int  mdb_drop(RZDB_txn *txn, RZDB_dbi dbi, int del);
 
 	/** @brief Set a custom key comparison function for a database.
 	 *
@@ -1273,20 +1273,20 @@ int  mdb_drop(MDB_txn *txn, MDB_dbi dbi, int del);
 	 * program accessing the database, every time the database is used.
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
-	 * @param[in] cmp A #MDB_cmp_func function
+	 * @param[in] cmp A #RZDB_cmp_func function
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_set_compare(MDB_txn *txn, MDB_dbi dbi, MDB_cmp_func *cmp);
+int  mdb_set_compare(RZDB_txn *txn, RZDB_dbi dbi, RZDB_cmp_func *cmp);
 
-	/** @brief Set a custom data comparison function for a #MDB_DUPSORT database.
+	/** @brief Set a custom data comparison function for a #RZDB_DUPSORT database.
 	 *
 	 * This comparison function is called whenever it is necessary to compare a data
 	 * item specified by the application with a data item currently stored in the database.
-	 * This function only takes effect if the database was opened with the #MDB_DUPSORT
+	 * This function only takes effect if the database was opened with the #RZDB_DUPSORT
 	 * flag.
 	 * If no comparison function is specified, and no special key flags were specified
 	 * with #mdb_dbi_open(), the data items are compared lexically, with shorter items collating
@@ -1296,18 +1296,18 @@ int  mdb_set_compare(MDB_txn *txn, MDB_dbi dbi, MDB_cmp_func *cmp);
 	 * program accessing the database, every time the database is used.
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
-	 * @param[in] cmp A #MDB_cmp_func function
+	 * @param[in] cmp A #RZDB_cmp_func function
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_set_dupsort(MDB_txn *txn, MDB_dbi dbi, MDB_cmp_func *cmp);
+int  mdb_set_dupsort(RZDB_txn *txn, RZDB_dbi dbi, RZDB_cmp_func *cmp);
 
 	/** @brief Set a context pointer for the compare function
 	 *
-	 * See #mdb_set_compare and #MDB_cmp_func for more details.
+	 * See #mdb_set_compare and #RZDB_cmp_func for more details.
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
 	 * @param[in] ctx An arbitrary pointer for whatever the application needs.
@@ -1319,11 +1319,11 @@ int  mdb_set_dupsort(MDB_txn *txn, MDB_dbi dbi, MDB_cmp_func *cmp);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_set_cmpctx(MDB_txn *txn, MDB_dbi dbi, void *ctx);
+int  mdb_set_cmpctx(RZDB_txn *txn, RZDB_dbi dbi, void *ctx);
 
 	/** @brief Set a context pointer for the duplicate sort function
 	 *
-	 * See #mdb_set_dupsort and #MDB_cmp_func for more details.
+	 * See #mdb_set_dupsort and #RZDB_cmp_func for more details.
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
 	 * @param[in] ctx An arbitrary pointer for whatever the application needs.
@@ -1335,11 +1335,11 @@ int  mdb_set_cmpctx(MDB_txn *txn, MDB_dbi dbi, void *ctx);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_set_dcmpctx(MDB_txn *txn, MDB_dbi dbi, void *ctx);
+int  mdb_set_dcmpctx(RZDB_txn *txn, RZDB_dbi dbi, void *ctx);
 
 	/** @brief Get the context pointer for the compare function
 	 *
-	 * See #mdb_set_compare,#mdb_set_cmpctx and #MDB_cmp_func for more details.
+	 * See #mdb_set_compare,#mdb_set_cmpctx and #RZDB_cmp_func for more details.
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
 	 * @param[in] ctx A pointer to an arbitrary pointer to store the ctx
@@ -1349,11 +1349,11 @@ int  mdb_set_dcmpctx(MDB_txn *txn, MDB_dbi dbi, void *ctx);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_get_cmpctx(MDB_txn *txn, MDB_dbi dbi, void **ctx);
+int  mdb_get_cmpctx(RZDB_txn *txn, RZDB_dbi dbi, void **ctx);
 
 	/** @brief Get the context pointer for the duplicate sort function
 	 *
-	 * See #mdb_set_dupsort,mdb_set_dcmpctx and #MDB_cmp_func for more details.
+	 * See #mdb_set_dupsort,mdb_set_dcmpctx and #RZDB_cmp_func for more details.
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
 	 * @param[in] ctx A pointer to an arbitrary pointer to store the ctx
@@ -1363,14 +1363,14 @@ int  mdb_get_cmpctx(MDB_txn *txn, MDB_dbi dbi, void **ctx);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_get_dcmpctx(MDB_txn *txn, MDB_dbi dbi, void **ctx);
+int  mdb_get_dcmpctx(RZDB_txn *txn, RZDB_dbi dbi, void **ctx);
 
 	/** @brief Get items from a database.
 	 *
 	 * This function retrieves key/data pairs from the database. The address
 	 * and length of the data associated with the specified \b key are returned
 	 * in the structure to which \b data refers.
-	 * If the database supports duplicate keys (#MDB_DUPSORT) then the
+	 * If the database supports duplicate keys (#RZDB_DUPSORT) then the
 	 * first data item for the key will be returned. Retrieval of other
 	 * items requires the use of #mdb_cursor_get().
 	 *
@@ -1387,18 +1387,18 @@ int  mdb_get_dcmpctx(MDB_txn *txn, MDB_dbi dbi, void **ctx);
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
-	 *	<li>#MDB_NOTFOUND - the key was not in the database.
+	 *	<li>#RZDB_NOTFOUND - the key was not in the database.
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_get(MDB_txn *txn, MDB_dbi dbi, MDB_val *key, MDB_val *data);
+int  mdb_get(RZDB_txn *txn, RZDB_dbi dbi, RZDB_val *key, RZDB_val *data);
 
 	/** @brief Store items into a database.
 	 *
 	 * This function stores key/data pairs in the database. The default behavior
 	 * is to enter the new key/data pair, replacing any previously existing key
 	 * if duplicates are disallowed, or adding a duplicate data item if
-	 * duplicates are allowed (#MDB_DUPSORT).
+	 * duplicates are allowed (#RZDB_DUPSORT).
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
 	 * @param[in] key The key to store in the database
@@ -1407,52 +1407,52 @@ int  mdb_get(MDB_txn *txn, MDB_dbi dbi, MDB_val *key, MDB_val *data);
 	 * must be set to 0 or by bitwise OR'ing together one or more of the
 	 * values described here.
 	 * <ul>
-	 *	<li>#MDB_NODUPDATA - enter the new key/data pair only if it does not
+	 *	<li>#RZDB_NODUPDATA - enter the new key/data pair only if it does not
 	 *		already appear in the database. This flag may only be specified
-	 *		if the database was opened with #MDB_DUPSORT. The function will
-	 *		return #MDB_KEYEXIST if the key/data pair already appears in the
+	 *		if the database was opened with #RZDB_DUPSORT. The function will
+	 *		return #RZDB_KEYEXIST if the key/data pair already appears in the
 	 *		database.
-	 *	<li>#MDB_NOOVERWRITE - enter the new key/data pair only if the key
+	 *	<li>#RZDB_NOOVERWRITE - enter the new key/data pair only if the key
 	 *		does not already appear in the database. The function will return
-	 *		#MDB_KEYEXIST if the key already appears in the database, even if
-	 *		the database supports duplicates (#MDB_DUPSORT). The \b data
+	 *		#RZDB_KEYEXIST if the key already appears in the database, even if
+	 *		the database supports duplicates (#RZDB_DUPSORT). The \b data
 	 *		parameter will be set to point to the existing item.
-	 *	<li>#MDB_RESERVE - reserve space for data of the given size, but
+	 *	<li>#RZDB_RESERVE - reserve space for data of the given size, but
 	 *		don't copy the given data. Instead, return a pointer to the
 	 *		reserved space, which the caller can fill in later - before
 	 *		the next update operation or the transaction ends. This saves
 	 *		an extra memcpy if the data is being generated later.
 	 *		LMDB does nothing else with this memory, the caller is expected
 	 *		to modify all of the space requested. This flag must not be
-	 *		specified if the database was opened with #MDB_DUPSORT.
-	 *	<li>#MDB_APPEND - append the given key/data pair to the end of the
+	 *		specified if the database was opened with #RZDB_DUPSORT.
+	 *	<li>#RZDB_APPEND - append the given key/data pair to the end of the
 	 *		database. This option allows fast bulk loading when keys are
 	 *		already known to be in the correct order. Loading unsorted keys
-	 *		with this flag will cause a #MDB_KEYEXIST error.
-	 *	<li>#MDB_APPENDDUP - as above, but for sorted dup data.
+	 *		with this flag will cause a #RZDB_KEYEXIST error.
+	 *	<li>#RZDB_APPENDDUP - as above, but for sorted dup data.
 	 * </ul>
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
-	 *	<li>#MDB_MAP_FULL - the database is full, see #mdb_env_set_mapsize().
-	 *	<li>#MDB_TXN_FULL - the transaction has too many dirty pages.
+	 *	<li>#RZDB_MAP_FULL - the database is full, see #mdb_env_set_mapsize().
+	 *	<li>#RZDB_TXN_FULL - the transaction has too many dirty pages.
 	 *	<li>EACCES - an attempt was made to write in a read-only transaction.
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_put(MDB_txn *txn, MDB_dbi dbi, MDB_val *key, MDB_val *data,
+int  mdb_put(RZDB_txn *txn, RZDB_dbi dbi, RZDB_val *key, RZDB_val *data,
 			    unsigned int flags);
 
 	/** @brief Delete items from a database.
 	 *
 	 * This function removes key/data pairs from the database.
 	 * If the database does not support sorted duplicate data items
-	 * (#MDB_DUPSORT) the data parameter is ignored.
+	 * (#RZDB_DUPSORT) the data parameter is ignored.
 	 * If the database supports sorted duplicates and the data parameter
 	 * is NULL, all of the duplicate data items for the key will be
 	 * deleted. Otherwise, if the data parameter is non-NULL
 	 * only the matching data item will be deleted.
-	 * This function will return #MDB_NOTFOUND if the specified key/data
+	 * This function will return #RZDB_NOTFOUND if the specified key/data
 	 * pair is not in the database.
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
@@ -1465,7 +1465,7 @@ int  mdb_put(MDB_txn *txn, MDB_dbi dbi, MDB_val *key, MDB_val *data,
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_del(MDB_txn *txn, MDB_dbi dbi, MDB_val *key, MDB_val *data);
+int  mdb_del(RZDB_txn *txn, RZDB_dbi dbi, RZDB_val *key, RZDB_val *data);
 
 	/** @brief Create a cursor handle.
 	 *
@@ -1482,14 +1482,14 @@ int  mdb_del(MDB_txn *txn, MDB_dbi dbi, MDB_val *key, MDB_val *data);
 	 * were closed when the transaction committed or aborted.
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
-	 * @param[out] cursor Address where the new #MDB_cursor handle will be stored
+	 * @param[out] cursor Address where the new #RZDB_cursor handle will be stored
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_cursor_open(MDB_txn *txn, MDB_dbi dbi, MDB_cursor **cursor);
+int  mdb_cursor_open(RZDB_txn *txn, RZDB_dbi dbi, RZDB_cursor **cursor);
 
 	/** @brief Close a cursor handle.
 	 *
@@ -1497,7 +1497,7 @@ int  mdb_cursor_open(MDB_txn *txn, MDB_dbi dbi, MDB_cursor **cursor);
 	 * Its transaction must still be live if it is a write-transaction.
 	 * @param[in] cursor A cursor handle returned by #mdb_cursor_open()
 	 */
-void mdb_cursor_close(MDB_cursor *cursor);
+void mdb_cursor_close(RZDB_cursor *cursor);
 
 	/** @brief Renew a cursor handle.
 	 *
@@ -1515,41 +1515,41 @@ void mdb_cursor_close(MDB_cursor *cursor);
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_cursor_renew(MDB_txn *txn, MDB_cursor *cursor);
+int  mdb_cursor_renew(RZDB_txn *txn, RZDB_cursor *cursor);
 
 	/** @brief Return the cursor's transaction handle.
 	 *
 	 * @param[in] cursor A cursor handle returned by #mdb_cursor_open()
 	 */
-MDB_txn *mdb_cursor_txn(MDB_cursor *cursor);
+RZDB_txn *mdb_cursor_txn(RZDB_cursor *cursor);
 
 	/** @brief Return the cursor's database handle.
 	 *
 	 * @param[in] cursor A cursor handle returned by #mdb_cursor_open()
 	 */
-MDB_dbi mdb_cursor_dbi(MDB_cursor *cursor);
+RZDB_dbi mdb_cursor_dbi(RZDB_cursor *cursor);
 
 	/** @brief Retrieve by cursor.
 	 *
 	 * This function retrieves key/data pairs from the database. The address and length
 	 * of the key are returned in the object to which \b key refers (except for the
-	 * case of the #MDB_SET option, in which the \b key object is unchanged), and
+	 * case of the #RZDB_SET option, in which the \b key object is unchanged), and
 	 * the address and length of the data are returned in the object to which \b data
 	 * refers.
 	 * See #mdb_get() for restrictions on using the output values.
 	 * @param[in] cursor A cursor handle returned by #mdb_cursor_open()
 	 * @param[in,out] key The key for a retrieved item
 	 * @param[in,out] data The data of a retrieved item
-	 * @param[in] op A cursor operation #MDB_cursor_op
+	 * @param[in] op A cursor operation #RZDB_cursor_op
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
-	 *	<li>#MDB_NOTFOUND - no matching key found.
+	 *	<li>#RZDB_NOTFOUND - no matching key found.
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_cursor_get(MDB_cursor *cursor, MDB_val *key, MDB_val *data,
-			    MDB_cursor_op op);
+int  mdb_cursor_get(RZDB_cursor *cursor, RZDB_val *key, RZDB_val *data,
+			    RZDB_cursor_op op);
 
 	/** @brief Store by cursor.
 	 *
@@ -1563,54 +1563,54 @@ int  mdb_cursor_get(MDB_cursor *cursor, MDB_val *key, MDB_val *data,
 	 * @param[in] flags Options for this operation. This parameter
 	 * must be set to 0 or one of the values described here.
 	 * <ul>
-	 *	<li>#MDB_CURRENT - replace the item at the current cursor position.
+	 *	<li>#RZDB_CURRENT - replace the item at the current cursor position.
 	 *		The \b key parameter must still be provided, and must match it.
-	 *		If using sorted duplicates (#MDB_DUPSORT) the data item must still
+	 *		If using sorted duplicates (#RZDB_DUPSORT) the data item must still
 	 *		sort into the same place. This is intended to be used when the
 	 *		new data is the same size as the old. Otherwise it will simply
 	 *		perform a delete of the old record followed by an insert.
-	 *	<li>#MDB_NODUPDATA - enter the new key/data pair only if it does not
+	 *	<li>#RZDB_NODUPDATA - enter the new key/data pair only if it does not
 	 *		already appear in the database. This flag may only be specified
-	 *		if the database was opened with #MDB_DUPSORT. The function will
-	 *		return #MDB_KEYEXIST if the key/data pair already appears in the
+	 *		if the database was opened with #RZDB_DUPSORT. The function will
+	 *		return #RZDB_KEYEXIST if the key/data pair already appears in the
 	 *		database.
-	 *	<li>#MDB_NOOVERWRITE - enter the new key/data pair only if the key
+	 *	<li>#RZDB_NOOVERWRITE - enter the new key/data pair only if the key
 	 *		does not already appear in the database. The function will return
-	 *		#MDB_KEYEXIST if the key already appears in the database, even if
-	 *		the database supports duplicates (#MDB_DUPSORT).
-	 *	<li>#MDB_RESERVE - reserve space for data of the given size, but
+	 *		#RZDB_KEYEXIST if the key already appears in the database, even if
+	 *		the database supports duplicates (#RZDB_DUPSORT).
+	 *	<li>#RZDB_RESERVE - reserve space for data of the given size, but
 	 *		don't copy the given data. Instead, return a pointer to the
 	 *		reserved space, which the caller can fill in later - before
 	 *		the next update operation or the transaction ends. This saves
 	 *		an extra memcpy if the data is being generated later. This flag
-	 *		must not be specified if the database was opened with #MDB_DUPSORT.
-	 *	<li>#MDB_APPEND - append the given key/data pair to the end of the
+	 *		must not be specified if the database was opened with #RZDB_DUPSORT.
+	 *	<li>#RZDB_APPEND - append the given key/data pair to the end of the
 	 *		database. No key comparisons are performed. This option allows
 	 *		fast bulk loading when keys are already known to be in the
 	 *		correct order. Loading unsorted keys with this flag will cause
-	 *		a #MDB_KEYEXIST error.
-	 *	<li>#MDB_APPENDDUP - as above, but for sorted dup data.
-	 *	<li>#MDB_MULTIPLE - store multiple contiguous data elements in a
+	 *		a #RZDB_KEYEXIST error.
+	 *	<li>#RZDB_APPENDDUP - as above, but for sorted dup data.
+	 *	<li>#RZDB_MULTIPLE - store multiple contiguous data elements in a
 	 *		single request. This flag may only be specified if the database
-	 *		was opened with #MDB_DUPFIXED. The \b data argument must be an
-	 *		array of two MDB_vals. The mv_size of the first MDB_val must be
-	 *		the size of a single data element. The mv_data of the first MDB_val
+	 *		was opened with #RZDB_DUPFIXED. The \b data argument must be an
+	 *		array of two RZDB_vals. The mv_size of the first RZDB_val must be
+	 *		the size of a single data element. The mv_data of the first RZDB_val
 	 *		must point to the beginning of the array of contiguous data elements.
-	 *		The mv_size of the second MDB_val must be the count of the number
+	 *		The mv_size of the second RZDB_val must be the count of the number
 	 *		of data elements to store. On return this field will be set to
 	 *		the count of the number of elements actually written. The mv_data
-	 *		of the second MDB_val is unused.
+	 *		of the second RZDB_val is unused.
 	 * </ul>
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
-	 *	<li>#MDB_MAP_FULL - the database is full, see #mdb_env_set_mapsize().
-	 *	<li>#MDB_TXN_FULL - the transaction has too many dirty pages.
+	 *	<li>#RZDB_MAP_FULL - the database is full, see #mdb_env_set_mapsize().
+	 *	<li>#RZDB_TXN_FULL - the transaction has too many dirty pages.
 	 *	<li>EACCES - an attempt was made to write in a read-only transaction.
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_cursor_put(MDB_cursor *cursor, MDB_val *key, MDB_val *data,
+int  mdb_cursor_put(RZDB_cursor *cursor, RZDB_val *key, RZDB_val *data,
 				unsigned int flags);
 
 	/** @brief Delete current key/data pair
@@ -1620,8 +1620,8 @@ int  mdb_cursor_put(MDB_cursor *cursor, MDB_val *key, MDB_val *data,
 	 * @param[in] flags Options for this operation. This parameter
 	 * must be set to 0 or one of the values described here.
 	 * <ul>
-	 *	<li>#MDB_NODUPDATA - delete all of the data items for the current key.
-	 *		This flag may only be specified if the database was opened with #MDB_DUPSORT.
+	 *	<li>#RZDB_NODUPDATA - delete all of the data items for the current key.
+	 *		This flag may only be specified if the database was opened with #RZDB_DUPSORT.
 	 * </ul>
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
@@ -1630,12 +1630,12 @@ int  mdb_cursor_put(MDB_cursor *cursor, MDB_val *key, MDB_val *data,
 	 *	<li>EINVAL - an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_cursor_del(MDB_cursor *cursor, unsigned int flags);
+int  mdb_cursor_del(RZDB_cursor *cursor, unsigned int flags);
 
 	/** @brief Return count of duplicates for current key.
 	 *
 	 * This call is only valid on databases that support sorted duplicate
-	 * data items #MDB_DUPSORT.
+	 * data items #RZDB_DUPSORT.
 	 * @param[in] cursor A cursor handle returned by #mdb_cursor_open()
 	 * @param[out] countp Address where the count will be stored
 	 * @return A non-zero error value on failure and 0 on success. Some possible
@@ -1644,7 +1644,7 @@ int  mdb_cursor_del(MDB_cursor *cursor, unsigned int flags);
 	 *	<li>EINVAL - cursor is not initialized, or an invalid parameter was specified.
 	 * </ul>
 	 */
-int  mdb_cursor_count(MDB_cursor *cursor, mdb_size_t *countp);
+int  mdb_cursor_count(RZDB_cursor *cursor, mdb_size_t *countp);
 
 	/** @brief Compare two data items according to a particular database.
 	 *
@@ -1656,19 +1656,19 @@ int  mdb_cursor_count(MDB_cursor *cursor, mdb_size_t *countp);
 	 * @param[in] b The second item to compare
 	 * @return < 0 if a < b, 0 if a == b, > 0 if a > b
 	 */
-int  mdb_cmp(MDB_txn *txn, MDB_dbi dbi, const MDB_val *a, const MDB_val *b);
+int  mdb_cmp(RZDB_txn *txn, RZDB_dbi dbi, const RZDB_val *a, const RZDB_val *b);
 
 	/** @brief Compare two data items according to a particular database.
 	 *
 	 * This returns a comparison as if the two items were data items of
-	 * the specified database. The database must have the #MDB_DUPSORT flag.
+	 * the specified database. The database must have the #RZDB_DUPSORT flag.
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
 	 * @param[in] a The first item to compare
 	 * @param[in] b The second item to compare
 	 * @return < 0 if a < b, 0 if a == b, > 0 if a > b
 	 */
-int  mdb_dcmp(MDB_txn *txn, MDB_dbi dbi, const MDB_val *a, const MDB_val *b);
+int  mdb_dcmp(RZDB_txn *txn, RZDB_dbi dbi, const RZDB_val *a, const RZDB_val *b);
 
 	/** @brief A callback function used to print a message from the library.
 	 *
@@ -1676,16 +1676,16 @@ int  mdb_dcmp(MDB_txn *txn, MDB_dbi dbi, const MDB_val *a, const MDB_val *b);
 	 * @param[in] ctx An arbitrary context pointer for the callback.
 	 * @return < 0 on failure, >= 0 on success.
 	 */
-typedef int (MDB_msg_func)(const char *msg, void *ctx);
+typedef int (RZDB_msg_func)(const char *msg, void *ctx);
 
 	/** @brief Dump the entries in the reader lock table.
 	 *
 	 * @param[in] env An environment handle returned by #mdb_env_create()
-	 * @param[in] func A #MDB_msg_func function
+	 * @param[in] func A #RZDB_msg_func function
 	 * @param[in] ctx Anything the message function needs
 	 * @return < 0 on failure, >= 0 on success.
 	 */
-int	mdb_reader_list(MDB_env *env, MDB_msg_func *func, void *ctx);
+int	mdb_reader_list(RZDB_env *env, RZDB_msg_func *func, void *ctx);
 
 	/** @brief Check for stale entries in the reader lock table.
 	 *
@@ -1693,7 +1693,7 @@ int	mdb_reader_list(MDB_env *env, MDB_msg_func *func, void *ctx);
 	 * @param[out] dead Number of stale slots that were cleared
 	 * @return 0 on success, non-zero on failure.
 	 */
-int	mdb_reader_check(MDB_env *env, int *dead);
+int	mdb_reader_check(RZDB_env *env, int *dead);
 /**	@} */
 
 #ifdef __cplusplus
@@ -1707,4 +1707,4 @@ int	mdb_reader_check(MDB_env *env, int *dead);
 	\li \ref mdb_stat_1
 */
 
-#endif /* _LMDB_H_ */
+#endif /* _RZDB_H_ */

@@ -27,7 +27,7 @@ Once created, this environment must also be opened with #mdb_env_open().
 path. Note that this directory must exist already, it is not created
 for you. Within that directory, a lock file and a storage file will be
 generated. If you don't want to use a directory, you can pass the
-#MDB_NOSUBDIR option, in which case the path you provided is used
+#RZDB_NOSUBDIR option, in which case the path you provided is used
 directly as the data file, and another file with a "-lock" suffix
 added will be used for the lock file.
 
@@ -41,7 +41,7 @@ view of the data.
 Once a transaction has been created, a database can be opened within it
 using #mdb_dbi_open(). If only one database will ever be used in the
 environment, a NULL can be passed as the database name. For named
-databases, the #MDB_CREATE flag must be used to create the database
+databases, the #RZDB_CREATE flag must be used to create the database
 if it doesn't already exist. Also, #mdb_env_set_maxdbs() must be
 called after #mdb_env_create() and before #mdb_env_open() to set the
 maximum number of named databases you want to support.
@@ -55,12 +55,12 @@ Within a transaction, #mdb_get() and #mdb_put() can store single
 key/value pairs if that is all you need to do (but see \ref Cursors
 below if you want to do more).
 
-A key/value pair is expressed as two #MDB_val structures. This struct
+A key/value pair is expressed as two #RZDB_val structures. This struct
 has two fields, \c mv_size and \c mv_data. The data is a \c void pointer to
 an array of \c mv_size bytes.
 
 Because LMDB is very efficient (and usually zero-copy), the data returned
-in an #MDB_val structure may be memory-mapped straight from disk. In
+in an #RZDB_val structure may be memory-mapped straight from disk. In
 other words <b>look but do not touch</b> (or free() for that matter).
 Once a transaction is closed, the values can no longer be used, so
 make a copy if you need to keep them after that.
@@ -75,16 +75,16 @@ With this cursor we can store/retrieve/delete (multiple) values using
 
 #mdb_cursor_get() positions itself depending on the cursor operation
 requested, and for some operations, on the supplied key. For example,
-to list all key/value pairs in a database, use operation #MDB_FIRST for
-the first call to #mdb_cursor_get(), and #MDB_NEXT on subsequent calls,
+to list all key/value pairs in a database, use operation #RZDB_FIRST for
+the first call to #mdb_cursor_get(), and #RZDB_NEXT on subsequent calls,
 until the end is hit.
 
-To retrieve all keys starting from a specified key value, use #MDB_SET.
+To retrieve all keys starting from a specified key value, use #RZDB_SET.
 For more cursor operations, see the \ref mdb docs.
 
 When using #mdb_cursor_put(), either the function will position the
 cursor for you based on the \b key, or you can use operation
-#MDB_CURRENT to use the current position of the cursor. Note that
+#RZDB_CURRENT to use the current position of the cursor. Note that
 \b key must then match the current position's key.
 
 @subsection summary Summarizing the Opening
@@ -111,7 +111,7 @@ instances will be vulnerable to corruption from other processes.
 
 Also note that a transaction is tied to one thread by default using
 Thread Local Storage. If you want to pass read-only transactions across
-threads, you can use the #MDB_NOTLS option on the environment.
+threads, you can use the #RZDB_NOTLS option on the environment.
 
 @section txns Transactions, Rollbacks, etc.
 
@@ -144,8 +144,8 @@ transactions, however, and they may continue to be opened at any time.
 for multiple key/value pairs with identical keys. If there are multiple
 values for a key, #mdb_get() will only return the first value.
 
-When multiple values for one key are required, pass the #MDB_DUPSORT
-flag to #mdb_dbi_open(). In an #MDB_DUPSORT database, by default
+When multiple values for one key are required, pass the #RZDB_DUPSORT
+flag to #mdb_dbi_open(). In an #RZDB_DUPSORT database, by default
 #mdb_put() will not replace the value for a key if the key existed
 already. Instead it will add the new value to the key. In addition,
 #mdb_del() will pay attention to the value field too, allowing for
