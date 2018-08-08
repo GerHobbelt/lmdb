@@ -7,6 +7,7 @@ mdb_copy
 mdb_stat
 mdb_dump
 mdb_load
+mdb_drop
 *.lo
 *.[ao]
 *.so
