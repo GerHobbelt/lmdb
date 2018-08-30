@@ -918,6 +918,21 @@ typedef struct MDB_txninfo {
 		sizeof(pthread_mutex_t) / 4U % 22 * 5)
 #endif
 
+#ifdef _MSC_VER
+#pragma warning (disable:4100)	// unreferenced formal parameter
+#pragma warning (disable:4146)	// unary minus applied to unsigned type
+#pragma warning (disable:4172)	// returning address of local variable
+#pragma warning (disable:4244)	// possible loss of data
+#pragma warning (disable:4267)	// possible loss of data
+#pragma warning (disable:4333)	// right shift by too large amount
+#pragma warning (disable:4389)	// signed/unsigned mismatch
+#pragma warning (disable:4456)	// declaration hides previous local declaration
+#pragma warning (disable:4457)	// declaration hides function parameter
+#pragma warning (disable:4701)	// potentially uninitialized variable used
+#pragma warning (disable:4706)	// assignment within conditional expression
+#pragma warning (disable:4996)	// XXX was declared deprecated
+#endif
+
 enum {
 	/** Magic number for lockfile layout and features.
 	 *

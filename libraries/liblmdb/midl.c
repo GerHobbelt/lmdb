@@ -23,6 +23,11 @@
 #include <sys/types.h>
 #include "midl.h"
 
+#ifdef _MSC_VER
+#pragma warning (disable:4267)	// possible loss of data
+#pragma warning (disable:4706)	// assignment within conditional expression
+#endif
+
 /** @defgroup internal	LMDB Internals
  *	@{
  */
