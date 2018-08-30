@@ -16,7 +16,8 @@ SubDir TOP external lmdb ;
         ;
     HEADERS = $(SUBDIR)/libraries/liblmdb/$(HEADERS) ;
 
-    C.IncludeDirectories * : .include ;
     local LIB = [ C.Library external-lmdb : $(SOURCES) ] ;
-    CopyFiles $(LIB) : $(SUBDIR)/.include : $(HEADERS) ;
+    CopyFiles $(LIB) : $(SUBDIR)/.include/lmdb : $(HEADERS) ;
+    C.IncludeDirectories * : .include ;
+    C.IncludeDirectories $(LIB) : .include/lmdb ;
 }

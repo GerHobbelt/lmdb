@@ -4974,6 +4974,7 @@ const PIMAGE_TLS_CALLBACK mdb_tls_cbp = mdb_tls_callback;
 PIMAGE_TLS_CALLBACK mdb_tls_cbp = mdb_tls_callback;
 #pragma data_seg()
 #endif	/* WIN 32/64 */
+#pragma comment(lib, "advapi32.lib")
 #endif	/* !__GNUC__ */
 #endif
 
