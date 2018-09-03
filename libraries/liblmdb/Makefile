@@ -18,16 +18,35 @@
 # There may be other macros in mdb.c of interest. You should
 # read mdb.c before changing any of them.
 #
+
+ifeq ($(OS),Windows_NT)
+    LIBPREFIX =
+    LIBEXT    = .dll
+    THREADS   =
+    prefix    = out
+else
+    UNAME_S := $(shell uname -s)
+    ifeq ($(UNAME_S),Darwin)
+        INSTNAME = libsqlite3.dylib
+        CURR_VERSION   = 0.9.3
+        COMPAT_VERSION = 0.1
+        LIBEXT = .dylib
+    else
+        LIBEXT = .so
+    endif
+    LIBPREFIX = lib
+    THREADS   = -pthread
+    prefix    = /usr/local
+endif
+
 CC	= gcc
 AR	= ar
 W	= -W -Wall -Wno-unused-parameter -Wbad-function-cast -Wuninitialized
-THREADS = -pthread
 OPT = -O2 -g
 CFLAGS	= $(THREADS) $(OPT) $(W) $(XCFLAGS)
+LDFLAGS = -static-libgcc -static-libstdc++
 LDLIBS	= 
 SOLIBS	= 
-SOEXT	= .so
-prefix	= /usr/local
 exec_prefix = $(prefix)
 bindir = $(exec_prefix)/bin
 libdir = $(exec_prefix)/lib
@@ -38,13 +57,14 @@ mandir = $(datarootdir)/man
 ########################################################################
 
 IHDRS	= lmdb.h
-ILIBS	= liblmdb.a liblmdb$(SOEXT)
+ILIBS	= $(LIBPREFIX)lmdb.a $(LIBPREFIX)lmdb$(LIBEXT)
 IPROGS	= mdb_stat mdb_copy mdb_dump mdb_load mdb_drop
 IDOCS	= mdb_stat.1 mdb_copy.1 mdb_dump.1 mdb_load.1 mdb_drop.1
 PROGS	= $(IPROGS) mtest mtest2 mtest3 mtest4 mtest5
 all:	$(ILIBS) $(PROGS)
 
 install: $(ILIBS) $(IPROGS) $(IHDRS)
+	mkdir -p $(DESTDIR)$(prefix)
 	mkdir -p $(DESTDIR)$(bindir)
 	mkdir -p $(DESTDIR)$(libdir)
 	mkdir -p $(DESTDIR)$(includedir)
@@ -55,30 +75,36 @@ install: $(ILIBS) $(IPROGS) $(IHDRS)
 	for f in $(IDOCS); do cp $$f $(DESTDIR)$(mandir)/man1; done
 
 clean:
-	rm -rf $(PROGS) *.[ao] *.[ls]o *~ testdb
+	rm -rf $(PROGS) *.[ao] *.[ls]o *$(LIBEXT) *.lib *~ testdb
 
 test:	all
 	rm -rf testdb && mkdir testdb
 	./mtest && ./mdb_stat testdb
 
-liblmdb.a:	mdb.o midl.o
+$(LIBPREFIX)lmdb.a:	mdb.o midl.o
 	$(AR) rs $@ mdb.o midl.o
 
-liblmdb$(SOEXT):	mdb.lo midl.lo
+liblmdb.so:	mdb.lo midl.lo
 #	$(CC) $(LDFLAGS) -pthread -shared -Wl,-Bsymbolic -o $@ mdb.o midl.o $(SOLIBS)
 	$(CC) $(LDFLAGS) -pthread -shared -o $@ mdb.lo midl.lo $(SOLIBS)
 
-mdb_stat: mdb_stat.o liblmdb.a
-mdb_copy: mdb_copy.o liblmdb.a
-mdb_dump: mdb_dump.o liblmdb.a
-mdb_load: mdb_load.o liblmdb.a
-mdb_drop: mdb_drop.o liblmdb.a
-mtest:    mtest.o    liblmdb.a
-mtest2:	mtest2.o liblmdb.a
-mtest3:	mtest3.o liblmdb.a
-mtest4:	mtest4.o liblmdb.a
-mtest5:	mtest5.o liblmdb.a
-mtest6:	mtest6.o liblmdb.a
+liblmdb.dylib:	mdb.lo midl.lo
+	$(CC) -dynamiclib -install_name "$(INSTNAME)" -current_version $(CURR_VERSION) -compatibility_version $(COMPAT_VERSION) $^ -o $@ $(LDFLAGS)
+
+lmdb.dll:	mdb.lo midl.lo
+	$(CC) $(LDFLAGS) -shared -Wl,--output-def=lmdb.def -Wl,--out-implib=lmdb.lib -Wl,--dll mdb.lo midl.lo $(SOLIBS) -o $@ -s
+
+mdb_stat: mdb_stat.o $(LIBPREFIX)lmdb.a
+mdb_copy: mdb_copy.o $(LIBPREFIX)lmdb.a
+mdb_dump: mdb_dump.o $(LIBPREFIX)lmdb.a
+mdb_load: mdb_load.o $(LIBPREFIX)lmdb.a
+mdb_drop: mdb_drop.o $(LIBPREFIX)lmdb.a
+mtest:    mtest.o    $(LIBPREFIX)lmdb.a
+mtest2:	mtest2.o $(LIBPREFIX)lmdb.a
+mtest3:	mtest3.o $(LIBPREFIX)lmdb.a
+mtest4:	mtest4.o $(LIBPREFIX)lmdb.a
+mtest5:	mtest5.o $(LIBPREFIX)lmdb.a
+mtest6:	mtest6.o $(LIBPREFIX)lmdb.a
 
 mdb.o: mdb.c lmdb.h midl.h
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c mdb.c
