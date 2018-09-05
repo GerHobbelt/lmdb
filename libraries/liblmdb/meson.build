@@ -115,3 +115,10 @@ man_files = files(
 )
 
 install_man(man_files)
+
+# Generate pc file
+pkgg = import('pkgconfig')
+
+pkgg.generate(libraries: [ lmdb ],
+              name: lmdb_name,
+              description: 'Lightning Memory-Mapped Database.')
