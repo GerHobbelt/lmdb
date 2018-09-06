@@ -37,6 +37,11 @@ foreach cflag: test_cflags
   endif
 endforeach
 
+extra_args = []
+if cc.get_id() == 'msvc'
+  extra_args += '-D_CRT_SECURE_NO_WARNINGS'
+endif
+
 thread_dep = dependency('threads')
 
 lmdb_public_headers = files(
@@ -70,13 +75,16 @@ lmdb_dep = declare_dependency(
   include_directories: lmdb_inc,
 )
 
-programs = [
-  'mdb_stat',
-  'mdb_copy',
-  'mdb_dump',
-  'mdb_load',
-  'mdb_drop',
-]
+programs = []
+if host_system != 'windows'
+  programs += [
+    'mdb_stat',
+    'mdb_copy',
+    'mdb_dump',
+    'mdb_load',
+    'mdb_drop',
+  ]
+endif
 
 foreach program: programs
   executable(
@@ -101,11 +109,12 @@ foreach test_program: test_programs
     test_program, test_program + '.c',
     dependencies: lmdb_dep,
     include_directories: lmdb_inc,
-    c_args: common_cflags,
+    c_args: common_cflags + extra_args,
   )
   test(test_program, exe, args: [ '--tap', '-k' ])
 endforeach
 
+if host_system != 'windows'
 man_files = files(
   'mdb_stat.1',
   'mdb_copy.1',
@@ -115,6 +124,7 @@ man_files = files(
 )
 
 install_man(man_files)
+endif
 
 # Generate pc file
 pkgg = import('pkgconfig')
