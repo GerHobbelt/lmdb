@@ -1,5 +1,5 @@
 project(
-  'lmdb', 'c',
+  'liblmdb', 'c',
   version: '0.9.22',
   default_options: [
     'warning_level=2'
@@ -8,10 +8,10 @@ project(
   meson_version: '>= 0.46.0'
 )
 
-lmdb_name = meson.project_name()
+liblmdb_name = meson.project_name()
+liblmdb_version = meson.project_version()
 
-lmdb_version = meson.project_version()
-message('Building lmdb ' + lmdb_version)
+message('Building ' + liblmdb_name + ' ' + liblmdb_version)
 
 cc = meson.get_compiler('c')
 host_system = host_machine.system()
@@ -145,5 +145,6 @@ endif
 pkgg = import('pkgconfig')
 
 pkgg.generate(libraries: [ lmdb ],
-              name: lmdb_name,
+              name: liblmdb_name,
+              filebase: 'lmdb',
               description: 'Lightning Memory-Mapped Database.')
