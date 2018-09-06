@@ -59,10 +59,25 @@ lmdb_sources = files(
 
 install_headers(lmdb_public_headers)
 
+lmdb_name_suffix = []
+if cc.get_id() == 'msvc'
+  lmdb_name_suffix = 'lib'
+endif
+
 lmdb_inc = include_directories('.')
-lmdb = both_libraries(
+lmdb_static = static_library(
   'lmdb',
   [ lmdb_public_headers, lmdb_headers, lmdb_sources ],
+  include_directories: lmdb_inc,
+  dependencies: thread_dep,
+  install: true,
+  c_args: common_cflags,
+  name_suffix: lmdb_name_suffix,
+)
+
+lmdb = shared_library(
+  'lmdb',
+  objects: lmdb_static.extract_all_objects(),
   include_directories: lmdb_inc,
   dependencies: thread_dep,
   install: true,
