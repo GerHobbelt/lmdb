@@ -10,6 +10,8 @@ project(
 
 liblmdb_name = meson.project_name()
 liblmdb_version = meson.project_version()
+liblmdb_soversion = 0
+liblmdb_libversion = '0.0.0'
 
 message('Building ' + liblmdb_name + ' ' + liblmdb_version)
 
@@ -80,6 +82,8 @@ lmdb = shared_library(
   objects: lmdb_static.extract_all_objects(),
   include_directories: lmdb_inc,
   dependencies: thread_dep,
+  version: liblmdb_libversion,
+  soversion: liblmdb_soversion,
   install: true,
   c_args: common_cflags,
   vs_module_defs: 'lmdb.def',
