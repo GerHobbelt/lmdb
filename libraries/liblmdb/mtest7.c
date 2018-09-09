@@ -31,29 +31,28 @@ int main(int argc, char *argv[]) {
   MDB_val key, data;
   MDB_txn *txn;
   MDB_stat mst;
-  MDB_cursor *cursor, *cur2;
-  MDB_cursor_op op;
-  int count = 20000;
-  char sval[32] = "";
-  char shortkey[8], longkey[32];
+  MDB_cursor *cursor;
+  int count = 100000;
+  char sval[4096];
+  char shortkey[8], longkey[512];
 
   E(mdb_env_create(&env));
   E(mdb_env_set_maxreaders(env, 1));
-  E(mdb_env_set_mapsize(env, 10485760));
-  E(mdb_env_open(env, "./testdb", 0 /*|MDB_NOSYNC*/, 0664));
+  E(mdb_env_set_mapsize(env, 1024 * 1024 * 1024));
+  E(mdb_env_open(env, "/dev/shm/test7.lmdb", MDB_NOSUBDIR /*|MDB_NOSYNC*/,
+                 0664));
 
   E(mdb_txn_begin(env, NULL, 0, &txn));
   E(mdb_dbi_open(txn, NULL, 0, &dbi));
 
-  key.mv_size = sizeof(shortkey);
   key.mv_data = shortkey;
 
   printf("Adding %d short keys\n", count);
-  sprintf(sval, "short");
-  data.mv_size = sizeof(sval);
   data.mv_data = sval;
   for (i = 0; i < count; i++) {
-    sprintf(shortkey, "%08d", i);
+    key.mv_size = snprintf(shortkey, sizeof(shortkey), "%x@", i);
+    data.mv_size =
+        snprintf(sval, sizeof(sval), "odd %08d%*s", i, (i * 61) % 4079, "");
     /* Set <data> in each iteration, since MDB_NOOVERWRITE may modify it */
     if (RES(MDB_KEYEXIST, mdb_put(txn, dbi, &key, &data, MDB_NOOVERWRITE))) {
       j++;
@@ -66,18 +65,18 @@ int main(int argc, char *argv[]) {
   E(mdb_txn_commit(txn));
   E(mdb_env_stat(env, &mst));
 
-  key.mv_size = sizeof(longkey);
   key.mv_data = longkey;
 
   printf("Adding %d long keys\n", count);
   E(mdb_txn_begin(env, NULL, 0, &txn));
-  sprintf(sval, "long");
-  data.mv_size = sizeof(sval);
   data.mv_data = sval;
 
   j = 0;
   for (i = 0; i < count; i++) {
-    sprintf(longkey, "%08dlong key", i);
+    key.mv_size =
+        snprintf(longkey, sizeof(longkey), "%x~%*s", i, (i * 137) % 491, "");
+    data.mv_size =
+        snprintf(sval, sizeof(sval), "even %08d%*s", i, (i * 73) % 4079, "");
     /* Set <data> in each iteration, since MDB_NOOVERWRITE may modify it */
     if (RES(MDB_KEYEXIST, mdb_put(txn, dbi, &key, &data, MDB_NOOVERWRITE))) {
       j++;
@@ -96,7 +95,7 @@ int main(int argc, char *argv[]) {
   for (i = 0; i < count; i++) {
     txn = NULL;
     E(mdb_txn_begin(env, NULL, 0, &txn));
-    sprintf(shortkey, "%08d ", i);
+    key.mv_size = snprintf(shortkey, sizeof(shortkey), "%x@", i);
     if (RES(MDB_NOTFOUND, mdb_del(txn, dbi, &key, NULL))) {
       j--;
       mdb_txn_abort(txn);
