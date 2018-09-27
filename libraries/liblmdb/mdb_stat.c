@@ -48,8 +48,8 @@ int main(int argc, char *argv[])
 	MDB_envinfo mei;
 	char *prog = argv[0];
 	char *envname;
-	char *subname = NULL;
-	int alldbs = 0, envinfo = 0, envflags = 0, freinfo = 0, rdrinfo = 0;
+	char *dbname = NULL, *subname = NULL;
+	int inspect = 0, alldbs = 0, envinfo = 0, envflags = 0, freinfo = 0, rdrinfo = 0;
 
 	if (argc < 2) {
 		usage(prog);
@@ -64,11 +64,15 @@ int main(int argc, char *argv[])
 	 * -V: print version and exit
 	 * (default) print stat of only the main DB
 	 */
-	while ((i = getopt(argc, argv, "Vaefnrs:")) != EOF) {
+	while ((i = getopt(argc, argv, "Vi:aefnrs:")) != EOF) {
 		switch(i) {
 		case 'V':
 			printf("%s\n", MDB_VERSION_STRING);
 			exit(0);
+			break;
+		case 'i':
+			inspect++;
+			dbname = optarg;
 			break;
 		case 'a':
 			if (subname)
@@ -107,7 +111,7 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	if (alldbs || subname) {
+	if (alldbs || subname || inspect) {
 		mdb_env_set_maxdbs(env, 4);
 	}
 
@@ -148,6 +152,15 @@ int main(int argc, char *argv[])
 	if (rc) {
 		fprintf(stderr, "mdb_txn_begin failed, error %d %s\n", rc, mdb_strerror(rc));
 		goto env_close;
+	}
+
+	if (inspect) {
+		rc = mdb_inspect_all_pages(txn, dbname);
+		if (rc) {
+			fprintf(stderr, "mdb_inspect_all_pages failed, error %d %s\n", rc, mdb_strerror(rc));
+			goto txn_abort;
+		}
+		goto txn_abort;
 	}
 
 	if (freinfo) {

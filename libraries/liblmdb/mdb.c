@@ -557,6 +557,8 @@ typedef MDB_ID	pgno_t;
 	 */
 typedef MDB_ID	txnid_t;
 
+#define MDB_DEBUG 3
+
 /** @defgroup debug	Debug Macros
  *	@{
  */
@@ -1860,15 +1862,20 @@ mdb_page_list(MDB_page *mp)
 			key.mv_data = LEAF2KEY(mp, i, nsize);
 			total += nsize;
 			fprintf(stderr, "key %d: nsize %d, %s\n", i, nsize, DKEY(&key));
+
 			continue;
 		}
 		node = NODEPTR(mp, i);
 		key.mv_size = node->mn_ksize;
 		key.mv_data = node->mn_data;
 		nsize = NODESIZE + key.mv_size;
+
+		memcpy(kbuf, key.mv_data, key.mv_size >= MDB_MAXKEYSIZE ? MDB_MAXKEYSIZE : key.mv_size);
+		kbuf[key.mv_size >= MDB_MAXKEYSIZE ? MDB_MAXKEYSIZE - 1 : key.mv_size] = '\0';
+
 		if (IS_BRANCH(mp)) {
 			fprintf(stderr, "key %d: page %"Yu", %s\n", i, NODEPGNO(node),
-				DKEY(&key));
+				kbuf);
 			total += nsize;
 		} else {
 			if (F_ISSET(node->mn_flags, F_BIGDATA))
@@ -1878,7 +1885,7 @@ mdb_page_list(MDB_page *mp)
 			total += nsize;
 			nsize += sizeof(indx_t);
 			fprintf(stderr, "key %d: nsize %d, %s%s\n",
-				i, nsize, DKEY(&key), mdb_leafnode_type(node));
+				i, nsize, kbuf, mdb_leafnode_type(node));
 		}
 		total = EVEN(total);
 	}
@@ -11150,3 +11157,71 @@ utf8_to_utf16(const char *src, MDB_name *dst, int xtra)
 }
 #endif /* defined(_WIN32) */
 /** @} */
+
+int mdb_inspect_all_pages(MDB_txn *txn, char *dbname)
+{
+	int rc;
+	MDB_dbi dbi;
+	MDB_stat mst;
+	MDB_envinfo mei;
+	MDB_cursor *cursor;
+
+	rc = mdb_dbi_open(txn, dbname, 0, &dbi);
+	if (rc) {
+		fprintf(stderr, "mdb_dbi_open failed, error %d %s\n", rc, mdb_strerror(rc));
+		return MDB_PROBLEM;
+	}
+
+	rc = mdb_stat(txn, dbi, &mst);
+	if (rc) {
+		fprintf(stderr, "mdb_stat failed, error %d %s\n", rc, mdb_strerror(rc));
+		return MDB_PROBLEM;
+	}
+
+	fprintf(stderr, "# dbname: %s\n", dbname);
+	fprintf(stderr, "# dbi: %d\n", dbi);
+	fprintf(stderr, "# entries: %ld\n", mst.ms_entries);
+	fprintf(stderr, "# debug: %d\n", MDB_DEBUG);
+	fprintf(stderr, "# ");
+	mdb_audit(txn);
+
+	mdb_env_info(txn->mt_env, &mei);
+	fprintf(stderr, "# number of pages used: %"Yu"\n", mei.me_last_pgno+1);
+
+	rc = mdb_cursor_open(txn, dbi, &cursor);
+	if (rc) {
+		fprintf(stderr, "mdb_cursor_open failed, error %d %s\n", rc, mdb_strerror(rc));
+		return MDB_PROBLEM;
+	}
+
+	mdb_page_search(cursor, NULL, MDB_PS_ROOTONLY);
+
+	MDB_page *pg;
+	int lvl;
+	pgno_t pgno;
+
+	for (pgno = 0; pgno <= mei.me_last_pgno; pgno++) {
+		rc = mdb_page_get(cursor, pgno, &pg, &lvl);
+		if (rc) {
+			fprintf(stderr, "mdb_page_get failed, error %d %s\n", rc, mdb_strerror(rc));
+			continue;
+		}
+
+		fprintf(stderr, "\npage: %ld\n", pgno);
+		if (mdb_dbg_pgno(pg) != pgno)
+			fprintf(stderr, "garbage_page: 1\n");
+		else {
+			fprintf(stderr, "garbage_page: 0\n");
+			fprintf(stderr, "numkeys: %d\n", NUMKEYS(pg));
+			fprintf(stderr, "spaceleft: %d\n", SIZELEFT(pg));
+			fprintf(stderr, "fillpercent: %ld\n", PAGEFILL(txn->mt_env, pg) / 10);
+			fprintf(stderr, "lvl_dirty_list: %d\n", lvl);
+
+			mdb_page_list(pg);
+		}
+	}
+
+	mdb_dbi_close(txn->mt_env, dbi);
+
+	return MDB_SUCCESS;
+}
