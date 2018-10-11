@@ -5479,7 +5479,13 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 	}
 #endif
 
-	env->me_path = strdup(path);
+	size_t path_len = strlen(path) + 1;
+	env->me_path = malloc(path_len);
+	if (env->me_path == NULL) {
+		rc = ENOMEM;
+		goto leave;
+	}
+	memcpy(env->me_path, path, path_len);
 	env->me_dbxs = calloc(env->me_maxdbs, sizeof(MDB_dbx));
 	env->me_dbflags = calloc(env->me_maxdbs, sizeof(uint16_t));
 	env->me_dbiseqs = calloc(env->me_maxdbs, sizeof(unsigned int));
@@ -10698,9 +10704,12 @@ int mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *db
 			return EACCES;
 	}
 
+	size_t name_len = strlen(name) + 1;
+	namedup = malloc(name_len);
 	/* Done here so we cannot fail after creating a new DB */
-	if ((namedup = strdup(name)) == NULL)
+	if (namedup == NULL)
 		return ENOMEM;
+	memcpy(namedup, name, name_len);
 
 	if (rc) {
 		/* MDB_NOTFOUND and MDB_CREATE: Create new DB */
