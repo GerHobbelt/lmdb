@@ -851,7 +851,7 @@ int  mdb_env_get_fd(MDB_env *env, mdb_filehandle_t *fd);
 	/** @brief Set the size of the memory map to use for this environment.
 	 *
 	 * The size should be a multiple of the OS page size. The default is
-	 * 10485760 bytes. The size of the memory map is also the maximum size
+	 * 1048576 bytes. The size of the memory map is also the maximum size
 	 * of the database. The value should be chosen as large as possible,
 	 * to accommodate future growth of the database.
 	 * This function should be called after #mdb_env_create() and before #mdb_env_open().
