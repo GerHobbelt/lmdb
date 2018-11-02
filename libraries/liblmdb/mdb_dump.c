@@ -16,7 +16,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#ifdef _MSC_VER
+#include "unistd.h"
+#else
 #include <unistd.h>
+#endif
 #include <signal.h>
 #include "lmdb.h"
 

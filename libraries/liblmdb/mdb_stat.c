@@ -14,7 +14,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _MSC_VER
+#include "unistd.h"
+#else
 #include <unistd.h>
+#endif
 #include "lmdb.h"
 
 #define Z	MDB_FMT_Z
