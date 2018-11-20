@@ -11108,7 +11108,7 @@ utf8_to_utf16(const char *src, MDB_name *dst, int xtra)
 	int rc, need = 0;
 	wchar_t *result = NULL;
 	for (;;) {					/* malloc result, then fill it in */
-		need = MultiByteToWideChar(CP_ACP, 0, src, -1, result, need);  /* Use ACP for current Windows codepage */
+		need = MultiByteToWideChar(CP_UTF8, 0, src, -1, result, need);
 		if (!need) {
 			rc = ErrCode();
 			free(result);
