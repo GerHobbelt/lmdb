@@ -48,7 +48,7 @@ int main(int argc,char * argv[])
 	}
 
 	if (argc<2 || argc>3) {
-		fprintf(stderr, "usage: %s [-V] [-c] [-n] srcpath [dstpath]\n", progname);
+		printf("usage: %s [-V] [-c] [-n] srcpath [dstpath]\n", progname);
 		exit(EXIT_FAILURE);
 	}
 
@@ -74,7 +74,7 @@ int main(int argc,char * argv[])
 			rc = mdb_env_copy2(env, argv[2], cpflags);
 	}
 	if (rc)
-		fprintf(stderr, "%s: %s failed, error %d (%s)\n",
+		printf("%s: %s failed, error %d (%s)\n",
 			progname, act, rc, mdb_strerror(rc));
 	mdb_env_close(env);
 

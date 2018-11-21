@@ -155,7 +155,7 @@ static int dumpit(MDB_txn *txn, MDB_dbi dbi, char *name)
 
 static void usage(char *prog)
 {
-	fprintf(stderr, "usage: %s [-V] [-f output] [-l] [-n] [-p] [-a|-s subdb] dbpath\n", prog);
+	printf("usage: %s [-V] [-f output] [-l] [-n] [-p] [-a|-s subdb] dbpath\n", prog);
 	exit(EXIT_FAILURE);
 }
 
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
 			break;
 		case 'f':
 			if (freopen(optarg, "w", stdout) == NULL) {
-				fprintf(stderr, "%s: %s: reopen: %s\n",
+				printf("%s: %s: reopen: %s\n",
 					prog, optarg, strerror(errno));
 				exit(EXIT_FAILURE);
 			}
@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
 	envname = argv[optind];
 	rc = mdb_env_create(&env);
 	if (rc) {
-		fprintf(stderr, "mdb_env_create failed, error %d %s\n", rc, mdb_strerror(rc));
+		printf("mdb_env_create failed, error %d %s\n", rc, mdb_strerror(rc));
 		return EXIT_FAILURE;
 	}
 
@@ -244,19 +244,19 @@ int main(int argc, char *argv[])
 
 	rc = mdb_env_open(env, envname, envflags | MDB_RDONLY, 0664);
 	if (rc) {
-		fprintf(stderr, "mdb_env_open failed, error %d %s\n", rc, mdb_strerror(rc));
+		printf("mdb_env_open failed, error %d %s\n", rc, mdb_strerror(rc));
 		goto env_close;
 	}
 
 	rc = mdb_txn_begin(env, NULL, MDB_RDONLY, &txn);
 	if (rc) {
-		fprintf(stderr, "mdb_txn_begin failed, error %d %s\n", rc, mdb_strerror(rc));
+		printf("mdb_txn_begin failed, error %d %s\n", rc, mdb_strerror(rc));
 		goto env_close;
 	}
 
 	rc = mdb_open(txn, subname, 0, &dbi);
 	if (rc) {
-		fprintf(stderr, "mdb_open failed, error %d %s\n", rc, mdb_strerror(rc));
+		printf("mdb_open failed, error %d %s\n", rc, mdb_strerror(rc));
 		goto txn_abort;
 	}
 
@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
 
 		rc = mdb_cursor_open(txn, dbi, &cursor);
 		if (rc) {
-			fprintf(stderr, "mdb_cursor_open failed, error %d %s\n", rc, mdb_strerror(rc));
+			printf("mdb_cursor_open failed, error %d %s\n", rc, mdb_strerror(rc));
 			goto txn_abort;
 		}
 		while ((rc = mdb_cursor_get(cursor, &key, NULL, MDB_NEXT_NODUP)) == 0) {
@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
 		}
 		mdb_cursor_close(cursor);
 		if (!count) {
-			fprintf(stderr, "%s: %s does not contain multiple databases\n", prog, envname);
+			printf("%s: %s does not contain multiple databases\n", prog, envname);
 			rc = MDB_NOTFOUND;
 		} else if (rc == MDB_NOTFOUND) {
 			rc = MDB_SUCCESS;
@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
 		rc = dumpit(txn, dbi, subname);
 	}
 	if (rc && rc != MDB_NOTFOUND)
-		fprintf(stderr, "%s: %s: %s\n", prog, envname, mdb_strerror(rc));
+		printf("%s: %s: %s\n", prog, envname, mdb_strerror(rc));
 
 	mdb_close(env, dbi);
 txn_abort:

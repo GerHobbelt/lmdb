@@ -73,7 +73,7 @@ static void readhdr(void)
 		if (!strncmp(dbuf.mv_data, "VERSION=", STRLENOF("VERSION="))) {
 			version=atoi((char *)dbuf.mv_data+STRLENOF("VERSION="));
 			if (version > 3) {
-				fprintf(stderr, "%s: line %" Z "d: unsupported VERSION %d\n",
+				printf("%s: line %" Z "d: unsupported VERSION %d\n",
 					prog, lineno, version);
 				exit(EXIT_FAILURE);
 			}
@@ -83,7 +83,7 @@ static void readhdr(void)
 			if (!strncmp((char *)dbuf.mv_data+STRLENOF("FORMAT="), "print", STRLENOF("print")))
 				mode |= PRINT;
 			else if (strncmp((char *)dbuf.mv_data+STRLENOF("FORMAT="), "bytevalue", STRLENOF("bytevalue"))) {
-				fprintf(stderr, "%s: line %" Z "d: unsupported FORMAT %s\n",
+				printf("%s: line %" Z "d: unsupported FORMAT %s\n",
 					prog, lineno, (char *)dbuf.mv_data+STRLENOF("FORMAT="));
 				exit(EXIT_FAILURE);
 			}
@@ -94,7 +94,7 @@ static void readhdr(void)
 			subname = strdup((char *)dbuf.mv_data+STRLENOF("database="));
 		} else if (!strncmp(dbuf.mv_data, "type=", STRLENOF("type="))) {
 			if (strncmp((char *)dbuf.mv_data+STRLENOF("type="), "btree", STRLENOF("btree")))  {
-				fprintf(stderr, "%s: line %" Z "d: unsupported type %s\n",
+				printf("%s: line %" Z "d: unsupported type %s\n",
 					prog, lineno, (char *)dbuf.mv_data+STRLENOF("type="));
 				exit(EXIT_FAILURE);
 			}
@@ -104,7 +104,7 @@ static void readhdr(void)
 			if (ptr) *ptr = '\0';
 			i = sscanf((char *)dbuf.mv_data+STRLENOF("mapaddr="), "%p", &info.me_mapaddr);
 			if (i != 1) {
-				fprintf(stderr, "%s: line %" Z "d: invalid mapaddr %s\n",
+				printf("%s: line %" Z "d: invalid mapaddr %s\n",
 					prog, lineno, (char *)dbuf.mv_data+STRLENOF("mapaddr="));
 				exit(EXIT_FAILURE);
 			}
@@ -114,7 +114,7 @@ static void readhdr(void)
 			if (ptr) *ptr = '\0';
 			i = sscanf((char *)dbuf.mv_data+STRLENOF("mapsize="), "%" Z "u", &info.me_mapsize);
 			if (i != 1) {
-				fprintf(stderr, "%s: line %" Z "d: invalid mapsize %s\n",
+				printf("%s: line %" Z "d: invalid mapsize %s\n",
 					prog, lineno, (char *)dbuf.mv_data+STRLENOF("mapsize="));
 				exit(EXIT_FAILURE);
 			}
@@ -124,7 +124,7 @@ static void readhdr(void)
 			if (ptr) *ptr = '\0';
 			i = sscanf((char *)dbuf.mv_data+STRLENOF("maxreaders="), "%u", &info.me_maxreaders);
 			if (i != 1) {
-				fprintf(stderr, "%s: line %" Z "d: invalid maxreaders %s\n",
+				printf("%s: line %" Z "d: invalid maxreaders %s\n",
 					prog, lineno, (char *)dbuf.mv_data+STRLENOF("maxreaders="));
 				exit(EXIT_FAILURE);
 			}
@@ -140,12 +140,12 @@ static void readhdr(void)
 			if (!dbflags[i].bit) {
 				ptr = memchr(dbuf.mv_data, '=', dbuf.mv_size);
 				if (!ptr) {
-					fprintf(stderr, "%s: line %" Z "d: unexpected format\n",
+					printf("%s: line %" Z "d: unexpected format\n",
 						prog, lineno);
 					exit(EXIT_FAILURE);
 				} else {
 					*ptr = '\0';
-					fprintf(stderr, "%s: line %" Z "d: unrecognized keyword ignored: %s\n",
+					printf("%s: line %" Z "d: unrecognized keyword ignored: %s\n",
 						prog, lineno, (char *)dbuf.mv_data);
 				}
 			}
@@ -155,7 +155,7 @@ static void readhdr(void)
 
 static void badend(void)
 {
-	fprintf(stderr, "%s: line %" Z "d: unexpected end of input\n",
+	printf("%s: line %" Z "d: unexpected end of input\n",
 		prog, lineno);
 }
 
@@ -213,7 +213,7 @@ badend:
 		buf->mv_data = realloc(buf->mv_data, buf->mv_size*2);
 		if (!buf->mv_data) {
 			Eof = 1;
-			fprintf(stderr, "%s: line %" Z "d: out of memory, line too long\n",
+			printf("%s: line %" Z "d: out of memory, line too long\n",
 				prog, lineno);
 			return EOF;
 		}
@@ -277,7 +277,7 @@ badend:
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: %s [-V] [-f input] [-n] [-s name] [-N] [-T] dbpath\n", prog);
+	printf("usage: %s [-V] [-f input] [-n] [-s name] [-N] [-T] dbpath\n", prog);
 	exit(EXIT_FAILURE);
 }
 
@@ -313,7 +313,7 @@ int main(int argc, char *argv[])
 			break;
 		case 'f':
 			if (freopen(optarg, "r", stdin) == NULL) {
-				fprintf(stderr, "%s: %s: reopen: %s\n",
+				printf("%s: %s: reopen: %s\n",
 					prog, optarg, strerror(errno));
 				exit(EXIT_FAILURE);
 			}
@@ -347,7 +347,7 @@ int main(int argc, char *argv[])
 	envname = argv[optind];
 	rc = mdb_env_create(&env);
 	if (rc) {
-		fprintf(stderr, "mdb_env_create failed, error %d %s\n", rc, mdb_strerror(rc));
+		printf("mdb_env_create failed, error %d %s\n", rc, mdb_strerror(rc));
 		return EXIT_FAILURE;
 	}
 
@@ -364,7 +364,7 @@ int main(int argc, char *argv[])
 
 	rc = mdb_env_open(env, envname, envflags, 0664);
 	if (rc) {
-		fprintf(stderr, "mdb_env_open failed, error %d %s\n", rc, mdb_strerror(rc));
+		printf("mdb_env_open failed, error %d %s\n", rc, mdb_strerror(rc));
 		goto env_close;
 	}
 
@@ -383,19 +383,19 @@ int main(int argc, char *argv[])
 		
 		rc = mdb_txn_begin(env, NULL, 0, &txn);
 		if (rc) {
-			fprintf(stderr, "mdb_txn_begin failed, error %d %s\n", rc, mdb_strerror(rc));
+			printf("mdb_txn_begin failed, error %d %s\n", rc, mdb_strerror(rc));
 			goto env_close;
 		}
 
 		rc = mdb_open(txn, subname, flags|MDB_CREATE, &dbi);
 		if (rc) {
-			fprintf(stderr, "mdb_open failed, error %d %s\n", rc, mdb_strerror(rc));
+			printf("mdb_open failed, error %d %s\n", rc, mdb_strerror(rc));
 			goto txn_abort;
 		}
 
 		rc = mdb_cursor_open(txn, dbi, &mc);
 		if (rc) {
-			fprintf(stderr, "mdb_cursor_open failed, error %d %s\n", rc, mdb_strerror(rc));
+			printf("mdb_cursor_open failed, error %d %s\n", rc, mdb_strerror(rc));
 			goto txn_abort;
 		}
 
@@ -406,7 +406,7 @@ int main(int argc, char *argv[])
 
 			rc = readline(&data, &dbuf);
 			if (rc) {
-				fprintf(stderr, "%s: line %" Z "d: failed to read key value\n", prog, lineno);
+				printf("%s: line %" Z "d: failed to read key value\n", prog, lineno);
 				goto txn_abort;
 			}
 
@@ -414,25 +414,25 @@ int main(int argc, char *argv[])
 			if (rc == MDB_KEYEXIST && putflags)
 				continue;
 			if (rc) {
-				fprintf(stderr, "mdb_cursor_put failed, error %d %s\n", rc, mdb_strerror(rc));
+				printf("mdb_cursor_put failed, error %d %s\n", rc, mdb_strerror(rc));
 				goto txn_abort;
 			}
 			batch++;
 			if (batch == 100) {
 				rc = mdb_txn_commit(txn);
 				if (rc) {
-					fprintf(stderr, "%s: line %" Z "d: txn_commit: %s\n",
+					printf("%s: line %" Z "d: txn_commit: %s\n",
 						prog, lineno, mdb_strerror(rc));
 					goto env_close;
 				}
 				rc = mdb_txn_begin(env, NULL, 0, &txn);
 				if (rc) {
-					fprintf(stderr, "mdb_txn_begin failed, error %d %s\n", rc, mdb_strerror(rc));
+					printf("mdb_txn_begin failed, error %d %s\n", rc, mdb_strerror(rc));
 					goto env_close;
 				}
 				rc = mdb_cursor_open(txn, dbi, &mc);
 				if (rc) {
-					fprintf(stderr, "mdb_cursor_open failed, error %d %s\n", rc, mdb_strerror(rc));
+					printf("mdb_cursor_open failed, error %d %s\n", rc, mdb_strerror(rc));
 					goto txn_abort;
 				}
 				batch = 0;
@@ -441,7 +441,7 @@ int main(int argc, char *argv[])
 		rc = mdb_txn_commit(txn);
 		txn = NULL;
 		if (rc) {
-			fprintf(stderr, "%s: line %" Z "d: txn_commit: %s\n",
+			printf("%s: line %" Z "d: txn_commit: %s\n",
 				prog, lineno, mdb_strerror(rc));
 			goto env_close;
 		}

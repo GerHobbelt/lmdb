@@ -48,7 +48,7 @@ int main(int argc,char * argv[])
 	rc = dbi->put(dbi, txn, &key, &data, 0);
 	rc = txn->commit(txn, 0);
 	if (rc) {
-		fprintf(stderr, "txn->commit: (%d) %s\n", rc, db_strerror(rc));
+		printf("txn->commit: (%d) %s\n", rc, db_strerror(rc));
 		goto leave;
 	}
 	rc = env->txn_begin(env, NULL, &txn, 0);

@@ -478,7 +478,7 @@ static txnid_t mdb_debug_start;
 	 */
 # define DPRINTF(args) ((void) ((mdb_debug) && DPRINTF0 args))
 # define DPRINTF0(fmt, ...) \
-	fprintf(stderr, "%s:%d " fmt "\n", mdb_func_, __LINE__, __VA_ARGS__)
+	printf("%s:%d " fmt "\n", mdb_func_, __LINE__, __VA_ARGS__)
 #else
 # define DPRINTF(args)	((void) 0)
 #endif
@@ -1532,7 +1532,7 @@ mdb_assert_fail(MDB_env *env, const char *expr_txt,
 		file, line, expr_txt, func);
 	if (env->me_assert_func)
 		env->me_assert_func(env, buf);
-	fprintf(stderr, "%s\n", buf);
+	printf("%s\n", buf);
 	abort();
 }
 #else
@@ -1605,27 +1605,27 @@ mdb_page_list(MDB_page *mp)
 	case P_LEAF|P_LEAF2:        type = "LEAF2 page";		break;
 	case P_LEAF|P_LEAF2|P_SUBP: type = "LEAF2 sub-page";	break;
 	case P_OVERFLOW:
-		fprintf(stderr, "Overflow page %"Z"u pages %u%s\n",
+		printf("Overflow page %"Z"u pages %u%s\n",
 			pgno, mp->mp_pages, state);
 		return;
 	case P_META:
-		fprintf(stderr, "Meta-page %"Z"u txnid %"Z"u\n",
+		printf("Meta-page %"Z"u txnid %"Z"u\n",
 			pgno, ((MDB_meta *)METADATA(mp))->mm_txnid);
 		return;
 	default:
-		fprintf(stderr, "Bad page %"Z"u flags 0x%X\n", pgno, mp->mp_flags);
+		printf("Bad page %"Z"u flags 0x%X\n", pgno, mp->mp_flags);
 		return;
 	}
 
 	nkeys = NUMKEYS(mp);
-	fprintf(stderr, "%s %"Z"u numkeys %d%s\n", type, pgno, nkeys, state);
+	printf("%s %"Z"u numkeys %d%s\n", type, pgno, nkeys, state);
 
 	for (i=0; i<nkeys; i++) {
 		if (IS_LEAF2(mp)) {	/* LEAF2 pages have no mp_ptrs[] or node headers */
 			key.mv_size = nsize = mp->mp_pad;
 			key.mv_data = LEAF2KEY(mp, i, nsize);
 			total += nsize;
-			fprintf(stderr, "key %d: nsize %d, %s\n", i, nsize, DKEY(&key));
+			printf("key %d: nsize %d, %s\n", i, nsize, DKEY(&key));
 			continue;
 		}
 		node = NODEPTR(mp, i);
@@ -1633,7 +1633,7 @@ mdb_page_list(MDB_page *mp)
 		key.mv_data = node->mn_data;
 		nsize = NODESIZE + key.mv_size;
 		if (IS_BRANCH(mp)) {
-			fprintf(stderr, "key %d: page %"Z"u, %s\n", i, NODEPGNO(node),
+			printf("key %d: page %"Z"u, %s\n", i, NODEPGNO(node),
 				DKEY(&key));
 			total += nsize;
 		} else {
@@ -1643,12 +1643,12 @@ mdb_page_list(MDB_page *mp)
 				nsize += NODEDSZ(node);
 			total += nsize;
 			nsize += sizeof(indx_t);
-			fprintf(stderr, "key %d: nsize %d, %s%s\n",
+			printf("key %d: nsize %d, %s%s\n",
 				i, nsize, DKEY(&key), mdb_leafnode_type(node));
 		}
 		total = EVEN(total);
 	}
-	fprintf(stderr, "Total: header %d + contents %d + unused %d\n",
+	printf("Total: header %d + contents %d + unused %d\n",
 		IS_LEAF2(mp) ? PAGEHDRSZ : PAGEBASE + mp->mp_lower, total, SIZELEFT(mp));
 }
 
@@ -1729,7 +1729,7 @@ static void mdb_audit(MDB_txn *txn)
 		}
 	}
 	if (freecount + count + NUM_METAS != txn->mt_next_pgno) {
-		fprintf(stderr, "audit: %"Z"u freecount: %"Z"u count: %"Z"u total: %"Z"u next_pgno: %"Z"u\n",
+		printf("audit: %"Z"u freecount: %"Z"u count: %"Z"u total: %"Z"u next_pgno: %"Z"u\n",
 			txn->mt_txnid, freecount, count+NUM_METAS,
 			freecount+count+NUM_METAS, txn->mt_next_pgno);
 	}

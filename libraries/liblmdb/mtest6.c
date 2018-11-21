@@ -21,7 +21,7 @@
 
 #define E(expr) CHECK((rc = (expr)) == MDB_SUCCESS, #expr)
 #define RES(err, expr) ((rc = expr) == (err) || (CHECK(!rc, #expr), 0))
-#define CHECK(test, msg) ((test) ? (void)0 : ((void)fprintf(stderr, \
+#define CHECK(test, msg) ((test) ? (void)0 : ((void)printf(\
 	"%s:%d: %s: %s\n", __FILE__, __LINE__, msg, mdb_strerror(rc)), abort()))
 
 char dkbuf[1024];
