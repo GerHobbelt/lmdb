@@ -8506,7 +8506,8 @@ mdb_cursor_init(MDB_cursor *mc, MDB_txn *txn, MDB_dbi dbi, MDB_xcursor *mx)
 		mc->mc_xcursor = NULL;
 	}
 	if (*mc->mc_dbflag & DB_STALE) {
-		mdb_page_search(mc, NULL, MDB_PS_ROOTONLY);
+		int rc = mdb_page_search(mc, NULL, MDB_PS_ROOTONLY);
+		mdb_cassert(mc, !rc);
 	}
 }
 
