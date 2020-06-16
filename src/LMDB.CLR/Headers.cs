@@ -12,6 +12,7 @@
 #pragma warning disable 169
 
 using System;
+using System.Collections.Generic;
 using mdb_mode_t = System.Int32;
 using mdb_size_t = System.Int64;
 using size_t = System.Int64;
@@ -37,21 +38,45 @@ using pthread_cond_t = System.IntPtr;
 using mdb_mutex_t = System.IntPtr;
 using mdb_mutexref_t = System.IntPtr;
 using pthread_key_t = System.Int16;
-using MDB_ID = System.UInt32;
+using MDB_ID = System.UInt64;
 using pgno_t = System.UInt32;
 using txnid_t = System.UInt32;
 using indx_t = System.UInt16;
 using mdb_hash_t = System.UInt64;
 using uint32_t = System.UInt32;
 using uint16_t = System.UInt16;
-
-#define _MSC_VER
-#define _WIN32
+// ReSharper disable UnusedVariable
 
 namespace LMDB.CLR
 {
   public static partial class Headers
   {
+    private static readonly Dictionary<Type, Object> _malloc = new Dictionary<Type, Object>();
+    public static Ptr<T> malloc<T>( UInt32 size ) where T : struct
+    {
+      var type = typeof( T );
+
+      if ( !_malloc.TryGetValue( type, out var list ) )
+      {
+        list = new List<T>();
+        _malloc.Add( type, list );
+      }
+
+      var typedList = (List<T>)list;
+      var next = typedList.Count;
+      for ( var i = 0; i < size; i++ )
+      {
+        typedList.Add( default );
+      }
+      return new Ptr<T>( typedList, next );
+    }
+    public static void free<T>( Ptr<T> ptr ) where T : struct
+    {
+      var type = typeof( T );
+      // TODO: free up the struct somehow
+      // TODO: it might need to be a dictionary of list of lists in malloc for that to work
+    }
+
     /** @file lmdb.h
  *  @brief Lightning memory-mapped database library
  *
@@ -286,7 +311,7 @@ namespace LMDB.CLR
     }
 
     /** @brief A callback function used to compare two keys in a database */
-    public delegate Int32 MDB_cmp_func( MDB_val a, MDB_val b );
+    public delegate Int32 MDB_cmp_func( ConstPtr<MDB_val> a, ConstPtr<MDB_val> b );
 
     /** @brief A callback function used to relocate a position-dependent data item
      * in a fixed-address database.
@@ -953,7 +978,7 @@ namespace LMDB.CLR
      * @param[in] env An environment handle returned by #mdb_env_create().
      * @param[in] msg The assertion message, not including newline.
      */
-    public delegate void MDB_assert_func( MDB_env env, String msg );
+    public delegate void MDB_assert_func( Ptr<MDB_env> env, String msg );
 
     /** Set or reset the assert() callback of the environment.
      * Disabled if liblmdb is buillt with NDEBUG.
@@ -962,7 +987,7 @@ namespace LMDB.CLR
      * @param[in] func An #MDB_assert_func function, or 0.
      * @return A non-zero error value on failure and 0 on success.
      */
-    public static Int32 mdb_env_set_assert( MDB_env env, MDB_assert_func func ) => throw new NotImplementedException();
+    public static Int32 mdb_env_set_assert( Ptr<MDB_env> env, MDB_assert_func func ) => throw new NotImplementedException();
 
     /** @brief Create a transaction for use with the environment.
      *
@@ -1087,6 +1112,7 @@ namespace LMDB.CLR
     /** Compat with version <= 0.9.4, avoid clash with libmdb from MDB Tools project */
     [Obsolete( "Use mdb_dbi_open instead" )]
     public static Int32 mdb_open( MDB_txn txn, String name, UInt32 flags, MDB_dbi dbi ) => mdb_dbi_open( txn, name, flags, dbi );
+
     /** Compat with version <= 0.9.4, avoid clash with libmdb from MDB Tools project */
     [Obsolete( "Use mdb_close instead" )]
     public static void mdb_close( MDB_env env, MDB_dbi dbi ) => mdb_dbi_close( env, dbi );
@@ -1714,7 +1740,7 @@ namespace LMDB.CLR
     public static void DPUTS( Object arg ) => DPRINTF( "%s", arg );
 
     /** Debuging output value of a cursor DBI: Negative in a sub-cursor. */
-    public static Object DDBI( Object mc ) => throw new NotImplementedException(); // (((mc)->mc_flags & C_SUB) ? -(int)(mc)->mc_dbi : (int)(mc)->mc_dbi) // mc might be a cursor
+    public static Object DDBI( Object mc ) => throw new NotImplementedException(); // (((mc).mc_flags & C_SUB) ? -(int)(mc).mc_dbi : (int)(mc).mc_dbi) // mc might be a cursor
 
     public static Int32 MAX_PAGESIZE = /*PAGEBASE ? 0x10000 :*/ 0x8000;
 
@@ -1742,6 +1768,7 @@ namespace LMDB.CLR
 
     /** Test if the flags \b f are set in a flag word \b w. */
     public static Boolean F_ISSET( Int32 w, Int32 f ) => ( w & f ) == f; //   (((w) & (f)) == (f))
+    public static Boolean F_ISSET( UInt32 w, UInt32 f ) => ( w & f ) == f; //   (((w) & (f)) == (f))
 
     /** Round \b n up to an even number. */
     public static Int64 EVEN( UInt32 n ) => n + 1 & -2; /* sign-extending -2 to match n+1U */
@@ -1831,6 +1858,7 @@ namespace LMDB.CLR
      *	the table when we know that we're the only process opening the
      *	lock file.
      */
+    [Line( 796 )]
     public struct MDB_rxbody
     {
       internal const Int32 @sizeof = sizeof( txnid_t ) + sizeof( MDB_PID_T ) + sizeof( MDB_THR_T );
@@ -1849,6 +1877,7 @@ namespace LMDB.CLR
     }
 
     /** The actual reader record, with cacheline padding. */
+    [Line( 812 )]
     public class MDB_reader
     {
       internal const Int32 @sizeof = CACHELINE;
@@ -1879,6 +1908,7 @@ namespace LMDB.CLR
      *	environment pathname. As such, naming collisions are extremely
      *	unlikely. If a collision occurs, the results are unpredictable.
      */
+    [Line( 838 )]
     public class MDB_txbody
     {
       internal const Int32 @sizeof = sizeof( uint32_t ) + sizeof( uint32_t ) + sizeof( txnid_t ) + sizeof( uint32_t ) + sizeof( mdb_hash_t );
@@ -1908,11 +1938,12 @@ namespace LMDB.CLR
      * read-only or read-write.
      */
     /** The actual reader table definition. */
+    [Line( 869 )]
     public class MDB_txninfo
     {
       // TODO: union
       //union {
-      MDB_txbody mtb;
+      public MDB_txbody mtb;
       //#define mti_magic	mt1.mtb.mtb_magic
       //#define mti_format	mt1.mtb.mtb_format
       //#define mti_rmutex	mt1.mtb.mtb_rmutex
@@ -1922,7 +1953,7 @@ namespace LMDB.CLR
 
       public Byte[] pad = new Byte[ MDB_txbody.@sizeof + CACHELINE - 1 & ~( CACHELINE - 1 ) ];
       //}
-      public MDB_reader[] mti_readers = new MDB_reader[ 1 ];
+      public Ptrs<MDB_reader> mti_readers = new Ptrs<MDB_reader>( 1 );
     }
 
 
@@ -1960,7 +1991,8 @@ namespace LMDB.CLR
      * Each non-metapage up to #MDB_meta.%mm_last_pg is reachable exactly once
      * in the snapshot: Either used by a database or listed in a freeDB record.
      */
-    public class MDB_page
+    [Line( 969 )]
+    public struct MDB_page
     {
       internal const Int32 offset_of_mp_ptrs = sizeof( pgno_t ) + sizeof( Int64 ) + sizeof( uint16_t ) + sizeof( uint16_t ) + sizeof( indx_t ) + sizeof( indx_t ) + sizeof( uint32_t );
 
@@ -1969,7 +2001,7 @@ namespace LMDB.CLR
       // TODO: union
       //	union {
       public pgno_t p_pgno;  /**< page number */
-      public MDB_page p_next; /**< for in-memory list of freed pages */ // TODO: maybe use a weak reference
+      public Ptr<MDB_page> p_next; /**< for in-memory list of freed pages */ // TODO: maybe use a weak reference
       //	} mp_p;
       public uint16_t mp_pad;     /**< key size if this is a LEAF2 page */
       /**	@defgroup mdb_page	Page Flags
@@ -1977,20 +2009,21 @@ namespace LMDB.CLR
        *	Flags for the page headers.
        *	@{
        */
-      public const Int32 P_BRANCH = 0x01;   /**< branch page */
-      public const Int32 P_LEAF = 0x02;    /**< leaf page */
-      public const Int32 P_OVERFLOW = 0x04;    /**< overflow page */
-      public const Int32 P_META = 0x08;   /**< meta page */
-      public const Int32 P_DIRTY = 0x10;   /**< dirty page, also set for #P_SUBP pages */
-      public const Int32 P_LEAF2 = 0x20;   /**< for #MDB_DUPFIXED records */
-      public const Int32 P_SUBP = 0x40;   /**< for #MDB_DUPSORT sub-pages */
-      public const Int32 P_LOOSE = 0x4000;   /**< page was dirtied then freed, can be reused */
-      public const Int32 P_KEEP = 0x8000;		/**< leave this page alone during spill */
+      public const UInt16 P_BRANCH = 0x01;   /**< branch page */
+      public const UInt16 P_LEAF = 0x02;    /**< leaf page */
+      public const UInt16 P_OVERFLOW = 0x04;    /**< overflow page */
+      public const UInt16 P_META = 0x08;   /**< meta page */
+      public const UInt16 P_DIRTY = 0x10;   /**< dirty page, also set for #P_SUBP pages */
+      public const UInt16 P_LEAF2 = 0x20;   /**< for #MDB_DUPFIXED records */
+      public const UInt16 P_SUBP = 0x40;   /**< for #MDB_DUPSORT sub-pages */
+      public const UInt16 P_LOOSE = 0x4000;   /**< page was dirtied then freed, can be reused */
+      public const UInt16 P_KEEP = 0x8000;		/**< leave this page alone during spill */
       /** @} */
       public uint16_t mp_flags;    /**< @ref mdb_page */
-      //#define mp_lower=	mp_pb.pb.pb_lower
-      //#define mp_upper=	mp_pb.pb.pb_upper
-      //#define mp_pages=	mp_pb.pb_pages
+
+      public indx_t mp_lower => pb_lower;
+      public indx_t mp_upper => pb_upper;
+      public uint32_t mp_pages => pb_pages;
       // TODO: union
       //union {
       //struct {
@@ -1999,9 +2032,8 @@ namespace LMDB.CLR
       //}
       public uint32_t pb_pages;  /**< number of overflow pages */
 
-      public indx_t[] mp_ptrs = new indx_t[ 1 ];    /**< dynamic size */
+      public Ptrs<indx_t> mp_ptrs; /*= new Ptrs<indx_t>( 1 );*/    /**< dynamic size */
     }
-
 
     /** Size of the page header, excluding dynamic data at the end */
     public const UInt32 PAGEHDRSZ = MDB_page.offset_of_mp_ptrs;
@@ -2010,7 +2042,7 @@ namespace LMDB.CLR
     public static Object METADATA( MDB_page p ) => throw new NotImplementedException(); // (void*)( (char*)( p ) + PAGEHDRSZ ) ); // return pointer to the mp_ptrs variable within the page
 
     // line 1013
-    public const Boolean PAGEBASE = /*MDB_DEVEL ? PAGEHDSZ :*/ false;
+    public const UInt32 PAGEBASE = /*MDB_DEVEL ? PAGEHDSZ :*/ 0;
 
     /** Number of nodes on a page */
     public static UInt32 NUMKEYS( MDB_page p ) => p.pb_lower - ( PAGEHDRSZ - 0 ) >> 1;
@@ -2026,15 +2058,15 @@ namespace LMDB.CLR
     public const Int32 FILL_THRESHOLD = 250;
 
     /** Test if a page is a leaf page */
-    public static Boolean IS_LEAF( MDB_page p ) => F_ISSET( p.mp_flags, MDB_page.P_LEAF );
+    public static Boolean IS_LEAF( Ptr<MDB_page> p ) => F_ISSET( p.Deref.mp_flags, MDB_page.P_LEAF );
     /** Test if a page is a LEAF2 page */
-    public static Boolean IS_LEAF2( MDB_page p ) => F_ISSET( p.mp_flags, MDB_page.P_LEAF2 );
+    public static Boolean IS_LEAF2( Ptr<MDB_page> p ) => F_ISSET( p.Deref.mp_flags, MDB_page.P_LEAF2 );
     /** Test if a page is a branch page */
-    public static Boolean IS_BRANCH( MDB_page p ) => F_ISSET( p.mp_flags, MDB_page.P_BRANCH );
+    public static Boolean IS_BRANCH( Ptr<MDB_page> p ) => F_ISSET( p.Deref.mp_flags, MDB_page.P_BRANCH );
     /** Test if a page is an overflow page */
-    public static Boolean IS_OVERFLOW( MDB_page p ) => F_ISSET( p.mp_flags, MDB_page.P_OVERFLOW );
+    public static Boolean IS_OVERFLOW( Ptr<MDB_page> p ) => F_ISSET( p.Deref.mp_flags, MDB_page.P_OVERFLOW );
     /** Test if a page is a sub page */
-    public static Boolean IS_SUBP( MDB_page p ) => F_ISSET( p.mp_flags, MDB_page.P_SUBP );
+    public static Boolean IS_SUBP( Ptr<MDB_page> p ) => F_ISSET( p.Deref.mp_flags, MDB_page.P_SUBP );
 
     /** The number of overflow pages needed to store the given size. */
     public static Int64 OVPAGES( Int32 size, Int32 psize ) => ( PAGEHDRSZ - 1 + size ) / psize + 1;
@@ -2059,6 +2091,7 @@ namespace LMDB.CLR
      * #F_DUPDATA and #F_SUBDATA can be combined giving duplicate data in
      * a sub-page/sub-database, and named databases (just #F_SUBDATA).
      */
+    [Line( 1062 )]
     public class MDB_node
     {
       internal const Int32 offsetof_mn_data = sizeof( UInt16 ) + sizeof( UInt16 ) + sizeof( UInt16 ) + sizeof( UInt16 );
@@ -2083,7 +2116,7 @@ namespace LMDB.CLR
       /** @} */
       public UInt16 mn_flags;    /**< @ref mdb_node */
       public UInt16 mn_ksize;    /**< key size */
-      public Byte[] mn_data = new Byte[ 1 ];     /**< key and data are appended here */
+      public Ptrs<Byte> mn_data = new Ptrs<Byte>( 1 );     /**< key and data are appended here */
     }
 
     /** Size of the node header, excluding dynamic data at the end */
@@ -2100,19 +2133,23 @@ namespace LMDB.CLR
     /** Size of a node in a leaf page with a given key and data.
      *	This is node header plus key plus data size.
      */
-    public static Int64 LEAFSIZE( MDB_val k, MDB_val d ) => NODESIZE + k.mv_size + d.mv_size;
+    public static Int64 LEAFSIZE( Ptr<MDB_val> k, Ptr<MDB_val> d ) => NODESIZE + k.Deref.mv_size + d.Deref.mv_size;
 
     /** Address of node \b i in page \b p */
-    public static Int64 NODEPTR( MDB_page p, Int32 i ) => throw new NotImplementedException(); // p.mp_ptrs[ i ] + PAGEBASE;
+    [Line( 1106 )]
+    public static Ptr<MDB_node> NODEPTR( Ptr<MDB_page> p, UInt16 i ) => Ptr<MDB_node>.Create( p + p.Deref.mp_ptrs[ i ] + PAGEBASE );
 
     /** Address of the key for the node */
-    public static Span<Byte> NODEKEY( MDB_node node ) => new Span<Byte>( node.mn_data, 0, node.mn_ksize );
+    [Line( 1109 )]
+    public static Ptr<Byte> NODEKEY( Ptr<MDB_node> node ) => node.Deref.mn_data + node.Deref.mn_ksize;
 
     /** Address of the data for a node */
-    public static Span<Byte> NODEDATA( MDB_node node ) => new Span<Byte>( node.mn_data, node.mn_ksize, node.mn_data.Length - node.mn_ksize );
+    [Line( 1112 )]
+    public static Ptr<Byte> NODEDATA( Ptr<MDB_node> node ) => node.Deref.mn_data + node.Deref.mn_ksize;
 
     /** Get the page number pointed to by a branch node */
     public static Int64 NODEPGNO( MDB_node node ) => node.mn_lo | node.mn_hi << 16;
+
     /** Set the page number in a branch node */
     public static void SETPGNO( MDB_node node, UInt16 pgno )
     {
@@ -2125,6 +2162,7 @@ namespace LMDB.CLR
 
     /** Get the size of the data in a leaf node */
     public static UInt32 NODEDSZ( MDB_node node ) => node.mn_lo | (UInt32)node.mn_hi << 16;
+
     /** Set the size of the data for a leaf node */
     public static void SETDSZ( MDB_node node, Int32 size )
     {
@@ -2136,7 +2174,7 @@ namespace LMDB.CLR
     }
 
     /** The size of a key in a node */
-    public static Int64 NODEKSZ( MDB_node node ) => node.mn_ksize;
+    public static Int64 NODEKSZ( Ptr<MDB_node> node ) => node.Deref.mn_ksize;
 
     /** Copy a page number from src to dst */
     public static void COPY_PGNO( ref UInt16 dst, ref UInt16 src ) => throw new NotImplementedException();
@@ -2154,27 +2192,29 @@ namespace LMDB.CLR
      *	LEAF2 pages are used for #MDB_DUPFIXED sorted-duplicate sub-DBs.
      *	There are no node headers, keys are stored contiguously.
      */
-    public static void LEAF2KEY( Object p, Object i, Object ks ) => throw new NotImplementedException(); //	((char *)(p) + PAGEHDRSZ + ((i)*(ks)))
+    [Line( 1159 )]
+    public static Ptr<Byte> LEAF2KEY( Ptr<MDB_page> p, UInt32 i, UInt32 ks ) => Ptr<Byte>.Create( p + PAGEHDRSZ + i * ks );
 
     /** Set the \b node's key into \b keyptr, if requested. */
-    public static void MDB_GET_KEY( MDB_node node, MDB_val keyptr )
+    [Line( 1162 )]
+    public static void MDB_GET_KEY( Ptr<MDB_node> node, Ptr<MDB_val> keyptr )
     {
-      throw new NotImplementedException();
-      //if ( ( keyptr ) != null )
-      //{
-      //  keyptr.mv_size = NODEKSZ( node );
-      //  keyptr.mv_data = NODEKEY( node );
-      //}
+      if ( keyptr.Deref != null )
+      {
+        keyptr.Deref.mv_size = NODEKSZ( node );
+        keyptr.Deref.mv_data = NODEKEY( node );
+      }
     }
 
     /** Set the \b node's key into \b key. */
-    public static void MDB_GET_KEY2( MDB_node node, MDB_val key )
+    [Line( 1166 )]
+    public static void MDB_GET_KEY2( Ptr<MDB_node> node, Ptr<MDB_val> key )
     {
-      throw new NotImplementedException();
-      //key.mv_size = NODEKSZ( node );
-      //key.mv_data = NODEKEY( node );
+      key.Deref.mv_size = NODEKSZ( node );
+      key.Deref.mv_data = NODEKEY( node );
     }
     /** Information about a single database in the environment. */
+    [Line( 1169 )]
     public class MDB_db
     {
       public uint32_t md_pad;    /**< also ksize for LEAF2 pages */
@@ -2187,25 +2227,26 @@ namespace LMDB.CLR
       public pgno_t md_root;   /**< the root page of this tree */
     }
 
-    public const Int32 MDB_VALID = 0x8000;    /**< DB handle is valid, for me_dbflags */
-    public const Int32 PERSISTENT_FLAGS = 0xffff & ~MDB_VALID;
+    public const UInt32 MDB_VALID = 0x8000;    /**< DB handle is valid, for me_dbflags */
+    public const UInt32 PERSISTENT_FLAGS = 0xffff & ~MDB_VALID;
     /** #mdb_dbi_open() flags */
-    public const Int32 VALID_FLAGS = MDB_REVERSEKEY | MDB_DUPSORT | MDB_INTEGERKEY | MDB_DUPFIXED | MDB_INTEGERDUP | MDB_REVERSEDUP | MDB_CREATE;
+    public const UInt32 VALID_FLAGS = MDB_REVERSEKEY | MDB_DUPSORT | MDB_INTEGERKEY | MDB_DUPFIXED | MDB_INTEGERDUP | MDB_REVERSEDUP | MDB_CREATE;
 
     /** Handle for the DB used to track free pages. */
-    public const Int32 FREE_DBI = 0;
+    public const UInt32 FREE_DBI = 0;
     /** Handle for the default DB. */
-    public const Int32 MAIN_DBI = 1;
+    public const UInt32 MAIN_DBI = 1;
     /** Number of DBs in metapage (free and main) - also hardcoded elsewhere */
-    public const Int32 CORE_DBS = 2;
+    public const UInt32 CORE_DBS = 2;
 
     /** Number of meta pages - also hardcoded elsewhere */
-    public const Int32 NUM_METAS = 2;
+    public const UInt32 NUM_METAS = 2;
 
     /** Meta page content.
      *	A meta page is the start point for accessing a database snapshot.
      *	Pages 0-1 are meta pages. Transaction N writes meta page #(N % 2).
      */
+    [Line( 1200 )]
     public class MDB_meta
     {
       /** Stamp identifying this as an LMDB file. It must be set
@@ -2213,14 +2254,14 @@ namespace LMDB.CLR
       public uint32_t mm_magic;
       /** Version number of this file. Must be set to #MDB_DATA_VERSION. */
       public uint32_t mm_version;
-      public Object mm_address;   /**< address for fixed mapping */
+      public Ptr<Byte> mm_address;   /**< address for fixed mapping */
 
       public mdb_size_t mm_mapsize;     /**< size of mmap region */
-      public MDB_db[] mm_dbs = new MDB_db[ CORE_DBS ]; /**< first is free space, 2nd is main db */
+      public Ptrs<MDB_db> mm_dbs = new Ptrs<MDB_db>( CORE_DBS ); /**< first is free space, 2nd is main db */
       /** The size of pages used in this DB */
-      //#define	mm_psize	mm_dbs[FREE_DBI].md_pad
+      public UInt32 mm_psize => mm_dbs[ FREE_DBI ].md_pad;
       /** Any persistent environment flags. @ref mdb_env */
-      //#define	mm_flags	mm_dbs[FREE_DBI].md_flags
+      public UInt16 mm_flags => mm_dbs[ FREE_DBI ].md_flags;
       /** Last used page in the datafile.
        *	Actually the file may be shorter if the freeDB lists the final pages.
        */
@@ -2233,11 +2274,12 @@ namespace LMDB.CLR
      *	aliasing warnings.  They are not used directly; that could
      *	mean incorrectly using several union members in parallel.
      */
+    [Line( 1233 )]
     public class MDB_metabuf
     {
       public MDB_page mb_page;
       //struct {
-      public Byte[] mm_pad = new Byte[ PAGEHDRSZ ];
+      public Ptrs<Byte> mm_pad = new Ptrs<Byte>( PAGEHDRSZ );
       public MDB_meta mm_meta;
       //} mb_metabuf;
     }
@@ -2246,56 +2288,58 @@ namespace LMDB.CLR
      *	The information here is mostly static/read-only. There is
      *	only a single copy of this record in the environment.
      */
+    [Line( 1245 )]
     public class MDB_dbx
     {
       public MDB_val md_name;    /**< name of the database */
       public MDB_cmp_func md_cmp; /**< function for comparing keys */
       public MDB_cmp_func md_dcmp;  /**< function for comparing data items */
       public MDB_rel_func md_rel; /**< user relocate function */
-      public Object md_relctx;    /**< user-provided context for md_rel */
+      public Ptrs<Byte> md_relctx;    /**< user-provided context for md_rel */
     }
 
     /** A database transaction.
      *	Every operation requires a transaction handle.
      */
+    [Line( 1256 )]
     public class MDB_txn
     {
-      public MDB_txn mt_parent;   /**< parent of a nested txn */
+      public Ptr<MDB_txn> mt_parent;   /**< parent of a nested txn */
       /** Nested txn under this txn, set together with flag #MDB_TXN_HAS_CHILD */
-      public MDB_txn mt_child;
+      public Ptr<MDB_txn> mt_child;
       public pgno_t mt_next_pgno; /**< next unallocated page */
       /** The ID of this transaction. IDs are integers incrementing from 1.
        *	Only committed write transactions increment the ID. If a transaction
        *	aborts, the ID may be re-used by the next writer.
        */
       public txnid_t mt_txnid;
-      public MDB_env mt_env;    /**< the DB environment */
+      public Ptr<MDB_env> mt_env;    /**< the DB environment */
       /** The list of pages that became unused during this transaction.
        */
-      public MDB_ID[] mt_free_pgs;
+      public Ptrs<MDB_ID> mt_free_pgs;
       /** The list of loose pages that became unused and may be reused
        *	in this transaction, linked through #NEXT_LOOSE_PAGE(page).
        */
-      public MDB_page mt_loose_pgs;
+      public Ptr<MDB_page> mt_loose_pgs;
       /** Number of loose pages (#mt_loose_pgs) */
       public Int32 mt_loose_count;
       /** The sorted list of dirty pages we temporarily wrote to disk
        *	because the dirty list was full. page numbers in here are
        *	shifted left by 1, deleted slots have the LSB set.
        */
-      public MDB_ID[] mt_spill_pgs;
+      public Ptrs<MDB_ID> mt_spill_pgs;
       //union {
       /** For write txns: Modified pages. Sorted when not MDB_WRITEMAP. */
-      public MDB_ID2[] dirty_list;
+      public Ptrs<MDB_ID2> dirty_list;
       /** For read txns: This thread/txn's reader table slot, or NULL. */
-      public MDB_reader reader;
+      public Ptr<MDB_reader> reader;
       //} mt_u;
       /** Array of records for each DB known in the environment. */
-      public MDB_dbx[] mt_dbxs;
+      public Ptrs<MDB_dbx> mt_dbxs;
       /** Array of MDB_db records for each known DB */
-      public MDB_db mt_dbs;
+      public Ptrs<MDB_db> mt_dbs;
       /** Array of sequence numbers for each DB handle */
-      public UInt32[] mt_dbiseqs;
+      public Ptrs<UInt32> mt_dbiseqs;
       /** @defgroup mt_dbflag	Transaction DB Flags
        *	@ingroup internal
        * @{
@@ -2308,9 +2352,9 @@ namespace LMDB.CLR
       public const Int32 DB_DUPDATA = 0x20;		/**< DB is #MDB_DUPSORT data */
       /** @} */
       /** In write txns, array of cursors for each DB */
-      public MDB_cursor mt_cursors; // TODO array
+      public Ptrs<MDB_cursor> mt_cursors;
       /** Array of flags for each DB */
-      public Byte[] mt_dbflags;
+      public Ptrs<Byte> mt_dbflags;
       /**	Number of DB records in use, or 0 when the txn is finished.
        *	This number only ever increments until the txn finishes; we
        *	don't decrement it when individual DB handles are closed.
@@ -2322,19 +2366,19 @@ namespace LMDB.CLR
        *	@{
        */
       /** #mdb_txn_begin() flags */
-      public const Int32 MDB_TXN_BEGIN_FLAGS = MDB_NOMETASYNC | MDB_NOSYNC | MDB_RDONLY;
-      public const Int32 MDB_TXN_NOMETASYNC = MDB_NOMETASYNC; /**< don't sync meta for this txn on commit */
-      public const Int32 MDB_TXN_NOSYNC = MDB_NOSYNC; /**< don't sync this txn on commit */
-      public const Int32 MDB_TXN_RDONLY = MDB_RDONLY; /**< read-only transaction */
+      public const UInt32 MDB_TXN_BEGIN_FLAGS = MDB_NOMETASYNC | MDB_NOSYNC | MDB_RDONLY;
+      public const UInt32 MDB_TXN_NOMETASYNC = MDB_NOMETASYNC; /**< don't sync meta for this txn on commit */
+      public const UInt32 MDB_TXN_NOSYNC = MDB_NOSYNC; /**< don't sync this txn on commit */
+      public const UInt32 MDB_TXN_RDONLY = MDB_RDONLY; /**< read-only transaction */
       /* internal txn flags */
-      public const Int32 MDB_TXN_WRITEMAP = MDB_WRITEMAP; /**< copy of #MDB_env flag in writers */
-      public const Int32 MDB_TXN_FINISHED = 0x01;   /**< txn is finished or never began */
-      public const Int32 MDB_TXN_ERROR = 0x02;    /**< txn is unusable after an error */
-      public const Int32 MDB_TXN_DIRTY = 0x04;    /**< must write, even if dirty list is empty */
-      public const Int32 MDB_TXN_SPILLS = 0x08;   /**< txn or a parent has spilled pages */
-      public const Int32 MDB_TXN_HAS_CHILD = 0x10;    /**< txn has an #MDB_txn.%mt_child */
+      public const UInt32 MDB_TXN_WRITEMAP = MDB_WRITEMAP; /**< copy of #MDB_env flag in writers */
+      public const UInt32 MDB_TXN_FINISHED = 0x01;   /**< txn is finished or never began */
+      public const UInt32 MDB_TXN_ERROR = 0x02;    /**< txn is unusable after an error */
+      public const UInt32 MDB_TXN_DIRTY = 0x04;    /**< must write, even if dirty list is empty */
+      public const UInt32 MDB_TXN_SPILLS = 0x08;   /**< txn or a parent has spilled pages */
+      public const UInt32 MDB_TXN_HAS_CHILD = 0x10;    /**< txn has an #MDB_txn.%mt_child */
       /** most operations on the txn are currently illegal */
-      public const Int32 MDB_TXN_BLOCKED = MDB_TXN_FINISHED | MDB_TXN_ERROR | MDB_TXN_HAS_CHILD;
+      public const UInt32 MDB_TXN_BLOCKED = MDB_TXN_FINISHED | MDB_TXN_ERROR | MDB_TXN_HAS_CHILD;
       /** @} */
       public UInt32 mt_flags;    /**< @ref mdb_txn */
       /** #dirty_list room: Array size - \#dirty pages visible to this txn.
@@ -2351,24 +2395,25 @@ namespace LMDB.CLR
  */
     public const Int32 CURSOR_STACK = 32;
 
+    [Line( 1364 )]
     public class MDB_cursor
     {
       /** Next cursor on this DB in this txn */
-      public MDB_cursor mc_next;
+      public Ptr<MDB_cursor> mc_next;
       /** Backup of the original cursor if this cursor is a shadow */
-      public MDB_cursor mc_backup;
+      public Ptr<MDB_cursor> mc_backup;
       /** Context used for databases with #MDB_DUPSORT, otherwise NULL */
-      public MDB_xcursor mc_xcursor;
+      public Ptr<MDB_xcursor> mc_xcursor;
       /** The transaction that owns this cursor */
-      public MDB_txn mc_txn;
+      public Ptr<MDB_txn> mc_txn;
       /** The database handle this cursor operates on */
       public MDB_dbi mc_dbi;
       /** The database record for this cursor */
-      public MDB_db mc_db;
+      public Ptr<MDB_db> mc_db;
       /** The database auxiliary record for this cursor */
-      public MDB_dbx mc_dbx;
+      public Ptr<MDB_dbx> mc_dbx;
       /** The @ref mt_dbflag for this database */
-      public Byte mc_dbflag;
+      public Ptrs<Byte> mc_dbflag;
       public UInt16 mc_snum;  /**< number of pushed pages */
       public UInt16 mc_top;   /**< index of top page, normally mc_snum-1 */
       /** @defgroup mdb_cursor	Cursor Flags
@@ -2386,11 +2431,11 @@ namespace LMDB.CLR
        *	Set for read-only txns, and in #mdb_page_alloc() for #FREE_DBI when
        *	#MDB_DEVEL & 2. Only implements code which is necessary for this.
        */
-      public const Int32 C_ORIG_RDONLY = MDB_txn.MDB_TXN_RDONLY;
+      public const UInt32 C_ORIG_RDONLY = MDB_txn.MDB_TXN_RDONLY;
       /** @} */
       public UInt32 mc_flags;  /**< @ref mdb_cursor */
-      public MDB_page[] mc_pg = new MDB_page[ CURSOR_STACK ];  /**< stack of pushed pages */
-      public indx_t[] mc_ki = new indx_t[ CURSOR_STACK ]; /**< stack of page indices */
+      public Ptrs<Ptr<MDB_page>> mc_pg = new Ptrs<Ptr<MDB_page>>( CURSOR_STACK );  /**< stack of pushed pages */
+      public Ptrs<indx_t> mc_ki = new Ptrs<indx_t>( CURSOR_STACK ); /**< stack of page indices */
       public static Object MC_OVPG( Object mc ) => null;
       public static Object MC_SET_OVPG( Object mc, Object pg ) => null;
     }
@@ -2400,6 +2445,7 @@ namespace LMDB.CLR
      *	deep nesting of sub-databases. But for now we only handle these
      *	levels - main DB, optional sub-DB, sorted-duplicate DB.
      */
+    [Line( 1428 )]
     public class MDB_xcursor
     {
       /** A sub-cursor for traversing the Dup DB */
@@ -2413,12 +2459,14 @@ namespace LMDB.CLR
     }
 
     /** Check if there is an inited xcursor */
-    public static Boolean XCURSOR_INITED( MDB_cursor mc ) => mc.mc_xcursor != null && ( mc.mc_xcursor.mx_cursor.mc_flags & MDB_cursor.C_INITIALIZED ) != 0;
+    [Line( 1440 )]
+    public static Boolean XCURSOR_INITED( Ptr<MDB_cursor> mc ) => mc.Deref.mc_xcursor != null && ( mc.Deref.mc_xcursor.Deref.mx_cursor.mc_flags & MDB_cursor.C_INITIALIZED ) != 0;
 
     /** Update the xcursor's sub-page pointer, if any, in \b mc.  Needed
      *	when the node which contains the sub-page may have moved.  Called
-     *	with leaf page \b mp = mc->mc_pg[\b top].
+     *	with leaf page \b mp = mc.mc_pg[\b top].
          */
+    [Line( 1447 )]
     public static void XCURSOR_REFRESH( MDB_cursor mc, Int32 top, MDB_page mp )
     {
       throw new NotImplementedException();
@@ -2432,9 +2480,10 @@ namespace LMDB.CLR
     }
 
     /** State of FreeDB old pages, stored in the MDB_env */
+    [Line( 1457 )]
     public class MDB_pgstate
     {
-      public pgno_t mf_pghead;  /**< Reclaimed freeDB pages, or NULL before use */
+      public Ptr<pgno_t> mf_pghead;  /**< Reclaimed freeDB pages, or NULL before use */
       public txnid_t mf_pglast;  /**< ID of last used record, or 0 if !mf_pghead */
     }
 
@@ -2444,6 +2493,7 @@ namespace LMDB.CLR
      * shared-memory map.
      */
     /** The database environment. */
+    [Line( 1463 )]
     public class MDB_env
     {
       public HANDLE me_fd;    /**< The main data file */
@@ -2468,44 +2518,45 @@ namespace LMDB.CLR
       public MDB_dbi me_maxdbs;    /**< size of the DB table */
       public MDB_PID_T me_pid;   /**< process ID of this env */
       public String me_path;    /**< path to the DB files */
-      public Byte[] me_map;   /**< the memory map of the data file */
-      public MDB_txninfo me_txns;   /**< the memory map of the lock file or NULL */
-      public MDB_meta[] me_metas = new MDB_meta[ NUM_METAS ];  /**< pointers to the two meta pages */
-      public Byte[] me_pbuf;    /**< scratch area for DUPSORT put() */
-      public MDB_txn me_txn;    /**< current write transaction */
-      public MDB_txn me_txn0;   /**< prealloc'd write transaction */
+      public Ptrs<Byte> me_map;   /**< the memory map of the data file */
+      public Ptr<MDB_txninfo> me_txns;   /**< the memory map of the lock file or NULL */
+      public Ptrs<Ptr<MDB_meta>> me_metas = new Ptrs<Ptr<MDB_meta>>( NUM_METAS );  /**< pointers to the two meta pages */
+      public Ptrs<Byte> me_pbuf;    /**< scratch area for DUPSORT put() */
+      public Ptr<MDB_txn> me_txn;    /**< current write transaction */
+      public Ptr<MDB_txn> me_txn0;   /**< prealloc'd write transaction */
       public mdb_size_t me_mapsize;    /**< size of the data memory map */
       public MDB_OFF_T me_size;    /**< current file size */
       public pgno_t me_maxpg;    /**< me_mapsize / me_psize */
-      public MDB_dbx me_dbxs;   /**< array of static DB info */
-      public uint16_t me_dbflags; /**< array of flags from MDB_db.md_flags */
-      public UInt32[] me_dbiseqs; /**< array of dbi sequence numbers */
+      public Ptr<MDB_dbx> me_dbxs;   /**< array of static DB info */
+      public Ptrs<uint16_t> me_dbflags; /**< array of flags from MDB_db.md_flags */
+      public Ptrs<UInt32> me_dbiseqs; /**< array of dbi sequence numbers */
       public pthread_key_t me_txkey; /**< thread-key for readers */
       public txnid_t me_pgoldest;  /**< ID of oldest reader last time we looked */
       public MDB_pgstate me_pgstate;   /**< state of old pages from freeDB */
       // #define me_pglast	me_pgstate.mf_pglast
       // #define me_pghead	me_pgstate.mf_pghead
-      public MDB_page me_dpages;    /**< list of malloc'd blocks for re-use */
+      public Ptrs<MDB_page> me_dpages;    /**< list of malloc'd blocks for re-use */
       /** IDL of pages that became unused in a write txn */
-      public MDB_ID[] me_free_pgs;
+      public Ptrs<MDB_ID> me_free_pgs;
       /** ID2L of pages written during a write txn. Length MDB_IDL_UM_SIZE. */
-      public MDB_ID2[] me_dirty_list;
+      public Ptrs<MDB_ID2> me_dirty_list;
       /** Max number of freelist items that can fit in a single overflow page */
       public Int32 me_maxfree_1pg;
       /** Max size of a node on a page */
       public UInt32 me_nodemax;
       public Int32 me_live_reader;   /**< have liveness lock in reader table */
       public Int32 me_pidquery;    /**< Used in OpenProcess */
-      public Object ov;     /**< Used for for overlapping I/O requests */
+      public Ptr<Object> ov;     /**< Used for for overlapping I/O requests */
       public Int32 ovs;        /**< Count of OVERLAPPEDs */
       public mdb_mutex_t me_rmutex;
       public mdb_mutex_t me_wmutex;
       public String me_mutexname;
-      public Byte[] me_userctx;  /**< User-settable context */
+      public Ptrs<Byte> me_userctx;  /**< User-settable context */
       public MDB_assert_func me_assert_func; /**< Callback for assertion failures */
     }
 
     /** Nested transaction */
+    [Line( 1549 )]
     public class MDB_ntxn
     {
       public MDB_txn mnt_txn;   /**< the transaction */
@@ -2517,10 +2568,12 @@ namespace LMDB.CLR
     /** max bytes to write in one call */
     public const UInt32 MAX_WRITE = 0x40000000U;
 
-    public static Boolean TXN_DBI_EXIST( MDB_txn txn, Int32 dbi, Byte validity ) => txn != null && dbi < txn.mt_numdbs && ( txn.mt_dbflags[ dbi ] & validity ) != 0;
+    [Line( 1565 )]
+    public static Boolean TXN_DBI_EXIST( Ptr<MDB_txn> txn, Int32 dbi, Byte validity ) => txn.Deref != null && dbi < txn.Deref.mt_numdbs && ( txn.Deref.mt_dbflags[ dbi ] & validity ) != 0;
 
     /** Check for misused \b dbi handles */
-    public static Boolean TXN_DBI_CHANGED( MDB_txn txn, Int32 dbi ) => txn.mt_dbiseqs[ dbi ] != txn.mt_env.me_dbiseqs[ dbi ];
+    [Line( 1569 )]
+    public static Boolean TXN_DBI_CHANGED( Ptr<MDB_txn> txn, Int32 dbi ) => txn.Deref.mt_dbiseqs[ dbi ] != txn.Deref.mt_env.Deref.me_dbiseqs[ dbi ];
 
     public static Int32 mdb_page_alloc( MDB_cursor mc, Int32 num, out MDB_page mp ) => throw new NotImplementedException();
     public static Int32 mdb_page_new( MDB_cursor mc, uint32_t flags, Int32 num, out MDB_page mp ) => throw new NotImplementedException();
@@ -2529,32 +2582,32 @@ namespace LMDB.CLR
     public static String[] MDB_END_NAMES = { "committed", "empty-commit", "abort", "reset", "reset-tmp", "fail-begin", "fail-beginchild" };
 
     /* mdb_txn_end operation number, for logging */
-    public const Int32 MDB_END_COMMITTED = 0;
-    public const Int32 MDB_END_EMPTY_COMMIT = 1;
-    public const Int32 MDB_END_ABORT = 2;
-    public const Int32 MDB_END_RESET = 3;
-    public const Int32 MDB_END_RESET_TMP = 4;
-    public const Int32 MDB_END_FAIL_BEGIN = 5;
-    public const Int32 MDB_END_FAIL_BEGINCHILD = 6;
+    public const UInt32 MDB_END_COMMITTED = 0;
+    public const UInt32 MDB_END_EMPTY_COMMIT = 1;
+    public const UInt32 MDB_END_ABORT = 2;
+    public const UInt32 MDB_END_RESET = 3;
+    public const UInt32 MDB_END_RESET_TMP = 4;
+    public const UInt32 MDB_END_FAIL_BEGIN = 5;
+    public const UInt32 MDB_END_FAIL_BEGINCHILD = 6;
 
-    public const Int32 MDB_END_OPMASK = 0x0F; /**< mask for #mdb_txn_end() operation number */
-    public const Int32 MDB_END_UPDATE = 0x10; /**< update env state (DBIs) */
-    public const Int32 MDB_END_FREE = 0x20; /**< free txn unless it is #MDB_env.%me_txn0 */
-    public const Int32 MDB_END_SLOT = MDB_NOTLS; /**< release any reader slot if #MDB_NOTLS */
+    public const UInt32 MDB_END_OPMASK = 0x0F; /**< mask for #mdb_txn_end() operation number */
+    public const UInt32 MDB_END_UPDATE = 0x10; /**< update env state (DBIs) */
+    public const UInt32 MDB_END_FREE = 0x20; /**< free txn unless it is #MDB_env.%me_txn0 */
+    public const UInt32 MDB_END_SLOT = MDB_NOTLS; /**< release any reader slot if #MDB_NOTLS */
 
     public static void mdb_txn_end( MDB_txn txn, UInt32 mode ) => throw new NotImplementedException();
-    public static Int32 mdb_page_get( MDB_cursor mc, pgno_t pgno, out MDB_page mp, ref Int32 lvl ) => throw new NotImplementedException();
+    public static Int32 mdb_page_get( Ptr<MDB_cursor> mc, pgno_t pgno, out Ptr<MDB_page> mp, out Int32 lvl ) => throw new NotImplementedException();
     public static Int32 mdb_page_search_root( MDB_cursor mc, MDB_val key, Int32 modify ) => throw new NotImplementedException();
 
-    public static Int32 MDB_PS_MODIFY = 1;
-    public static Int32 MDB_PS_ROOTONLY = 2;
-    public static Int32 MDB_PS_FIRST = 4;
-    public static Int32 MDB_PS_LAST = 8;
+    public const UInt32 MDB_PS_MODIFY = 1;
+    public const UInt32 MDB_PS_ROOTONLY = 2;
+    public const UInt32 MDB_PS_FIRST = 4;
+    public const UInt32 MDB_PS_LAST = 8;
 
     public static Int32 mdb_page_search( MDB_cursor mc, MDB_val key, Int32 flags ) => throw new NotImplementedException();
     public static Int32 mdb_page_merge( MDB_cursor csrc, MDB_cursor cdst ) => throw new NotImplementedException();
 
-    public const Int32 MDB_SPLIT_REPLACE = MDB_APPENDDUP; /**< newkey is not new */
+    public const UInt32 MDB_SPLIT_REPLACE = MDB_APPENDDUP; /**< newkey is not new */
     public static Int32 mdb_page_split( MDB_cursor mc, MDB_val newkey, MDB_val newdata, pgno_t newpgno, UInt32 nflags ) => throw new NotImplementedException();
 
     public static Int32 mdb_env_read_header( MDB_env env, Int32 prev, MDB_meta meta ) => throw new NotImplementedException();
@@ -2607,7 +2660,7 @@ namespace LMDB.CLR
     public static MDB_cmp_func mdb_cmp_clong = mdb_cmp_cint;
 
     /** True if we need #mdb_cmp_clong() instead of \b cmp for #MDB_INTEGERDUP */
-    public static Boolean NEED_CMP_CLONG( MDB_cmp_func cmp, Int64 ksize ) => ( cmp == mdb_cmp_int && ( ksize ) == sizeof( mdb_size_t ) );
+    public static Boolean NEED_CMP_CLONG( MDB_cmp_func cmp, Int64 ksize ) => cmp == mdb_cmp_int && ksize == sizeof( mdb_size_t );
 
     public static Object mdb_null_sd; // SECURITY_DESCRIPTOR
     public static Object mdb_all_sa; // SECURITY_ATTRIBUTES
@@ -2620,6 +2673,7 @@ namespace LMDB.CLR
     public static Int32 utf8_to_utf16( String src, MDB_name dst, Int32 xtra ) => throw new NotImplementedException();
 
     /** Return the library version info. */
+    [Line( 1673 )]
     public static String mdb_version( ref Int32 major, ref Int32 minor, ref Int32 patch )
     {
       if ( major == 0 ) major = MDB_VERSION_MAJOR;
@@ -2627,7 +2681,6 @@ namespace LMDB.CLR
       if ( patch == 0 ) patch = MDB_VERSION_PATCH;
       return MDB_VERSION_STRING;
     }
-
 
     /** Table of descriptions for LMDB @ref errors */
     public static String[] mdb_errstr =
@@ -2674,13 +2727,14 @@ namespace LMDB.CLR
       * @param[in] err The error code
       * @retval "error message" The description of the error
       */
+    [Line( 1707 )]
     public static String mdb_strerror( Int32 err )
     {
       /** HACK: pad 4KB on stack over the buf. Return system msgs in buf.
        *	This works as long as no function between the call to mdb_strerror
        *	and the actual use of the message uses more than 4K of stack.
        */
-      if ( err == 0 ) return ( "Successful return: 0" );
+      if ( err == 0 ) return "Successful return: 0";
 
       if ( err >= MDB_KEYEXIST && err <= MDB_LAST_ERRCODE )
       {
@@ -2713,22 +2767,23 @@ namespace LMDB.CLR
 
 
     /** assert(3) variant in cursor context */
-    public static void mdb_cassert( MDB_cursor mc, Boolean expr ) => mdb_assert0( mc.mc_txn.mt_env, expr, "" /*, #expr*/);
+    public static void mdb_cassert( Ptr<MDB_cursor> mc, Boolean expr ) => mdb_assert0( mc.Deref.mc_txn.Deref.mt_env, expr, "" /*, #expr*/);
     /** assert(3) variant in transaction context */
-    public static void mdb_tassert( MDB_txn txn, Boolean expr ) => mdb_assert0( txn.mt_env, expr, "" /*, #expr*/);
+    public static void mdb_tassert( Ptr<MDB_txn> txn, Boolean expr ) => mdb_assert0( txn.Deref.mt_env, expr, "" /*, #expr*/);
     /** assert(3) variant in environment context */
-    public static void mdb_eassert( MDB_env env, Boolean expr ) => mdb_assert0( env, expr, ""/*, #expr*/);
+    public static void mdb_eassert( Ptr<MDB_env> env, Boolean expr ) => mdb_assert0( env, expr, ""/*, #expr*/);
 
-    public static void mdb_assert0( MDB_env env, Boolean expr, String expr_txt )
+    public static void mdb_assert0( Ptr<MDB_env> env, Boolean expr, String expr_txt )
     {
       if ( expr ) return;
       mdb_assert_fail( env, expr_txt, "mdb_func_", "__FILE__", "__LINE__" );
     }
 
-    public static void mdb_assert_fail( MDB_env env, String expr_txt, String func, String file, /*Int32*/ String line )
+    [Line( 1767 )]
+    public static void mdb_assert_fail( Ptr<MDB_env> env, String expr_txt, String func, String file, /*Int32*/ String line )
     {
       var buf = $"{file}: Assertion '{expr_txt}' failed in {func}()";
-      if ( env.me_assert_func != null ) env.me_assert_func( env, buf );
+      if ( env.Deref.me_assert_func != null ) env.Deref.me_assert_func( env, buf );
       Console.WriteLine( buf );
       throw new Exception( buf );
     }
@@ -2743,9 +2798,10 @@ namespace LMDB.CLR
      * @param[in] b The second item to compare
      * @return < 0 if a < b, 0 if a == b, > 0 if a > b
      */
-    public static Int32 mdb_cmp( MDB_txn txn, MDB_dbi dbi, MDB_val a, MDB_val b )
+    [Line( 1980 )]
+    public static Int32 mdb_cmp( Ptr<MDB_txn> txn, MDB_dbi dbi, ConstPtr<MDB_val> a, ConstPtr<MDB_val> b )
     {
-      return txn.mt_dbxs[ dbi ].md_cmp( a, b );
+      return txn.Deref.mt_dbxs[ dbi ].md_cmp( a, b );
     }
 
     /** @brief Compare two data items according to a particular database.
@@ -2758,10 +2814,11 @@ namespace LMDB.CLR
      * @param[in] b The second item to compare
      * @return < 0 if a < b, 0 if a == b, > 0 if a > b
      */
-    public static Int32 mdb_dcmp( MDB_txn txn, MDB_dbi dbi, MDB_val a, MDB_val b )
+    [Line( 1986 )]
+    public static Int32 mdb_dcmp( Ptr<MDB_txn> txn, MDB_dbi dbi, ConstPtr<MDB_val> a, ConstPtr<MDB_val> b )
     {
-      var dcmp = txn.mt_dbxs[ dbi ].md_dcmp;
-      if ( NEED_CMP_CLONG( dcmp, a.mv_size ) ) dcmp = mdb_cmp_clong;
+      var dcmp = txn.Deref.mt_dbxs[ dbi ].md_dcmp;
+      if ( NEED_CMP_CLONG( dcmp, a.Deref.mv_size ) ) dcmp = mdb_cmp_clong;
       return dcmp( a, b );
     }
 
@@ -2769,11 +2826,12 @@ namespace LMDB.CLR
      * Re-use old malloc'd pages first for singletons, otherwise just malloc.
      * Set #MDB_TXN_ERROR on failure.
      */
-    public static MDB_page mdb_page_malloc( MDB_txn txn, UInt32 num )
+    [Line( 1999 )]
+    public static Ptr<MDB_page> mdb_page_malloc( Ptr<MDB_txn> txn, UInt32 num )
     {
-      var env = txn.mt_env;
-      var ret = env.me_dpages;
-      var psize = env.me_psize;
+      var env = txn.Deref.mt_env;
+      var ret = env.Deref.me_dpages;
+      var psize = env.Deref.me_psize;
       var sz = psize;
       //size_t off = 0;
       /* For ! #MDB_NOMEMINIT, psize counts how much to init.
@@ -2787,7 +2845,7 @@ namespace LMDB.CLR
         {
           //VGMEMP_ALLOC( env, ret, sz );
           //VGMEMP_DEFINED( ret, sizeof( ret.mp_next ) );
-          env.me_dpages = ret.p_next;
+          env.Deref.me_dpages = ret.Deref.p_next;
           return ret;
         }
         //off = PAGEHDRSZ; // TODO: check this one
@@ -2799,15 +2857,14 @@ namespace LMDB.CLR
         //off = sz - psize;
       }
 
-      // TODO: num is most likely the number of new MDB_Page objects to create, so the return is more likely to be an array of MDB_page rather than a single one
-      ret = new MDB_page();
+      ret = malloc<MDB_page>( sz );
       //if ( ret /*malloc( sz )*/ != null ) // TODO: malloc
       //{
       VGMEMP_ALLOC( env, ret, sz );
-      if ( ( env.me_flags & MDB_NOMEMINIT ) == 0 )
+      if ( ( env.Deref.me_flags & MDB_NOMEMINIT ) == 0 )
       {
         //memset( ret + off, 0, psize ); // TODO: memset
-        ret.mp_pad = 0;
+        ret.Deref.mp_pad = 0;
       }
       //}
       //else
@@ -2818,20 +2875,22 @@ namespace LMDB.CLR
     }
 
     /** Free a single page.
- * Saves single pages to a list, for future reuse.
- * (This is not used for multi-page overflow pages.)
- */
-    public static void mdb_page_free( MDB_env env, MDB_page mp )
+     * Saves single pages to a list, for future reuse.
+     * (This is not used for multi-page overflow pages.)
+     */
+    [Line( 2037 )]
+    public static void mdb_page_free( Ptr<MDB_env> env, Ptr<MDB_page> mp )
     {
-      mp.p_next = env.me_dpages;
+      mp.Deref.p_next = env.Deref.me_dpages;
       //VGMEMP_FREE(env, mp);
-      env.me_dpages = mp;
+      env.Deref.me_dpages = mp;
     }
 
     /** Free a dirty page */
-    public static void mdb_dpage_free( MDB_env env, MDB_page dp )
+    [Line( 2046 )]
+    public static void mdb_dpage_free( Ptr<MDB_env> env, Ptr<MDB_page> dp )
     {
-      if ( !IS_OVERFLOW( dp ) || dp.pb_pages == 1 )
+      if ( !IS_OVERFLOW( dp ) || dp.Deref.pb_pages == 1 )
       {
         mdb_page_free( env, dp );
       }
@@ -2839,21 +2898,19 @@ namespace LMDB.CLR
       {
         /* large pages just get freed directly */
         //VGMEMP_FREE( env, dp );
-        //free( dp );
-        // TODO: free the memory
+        free( dp );
       }
     }
 
-    // line 2058
-
     /**	Return all dirty pages to dpage list */
-    public static void mdb_dlist_free( MDB_txn txn )
+    [Line( 2059 )]
+    public static void mdb_dlist_free( Ptr<MDB_txn> txn )
     {
-      var env = txn.mt_env;
-      var dl = txn.dirty_list;
+      var env = txn.Deref.mt_env;
+      var dl = txn.Deref.dirty_list;
       var n = dl[ 0 ].mid;
 
-      for ( var i = 1; i <= n; i++ )
+      for ( var i = 1; i <= (Int32)n; i++ )
       {
         mdb_dpage_free( env, dl[ i ].mptr );
       }
@@ -2874,17 +2931,18 @@ namespace LMDB.CLR
      * If the page wasn't dirtied in this txn, just add it
      * to this txn's free list.
      */
-    public static Int32 mdb_page_loose( MDB_cursor mc, MDB_page mp )
+    [Line( 2129 )]
+    public static Int32 mdb_page_loose( Ptr<MDB_cursor> mc, Ptr<MDB_page> mp )
     {
       var loose = 0;
-      var pgno = mp.p_pgno;
-      var txn = mc.mc_txn;
+      var pgno = mp.Deref.p_pgno;
+      var txn = mc.Deref.mc_txn;
 
-      if ( ( ( mp.mp_flags & MDB_page.P_DIRTY ) != 0 ) && mc.mc_dbi != FREE_DBI )
+      if ( ( mp.Deref.mp_flags & MDB_page.P_DIRTY ) != 0 && mc.Deref.mc_dbi != FREE_DBI )
       {
-        if ( txn.mt_parent != null )
+        if ( txn.Deref.mt_parent != null )
         {
-          var dl = txn.dirty_list;
+          var dl = txn.Deref.dirty_list;
           /* If txn has a parent, make sure the page is in our
            * dirty list.
            */
@@ -2895,8 +2953,8 @@ namespace LMDB.CLR
             {
               if ( mp != dl[ x ].mptr )
               { /* bad cursor? */
-                mc.mc_flags &= ~( MDB_cursor.C_INITIALIZED | MDB_cursor.C_EOF );
-                txn.mt_flags |= MDB_txn.MDB_TXN_ERROR;
+                mc.Deref.mc_flags &= ~( MDB_cursor.C_INITIALIZED | MDB_cursor.C_EOF );
+                txn.Deref.mt_flags |= MDB_txn.MDB_TXN_ERROR;
                 return MDB_PROBLEM;
               }
               /* ok, it's ours */
@@ -2912,15 +2970,15 @@ namespace LMDB.CLR
       }
       if ( loose != 0 )
       {
-        DPRINTF( ("loosen db %d page %", DDBI( mc ), mp.p_pgno) );
-        mp.p_next = txn.mt_loose_pgs;
-        txn.mt_loose_pgs = mp;
-        txn.mt_loose_count++;
-        mp.mp_flags |= MDB_page.P_LOOSE;
+        DPRINTF( ("loosen db %d page %", DDBI( mc ), mp.Deref.p_pgno) );
+        mp.Deref.p_next = txn.Deref.mt_loose_pgs;
+        txn.Deref.mt_loose_pgs = mp;
+        txn.Deref.mt_loose_count++;
+        mp.Deref.mp_flags |= MDB_page.P_LOOSE;
       }
       else
       {
-        var rc = mdb_midl_append( txn.mt_free_pgs, pgno );
+        var rc = mdb_midl_append( txn.Deref.mt_free_pgs, pgno );
         if ( rc != 0 ) return rc;
       }
 
@@ -2928,9 +2986,224 @@ namespace LMDB.CLR
     }
 
     // line 2173
+
+    /** Set or clear P_KEEP in dirty, non-overflow, non-sub pages watched by txn.
+     * @param[in] mc A cursor handle for the current operation.
+     * @param[in] pflags Flags of the pages to update:
+     * P_DIRTY to set P_KEEP, P_DIRTY|P_KEEP to clear it.
+     * @param[in] all No shortcuts. Needed except after a full #mdb_page_flush().
+     * @return 0 on success, non-zero on failure.
+     */
+    [Line( 2181 )]
+    public static Int32 mdb_pages_xkeep( Ptr<MDB_cursor> mc, UInt32 pflags, Int32 all )
+    {
+      const Int32 Mask = MDB_page.P_SUBP | MDB_page.P_DIRTY | MDB_page.P_LOOSE | MDB_page.P_KEEP;
+      var txn = mc.Deref.mc_txn;
+      var m0 = mc;
+
+      /* Mark pages seen by cursors: First m0, then tracked cursors */
+      for ( var i = txn.Deref.mt_numdbs; ; )
+      {
+        if ( ( mc.Deref.mc_flags & MDB_cursor.C_INITIALIZED ) != 0 )
+        {
+          Ptr<MDB_xcursor> mx;
+          Ptr<MDB_cursor> m3;
+          for ( m3 = mc; ; m3 = new Ptr<MDB_cursor>( mx.Deref.mx_cursor ) )
+          {
+            var mp = Ptr<MDB_page>.Null;
+            UInt32 j;
+            for ( j = 0; j < m3.Deref.mc_snum; j++ )
+            {
+              mp = m3.Deref.mc_pg[ j ];
+              if ( ( mp.Deref.mp_flags & Mask ) == pflags ) mp.Deref.mp_flags ^= MDB_page.P_KEEP;
+            }
+            mx = m3.Deref.mc_xcursor;
+            /* Proceed to mx if it is at a sub-database */
+            if ( !( mx != null && ( mx.Deref.mx_cursor.mc_flags & MDB_cursor.C_INITIALIZED ) != 0 ) ) break;
+            if ( !( mp != null && ( mp.Deref.mp_flags & MDB_page.P_LEAF ) != 0 ) ) break;
+            var leaf = NODEPTR( mp, m3.Deref.mc_ki[ j - 1 ] );
+            if ( ( leaf.Deref.mn_flags & MDB_node.F_SUBDATA ) == 0 ) break;
+          }
+        }
+        mc = mc.Deref.mc_next;
+        for ( ; mc == null || mc == m0; mc = new Ptr<MDB_cursor>( txn.Deref.mt_cursors[ --i ] ) )
+        {
+          if ( i == 0 )
+          {
+            goto mark_done;
+          }
+        }
+      }
+
+
+      mark_done:
+      var rc = MDB_SUCCESS;
+      if ( all != 0 )
+      {
+        /* Mark dirty root pages */
+        for ( var i = 0; i < txn.Deref.mt_numdbs; i++ )
+        {
+          if ( ( txn.Deref.mt_dbflags[ i ] & MDB_txn.DB_DIRTY ) != 0 )
+          {
+            var pgno = txn.Deref.mt_dbs[ i ].md_root;
+            if ( pgno == P_INVALID ) continue;
+            rc = mdb_page_get( m0, pgno, out var dp, out var level );
+            if ( rc != MDB_SUCCESS ) break;
+            if ( ( dp.Deref.mp_flags & Mask ) == pflags && level <= 1 ) dp.Deref.mp_flags ^= MDB_page.P_KEEP;
+          }
+        }
+      }
+
+      return rc;
+    }
+
+    /**	Spill pages from the dirty list back to disk.
+     * This is intended to prevent running into #MDB_TXN_FULL situations,
+     * but note that they may still occur in a few cases:
+     *	1) our estimate of the txn size could be too small. Currently this
+     *	 seems unlikely, except with a large number of #MDB_MULTIPLE items.
+     *	2) child txns may run out of space if their parents dirtied a
+     *	 lot of pages and never spilled them. TODO: we probably should do
+     *	 a preemptive spill during #mdb_txn_begin() of a child txn, if
+     *	 the parent's dirty_room is below a given threshold.
+     *
+     * Otherwise, if not using nested txns, it is expected that apps will
+     * not run into #MDB_TXN_FULL any more. The pages are flushed to disk
+     * the same way as for a txn commit, e.g. their P_DIRTY flag is cleared.
+     * If the txn never references them again, they can be left alone.
+     * If the txn only reads them, they can be used without any fuss.
+     * If the txn writes them again, they can be dirtied immediately without
+     * going thru all of the work of #mdb_page_touch(). Such references are
+     * handled by #mdb_page_unspill().
+     *
+     * Also note, we never spill DB root pages, nor pages of active cursors,
+     * because we'll need these back again soon anyway. And in nested txns,
+     * we can't spill a page in a child txn if it was already spilled in a
+     * parent txn. That would alter the parent txns' data even though
+     * the child hasn't committed yet, and we'd have no way to undo it if
+     * the child aborted.
+     *
+     * @param[in] m0 cursor A cursor handle identifying the transaction and
+     *	database for which we are checking space.
+     * @param[in] key For a put operation, the key being stored.
+     * @param[in] data For a put operation, the data being stored.
+     * @return 0 on success, non-zero on failure.
+     */
+    [Line( 2273 )]
+    public static Int32 mdb_page_spill( Ptr<MDB_cursor> m0, Ptr<MDB_val> key, Ptr<MDB_val> data )
+    {
+      var txn = m0.Deref.mc_txn;
+      var dl = txn.Deref.dirty_list;
+      UInt64 j;
+      Int32 rc;
+
+      if ( ( m0.Deref.mc_flags & MDB_cursor.C_SUB ) != 0 ) return MDB_SUCCESS;
+
+      /* Estimate how much space this op will take */
+      UInt64 i = m0.Deref.mc_db.Deref.md_depth;
+      /* Named DBs also dirty the main DB */
+      if ( m0.Deref.mc_dbi >= CORE_DBS ) i += txn.Deref.mt_dbs[ MAIN_DBI ].md_depth;
+      /* For puts, roughly factor in the key+data size */
+      if ( key != null ) i += (UInt64)( ( LEAFSIZE( key, data ) + txn.Deref.mt_env.Deref.me_psize ) / txn.Deref.mt_env.Deref.me_psize );
+      i += i; /* double it for good measure */
+      var need = i;
+
+      if ( txn.Deref.mt_dirty_room > i ) return MDB_SUCCESS;
+
+      if ( txn.Deref.mt_spill_pgs[ 0 ] == 0 )
+      {
+        txn.Deref.mt_spill_pgs = mdb_midl_alloc( MDB_IDL_UM_MAX );
+        if ( txn.Deref.mt_spill_pgs[ 0 ] == 0 ) return ENOMEM;
+      }
+      else
+      {
+        /* purge deleted slots */
+        var sl = txn.Deref.mt_spill_pgs;
+        var num = sl[ 0 ];
+        j = 0;
+        for ( i = 1; i <= num; i++ )
+        {
+          if ( ( sl[ i ] & 1 ) == 0 ) sl[ ++j ] = sl[ i ];
+        }
+        sl[ 0 ] = j;
+      }
+
+      /* Preserve pages which may soon be dirtied again */
+      if ( ( rc = mdb_pages_xkeep( m0, MDB_page.P_DIRTY, 1 ) ) != MDB_SUCCESS ) goto done;
+
+      /* Less aggressive spill - we originally spilled the entire dirty list,
+       * with a few exceptions for cursor pages and DB root pages. But this
+       * turns out to be a lot of wasted effort because in a large txn many
+       * of those pages will need to be used again. So now we spill only 1/8th
+       * of the dirty pages. Testing revealed this to be a good tradeoff,
+       * better than 1/2, 1/4, or 1/10.
+       */
+      if ( need < MDB_IDL_UM_MAX / 8 ) need = MDB_IDL_UM_MAX / 8;
+
+      /* Save the page IDs of all the pages we're flushing */
+      /* flush from the tail forward, this saves a lot of shifting later on. */
+      for ( i = dl[ 0 ].mid; i != 0 && need != 0; i-- )
+      {
+        var pn = dl[ i ].mid << 1;
+        var dp = dl[ i ].mptr;
+        if ( ( dp.Deref.mp_flags & ( MDB_page.P_LOOSE | MDB_page.P_KEEP ) ) != 0 ) continue;
+        /* Can't spill twice, make sure it's not already in a parent's
+         * spill list.
+         */
+        if ( txn.Deref.mt_parent != null )
+        {
+          Ptr<MDB_txn> tx2;
+          for ( tx2 = txn.Deref.mt_parent; tx2 != null; tx2 = tx2.Deref.mt_parent )
+          {
+            if ( tx2.Deref.mt_spill_pgs[ 0 ] != 0 )
+            {
+              j = mdb_midl_search( tx2.Deref.mt_spill_pgs, pn );
+              if ( j <= tx2.Deref.mt_spill_pgs[ 0 ] && tx2.Deref.mt_spill_pgs[ j ] == pn )
+              {
+                dp.Deref.mp_flags |= MDB_page.P_KEEP;
+                break;
+              }
+            }
+          }
+          if ( tx2 != null ) continue;
+        }
+        if ( ( rc = mdb_midl_append( txn.Deref.mt_spill_pgs, pn ) ) != 0 ) goto done;
+        need--;
+      }
+      mdb_midl_sort( txn.Deref.mt_spill_pgs );
+
+      /* Flush the spilled part of dirty list */
+      if ( ( rc = mdb_page_flush( txn, (Int32)i ) ) != MDB_SUCCESS ) goto done;
+
+      /* Reset any dirty pages we kept that page_flush didn't see */
+      rc = mdb_pages_xkeep( m0, MDB_page.P_DIRTY | MDB_page.P_KEEP, (Int32)i );
+
+      done:
+      txn.Deref.mt_flags |= rc != MDB_SUCCESS ? MDB_txn.MDB_TXN_ERROR : MDB_txn.MDB_TXN_SPILLS;
+      return rc;
+    }
+
+    public static Int32 mdb_page_flush( Ptr<MDB_txn> txn, Int32 keep ) => throw new NotImplementedException();
+
+    /** Find oldest txnid still referenced. Expects txn->mt_txnid > 0. */
+    [Line( 2372 )]
+    public static txnid_t mdb_find_oldest( Ptr<MDB_txn> txn )
+    {
+      var oldest = txn.Deref.mt_txnid - 1;
+      if ( txn.Deref.mt_env.Deref.me_txns != null )
+      {
+        var r = txn.Deref.mt_env.Deref.me_txns.Deref.mti_readers;
+        for ( var i = (Int32) txn.Deref.mt_env.Deref.me_txns.Deref.mtb.mtb_numreaders; --i >= 0; )
+        {
+          if ( r[ i ].mrx.mrb_pid != 0 )
+          {
+            var mr = r[ i ].mrx.mrb_txnid;
+            if ( oldest > mr ) oldest = mr;
+          }
+        }
+      }
+      return oldest;
+    }
+
   }
 }
-
-/** @brief A handle for an individual database in the DB environment. */
-
-/** @brief Opaque structure for navigating through a database */

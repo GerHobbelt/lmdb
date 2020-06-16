@@ -3,24 +3,29 @@
 // ReSharper disable IdentifierTypo
 // ReSharper disable CommentTypo
 // ReSharper disable InvalidXmlDocComment
+// ReSharper disable UseObjectOrCollectionInitializer
+// ReSharper disable UseNullPropagation
+// ReSharper disable UnusedVariable
+// ReSharper disable RedundantAssignment
 
 using System;
-using MDB_ID = System.UInt32;
+using MDB_ID = System.UInt64;
 
 namespace LMDB.CLR
 {
   public static partial class Headers
   {
+    [Line( 32 )]
     public static Int32 CMP( MDB_ID x, MDB_ID y ) => x < y ? -1 : x > y ? 1 : 0;
 
     /* IDL sizes - likely should be even bigger
      *   limiting factors: sizeof(ID), thread stack size
      */
     public const Int32 MDB_IDL_LOGN = 16; /* DB_SIZE is 2^16, UM_SIZE is 2^17 */
-    public const Int32 MDB_IDL_DB_SIZE = 1 << MDB_IDL_LOGN;
-    public const Int32 MDB_IDL_UM_SIZE = 1 << MDB_IDL_LOGN + 1;
-    public const Int32 MDB_IDL_DB_MAX = MDB_IDL_DB_SIZE - 1;
-    public const Int32 MDB_IDL_UM_MAX = MDB_IDL_UM_SIZE - 1;
+    public const UInt32 MDB_IDL_DB_SIZE = 1 << MDB_IDL_LOGN;
+    public const UInt32 MDB_IDL_UM_SIZE = 1 << MDB_IDL_LOGN + 1;
+    public const UInt32 MDB_IDL_DB_MAX = MDB_IDL_DB_SIZE - 1;
+    public const UInt32 MDB_IDL_UM_MAX = MDB_IDL_UM_SIZE - 1;
 
     public static MDB_ID MDB_IDL_SIZEOF( MDB_ID[] ids ) => ( ids[ 0 ] + 1 ) * sizeof( MDB_ID );
     public static Boolean MDB_IDL_IS_ZERO( MDB_ID[] ids ) => ids[ 0 ] == 0;
@@ -49,15 +54,16 @@ namespace LMDB.CLR
      * @param[in] id	The ID to search for.
      * @return	The index of the first ID greater than or equal to \b id.
      */
-    public static UInt32 mdb_midl_search( MDB_ID[] ids, MDB_ID id )
+    [Line( 34 )]
+    public static UInt64 mdb_midl_search( Ptrs<MDB_ID> ids, MDB_ID id )
     {
       /*
        * binary search of id in ids
        * if found, returns position of id
        * if not found, returns first position greater than id
        */
-      UInt32 @base = 0;
-      UInt32 cursor = 1;
+      UInt64 @base = 0;
+      UInt64 cursor = 1;
       var val = 0;
       var n = ids[ 0 ];
 
@@ -91,10 +97,11 @@ namespace LMDB.CLR
      * Allocates memory for an IDL of the given size.
      * @return	IDL on success, NULL on failure.
      */
-    public static MDB_ID[] mdb_midl_alloc( UInt32 num )
+    [Line( 104 )]
+    public static Ptrs<MDB_ID> mdb_midl_alloc( UInt32 num )
     {
-      var ids = new MDB_ID[ num + 2 ]; // malloc((num+2) * sizeof(MDB_ID));
-      ids[ 0 ] = num;
+      var ids = new Ptrs<MDB_ID>( num + 2 ); // malloc((num+2) * sizeof(MDB_ID));
+      ids[ 0 ] = (UInt32)num;
       ids[ 1 ] = 0;
       return ids;
     }
@@ -102,28 +109,30 @@ namespace LMDB.CLR
     /** Free an IDL.
      * @param[in] ids	The IDL to free.
      */
-    public static void mdb_midl_free( MDB_ID[] ids )
+    [Line( 114 )]
+    public static void mdb_midl_free( Ptrs<MDB_ID> ids )
     {
-      throw new NotImplementedException();
-      //if ( ids != null ) free( ids - 1 );
+      if ( ids != null ) ids.Free( -1 );
     }
 
     /** Shrink an IDL.
      * Return the IDL to the default size if it has grown larger.
      * @param[in,out] idp	Address of the IDL to shrink.
      */
-    public static void mdb_midl_shrink( MDB_ID[] idp )
+    [Line( 120 )]
+    public static void mdb_midl_shrink( Ptr<Ptrs<MDB_ID>> idp )
     {
-      throw new NotImplementedException();
-      //var ids = idp;
+      var ids = idp.Deref;
       //if ( *( --ids ) > MDB_IDL_UM_MAX && ( ids = realloc( ids, ( MDB_IDL_UM_MAX + 2 ) * sizeof( MDB_ID ) ) ) )
       //{
       //  ids[0] = MDB_IDL_UM_MAX;
       //  ids[1] = ids;
       //}
+      throw new NotImplementedException();
     }
 
-    public static Int32 mdb_midl_grow( MDB_ID[] idp, Int32 num )
+    [Line( 131 )]
+    public static Int32 mdb_midl_grow( Ptr<Ptrs<MDB_ID>> idp, Int32 num )
     {
       throw new NotImplementedException();
       //MDB_ID[] idn = *idp - 1;
@@ -140,19 +149,20 @@ namespace LMDB.CLR
      * @param[in] num	Number of elements to make room for.
      * @return	0 on success, ENOMEM on failure.
      */
-    public static Int32 mdb_midl_need( ref MDB_ID[] idp, UInt32 num )
+    [Line( 143 )]
+    public static Int32 mdb_midl_need( Ptr<Ptrs<MDB_ID>> idp, UInt64 num )
     {
-      throw new NotImplementedException();
-      //var ids = idp;
-      //num += ids[ 0 ];
+      var ids = idp.Deref;
+      num += ids[ 0 ];
       //if ( num > ids[ -1 ] )
       //{
-      //  num = (UInt32)( ( num + num / 4 + ( 256 + 2 ) ) & -256 );
+      //  num = (UInt64)( ( num + num / 4 + ( 256 + 2 ) ) & -256 );
       //  //if (!(ids = realloc( ids-1, num* sizeof(MDB_ID)))) return ENOMEM;
       //  ids[ 0 ] = num - 2;
       //  idp = ids;
       //}
       //return 0;
+      throw new NotImplementedException();
     }
 
     /** Append an ID onto an IDL.
@@ -160,10 +170,10 @@ namespace LMDB.CLR
      * @param[in] id	The ID to append.
      * @return	0 on success, ENOMEM if the IDL is too large.
      */
-    public static Int32 mdb_midl_append( MDB_ID[] idp, MDB_ID id )
+    [Line( 157 )]
+    public static Int32 mdb_midl_append( Ptrs<MDB_ID> idp, MDB_ID id )
     {
-      throw new NotImplementedException();
-      //MDB_ID[] ids = idp;
+      var ids = idp.Deref;
       ///* Too big? */
       //if ( ids[ 0 ] >= ids[ -1 ] )
       //{
@@ -174,6 +184,7 @@ namespace LMDB.CLR
       //ids[ 0 ]++;
       //ids[ ids[ 0 ] ] = id;
       //return 0;
+      throw new NotImplementedException();
     }
 
     /** Append an IDL onto an IDL.
@@ -181,10 +192,10 @@ namespace LMDB.CLR
      * @param[in] app	The IDL to append.
      * @return	0 on success, ENOMEM if the IDL is too large.
      */
-    public static Int32 mdb_midl_append_list( MDB_ID[] idp, MDB_ID[] app )
+    [Line( 171 )]
+    public static Int32 mdb_midl_append_list( Ptr<Ptrs<MDB_ID>> idp, Ptrs<MDB_ID> app )
     {
-      throw new NotImplementedException();
-      //var ids = idp;
+      var ids = idp.Deref;
       ///* Too big? */
       //if (ids[0] + app[0] >= ids[-1]) {
       //	if (mdb_midl_grow(idp, app[0]))
@@ -194,6 +205,7 @@ namespace LMDB.CLR
       //memcpy(&ids[ids[0]+1], &app[1], app[0] * sizeof(MDB_ID));
       //ids[0] += app[0];
       //return 0;
+      throw new NotImplementedException();
     }
 
     /** Append an ID range onto an IDL.
@@ -202,33 +214,34 @@ namespace LMDB.CLR
      * @param[in] n		Number of IDs to append.
      * @return	0 on success, ENOMEM if the IDL is too large.
      */
-    public static Int32 mdb_midl_append_range( MDB_ID[] idp, MDB_ID id, UInt32 n )
+    [Line( 185 )]
+    public static Int32 mdb_midl_append_range( Ptr<Ptrs<MDB_ID>> idp, MDB_ID id, UInt32 n )
     {
-      throw new NotImplementedException();
-      //var ids = idp;
-      //var len = ids[ 0 ];
+      var ids = idp.Deref;
+      var len = ids[ 0 ];
       ///* Too big? */
       //if ( len + n > ids[ -1 ] )
       //{
       //  if ( mdb_midl_grow( idp, n | MDB_IDL_UM_MAX ) != 0 ) return ENOMEM;
       //  ids = idp;
       //}
-      //ids[ 0 ] = len + n;
+      ids[ 0 ] = len + n;
       //ids += len;
-      //while ( n != 0 )
-      //{
-      //  ids[ n-- ] = id++;
-      //}
+      while ( n != 0 )
+      {
+        ids[ n-- ] = id++;
+      }
       //return 0;
+      throw new NotImplementedException();
     }
 
     /** Merge an IDL onto an IDL. The destination IDL must be big enough.
      * @param[in] idl	The IDL to merge into.
      * @param[in] merge	The IDL to merge.
      */
-    public static void mdb_midl_xmerge( MDB_ID[] idl, MDB_ID[] merge )
+    [Line( 201 )]
+    public static void mdb_midl_xmerge( Ptrs<MDB_ID> idl, Ptrs<MDB_ID> merge )
     {
-      // throw new NotImplementedException();
       var i = merge[ 0 ];
       var j = idl[ 0 ];
       var k = i + j;
@@ -244,15 +257,16 @@ namespace LMDB.CLR
         idl[ k-- ] = merge_id;
       }
       idl[ 0 ] = total;
+      throw new NotImplementedException();
     }
 
     public const Int32 SMALL = 8;
 
-    public static void MIDL_SWAP( ref MDB_ID a, ref MDB_ID b )
+    public static void MIDL_SWAP( Ptrs<MDB_ID> ids, Int32 a, Int32 b )
     {
-      var itmp = a;
-      a = b;
-      b = itmp;
+      var itmp = ids[ a ];
+      ids[ a ] = ids[ b ];
+      ids[ b ] = itmp;
     }
 
     public const Int32 CHAR_BIT = 8;
@@ -260,7 +274,8 @@ namespace LMDB.CLR
     /** Sort an IDL.
      * @param[in,out] ids	The IDL to sort.
      */
-    public static void mdb_midl_sort( MDB_ID[] ids )
+    [Line( 220 )]
+    public static void mdb_midl_sort( Ptrs<MDB_ID> ids )
     {
       /* Max possible depth of int-indexed tree * 2 items/level */
       var istack = new Int32[ sizeof( Int32 ) * CHAR_BIT * 2 ];
@@ -292,10 +307,10 @@ namespace LMDB.CLR
         else
         {
           var k = ( l + ir ) >> 1;
-          MIDL_SWAP( ref ids[ k ], ref ids[ l + 1 ] );
-          if ( ids[ l ] < ids[ ir ] ) MIDL_SWAP( ref ids[ l ], ref ids[ ir ] );
-          if ( ids[ l + 1 ] < ids[ ir ] ) MIDL_SWAP( ref ids[ l + 1 ], ref ids[ ir ] );
-          if ( ids[ l ] < ids[ l + 1 ] ) MIDL_SWAP( ref ids[ l ], ref ids[ l + 1 ] );
+          MIDL_SWAP( ids, k, l + 1 );
+          if ( ids[ l ] < ids[ ir ] ) MIDL_SWAP( ids, l, ir );
+          if ( ids[ l + 1 ] < ids[ ir ] ) MIDL_SWAP( ids, l + 1, ir );
+          if ( ids[ l ] < ids[ l + 1 ] ) MIDL_SWAP( ids, l, l + 1 );
           i = l + 1;
           j = ir;
           a = ids[ l + 1 ];
@@ -304,7 +319,7 @@ namespace LMDB.CLR
             do i++; while ( ids[ i ] > a );
             do j--; while ( ids[ j ] < a );
             if ( j < i ) break;
-            MIDL_SWAP( ref ids[ i ], ref ids[ j ] );
+            MIDL_SWAP( ids, i, j );
           }
           ids[ l + 1 ] = ids[ j ];
           ids[ j ] = a;
@@ -330,7 +345,7 @@ namespace LMDB.CLR
     public class MDB_ID2
     {
       public MDB_ID mid;    /**< The ID */
-      public MDB_page mptr;   /**< The pointer */
+      public Ptr<MDB_page> mptr;   /**< The pointer */
     }
 
     /** An ID2L is an ID2 List, a sorted array of ID2s.
@@ -344,17 +359,18 @@ namespace LMDB.CLR
      * @param[in] id	The ID to search for.
      * @return	The index of the first ID2 whose \b mid member is greater than or equal to \b id.
      */
-    public static UInt32 mdb_mid2l_search( MDB_ID2[] ids, MDB_ID id )
+    [Line( 281 )]
+    public static UInt64 mdb_mid2l_search( Ptrs<MDB_ID2> ids, MDB_ID id )
     {
       /*
        * binary search of id in ids
        * if found, returns position of id
        * if not found, returns first position greater than id
        */
-      UInt32 @base = 0;
-      UInt32 cursor = 1;
+      UInt64 @base = 0;
+      UInt64 cursor = 1;
       var val = 0;
-      var n = (UInt32)ids[ 0 ].mid;
+      var n = ids[ 0 ].mid;
 
       while ( 0 < n )
       {
@@ -391,7 +407,8 @@ namespace LMDB.CLR
      * @param[in] id	The ID2 to insert.
      * @return	0 on success, -1 if the ID was already present in the ID2L.
      */
-    public static Int32 mdb_mid2l_insert( MDB_ID2[] ids, MDB_ID2 id )
+    [Line( 316 )]
+    public static Int32 mdb_mid2l_insert( Ptrs<MDB_ID2> ids, MDB_ID2 id )
     {
       var x = mdb_mid2l_search( ids, id.mid );
 
@@ -415,7 +432,8 @@ namespace LMDB.CLR
      * @param[in] id	The ID2 to append.
      * @return	0 on success, -2 if the ID2L is too big.
      */
-    public static Int32 mdb_mid2l_append( MDB_ID2[] ids, MDB_ID2 id )
+    [Line( 347 )]
+    public static Int32 mdb_mid2l_append( Ptrs<MDB_ID2> ids, MDB_ID2 id )
     {
       /* Too big? */
       if ( ids[ 0 ].mid >= MDB_IDL_UM_MAX ) return -2;
