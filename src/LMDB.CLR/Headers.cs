@@ -13,6 +13,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using mdb_mode_t = System.Int32;
 using mdb_size_t = System.Int64;
 using size_t = System.Int64;
@@ -304,10 +305,11 @@ namespace LMDB.CLR
      * The same applies to data sizes in databases with the #MDB_DUPSORT flag.
      * Other data items can in theory be from 0 to 0xffffffff bytes long.
      */
-    public class MDB_val
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_val
     {
       public size_t mv_size; /**< size of the data item */
-      public Object mv_data;  /**< address of the data item */
+      public Ptr<Byte> mv_data;  /**< address of the data item */
     }
 
     /** @brief A callback function used to compare two keys in a database */
@@ -1878,21 +1880,19 @@ namespace LMDB.CLR
 
     /** The actual reader record, with cacheline padding. */
     [Line( 812 )]
-    public class MDB_reader
+    [StructLayout( LayoutKind.Sequential, Size = MDB_rxbody.@sizeof + CACHELINE - 1 & ~( CACHELINE - 1 ) )]
+    public struct MDB_reader
     {
       internal const Int32 @sizeof = CACHELINE;
 
-      // TODO: this is a union
       //union {
       public MDB_rxbody mrx;
       /** shorthand for mrb_txnid */
-      //#define mr_txnid	mru.mrx.mrb_txnid
-      //#define mr_pid	mru.mrx.mrb_pid
-      //#define mr_tid	mru.mrx.mrb_tid
+      public txnid_t mr_txnid => mrx.mrb_txnid;
+      public MDB_PID_T mr_pid => mrx.mrb_pid;
+      public MDB_THR_T mr_tid => mrx.mrb_tid;
       /** cache line alignment */
-      public Byte[] pad = new Byte[ MDB_rxbody.@sizeof + CACHELINE - 1 & ~( CACHELINE - 1 ) ];
     }
-
 
     /** The header for the reader table.
      *	The table resides in a memory-mapped file. (This is a different file
@@ -1909,7 +1909,8 @@ namespace LMDB.CLR
      *	unlikely. If a collision occurs, the results are unpredictable.
      */
     [Line( 838 )]
-    public class MDB_txbody
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_txbody
     {
       internal const Int32 @sizeof = sizeof( uint32_t ) + sizeof( uint32_t ) + sizeof( txnid_t ) + sizeof( uint32_t ) + sizeof( mdb_hash_t );
 
@@ -1939,7 +1940,8 @@ namespace LMDB.CLR
      */
     /** The actual reader table definition. */
     [Line( 869 )]
-    public class MDB_txninfo
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_txninfo : IInit
     {
       // TODO: union
       //union {
@@ -1951,9 +1953,15 @@ namespace LMDB.CLR
       //#define mti_numreaders	mt1.mtb.mtb_numreaders
       //#define mti_mutexid	mt1.mtb.mtb_mutexid
 
-      public Byte[] pad = new Byte[ MDB_txbody.@sizeof + CACHELINE - 1 & ~( CACHELINE - 1 ) ];
+      public Byte[] pad;
       //}
-      public Ptrs<MDB_reader> mti_readers = new Ptrs<MDB_reader>( 1 );
+      public Ptrs<MDB_reader> mti_readers;
+
+      public void Init()
+      {
+        pad = new Byte[ MDB_txbody.@sizeof + CACHELINE - 1 & ~( CACHELINE - 1 ) ];
+        mti_readers = new Ptrs<MDB_reader>( 1 );
+      }
     }
 
 
@@ -1992,12 +2000,13 @@ namespace LMDB.CLR
      * in the snapshot: Either used by a database or listed in a freeDB record.
      */
     [Line( 969 )]
+    [StructLayout( LayoutKind.Sequential )]
     public struct MDB_page
     {
       internal const Int32 offset_of_mp_ptrs = sizeof( pgno_t ) + sizeof( Int64 ) + sizeof( uint16_t ) + sizeof( uint16_t ) + sizeof( indx_t ) + sizeof( indx_t ) + sizeof( uint32_t );
 
-      //#define	mp_pgno	mp_p.p_pgno
-      //#define	mp_next	mp_p.p_next
+      public pgno_t mp_pgno => p_pgno;
+      public Ptr<MDB_page> mp_next => p_next;
       // TODO: union
       //	union {
       public pgno_t p_pgno;  /**< page number */
@@ -2092,7 +2101,8 @@ namespace LMDB.CLR
      * a sub-page/sub-database, and named databases (just #F_SUBDATA).
      */
     [Line( 1062 )]
-    public class MDB_node
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_node : IInit
     {
       internal const Int32 offsetof_mn_data = sizeof( UInt16 ) + sizeof( UInt16 ) + sizeof( UInt16 ) + sizeof( UInt16 );
 
@@ -2116,7 +2126,12 @@ namespace LMDB.CLR
       /** @} */
       public UInt16 mn_flags;    /**< @ref mdb_node */
       public UInt16 mn_ksize;    /**< key size */
-      public Ptrs<Byte> mn_data = new Ptrs<Byte>( 1 );     /**< key and data are appended here */
+      public Ptrs<Byte> mn_data;     /**< key and data are appended here */
+
+      public void Init()
+      {
+        mn_data = new Ptrs<Byte>( 1 );
+      }
     }
 
     /** Size of the node header, excluding dynamic data at the end */
@@ -2128,7 +2143,7 @@ namespace LMDB.CLR
     /** Size of a node in a branch page with a given key.
      *	This is just the node header plus the key, there is no data.
      */
-    public static Int64 INDXSIZE( MDB_val k ) => NODESIZE + ( k == null ? 0 : k.mv_size );
+    public static Int64 INDXSIZE( Ptr<MDB_val> k ) => NODESIZE + ( k == null ? 0 : k.Deref.mv_size );
 
     /** Size of a node in a leaf page with a given key and data.
      *	This is node header plus key plus data size.
@@ -2199,7 +2214,7 @@ namespace LMDB.CLR
     [Line( 1162 )]
     public static void MDB_GET_KEY( Ptr<MDB_node> node, Ptr<MDB_val> keyptr )
     {
-      if ( keyptr.Deref != null )
+      if ( keyptr != null )
       {
         keyptr.Deref.mv_size = NODEKSZ( node );
         keyptr.Deref.mv_data = NODEKEY( node );
@@ -2215,7 +2230,8 @@ namespace LMDB.CLR
     }
     /** Information about a single database in the environment. */
     [Line( 1169 )]
-    public class MDB_db
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_db
     {
       public uint32_t md_pad;    /**< also ksize for LEAF2 pages */
       public uint16_t md_flags;  /**< @ref mdb_dbi_open */
@@ -2242,12 +2258,18 @@ namespace LMDB.CLR
     /** Number of meta pages - also hardcoded elsewhere */
     public const UInt32 NUM_METAS = 2;
 
+    public interface IInit
+    {
+      void Init();
+    }
+
     /** Meta page content.
      *	A meta page is the start point for accessing a database snapshot.
      *	Pages 0-1 are meta pages. Transaction N writes meta page #(N % 2).
      */
     [Line( 1200 )]
-    public class MDB_meta
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_meta : IInit
     {
       /** Stamp identifying this as an LMDB file. It must be set
        *	to #MDB_MAGIC. */
@@ -2257,7 +2279,7 @@ namespace LMDB.CLR
       public Ptr<Byte> mm_address;   /**< address for fixed mapping */
 
       public mdb_size_t mm_mapsize;     /**< size of mmap region */
-      public Ptrs<MDB_db> mm_dbs = new Ptrs<MDB_db>( CORE_DBS ); /**< first is free space, 2nd is main db */
+      public Ptrs<MDB_db> mm_dbs; /**< first is free space, 2nd is main db */
       /** The size of pages used in this DB */
       public UInt32 mm_psize => mm_dbs[ FREE_DBI ].md_pad;
       /** Any persistent environment flags. @ref mdb_env */
@@ -2267,6 +2289,11 @@ namespace LMDB.CLR
        */
       public pgno_t mm_last_pg;
       public volatile txnid_t mm_txnid;  /**< txnid that committed this page */
+
+      public void Init()
+      {
+        mm_dbs = new Ptrs<MDB_db>( CORE_DBS );
+      }
     }
 
     /** Buffer for a stack-allocated meta page.
@@ -2275,13 +2302,19 @@ namespace LMDB.CLR
      *	mean incorrectly using several union members in parallel.
      */
     [Line( 1233 )]
-    public class MDB_metabuf
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_metabuf : IInit
     {
       public MDB_page mb_page;
       //struct {
-      public Ptrs<Byte> mm_pad = new Ptrs<Byte>( PAGEHDRSZ );
+      public Ptrs<Byte> mm_pad;
       public MDB_meta mm_meta;
       //} mb_metabuf;
+
+      public void Init()
+      {
+        mm_pad = new Ptrs<Byte>( PAGEHDRSZ );
+      }
     }
 
     /** Auxiliary DB info.
@@ -2289,7 +2322,8 @@ namespace LMDB.CLR
      *	only a single copy of this record in the environment.
      */
     [Line( 1245 )]
-    public class MDB_dbx
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_dbx
     {
       public MDB_val md_name;    /**< name of the database */
       public MDB_cmp_func md_cmp; /**< function for comparing keys */
@@ -2302,7 +2336,8 @@ namespace LMDB.CLR
      *	Every operation requires a transaction handle.
      */
     [Line( 1256 )]
-    public class MDB_txn
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_txn
     {
       public Ptr<MDB_txn> mt_parent;   /**< parent of a nested txn */
       /** Nested txn under this txn, set together with flag #MDB_TXN_HAS_CHILD */
@@ -2396,7 +2431,8 @@ namespace LMDB.CLR
     public const Int32 CURSOR_STACK = 32;
 
     [Line( 1364 )]
-    public class MDB_cursor
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_cursor : IInit
     {
       /** Next cursor on this DB in this txn */
       public Ptr<MDB_cursor> mc_next;
@@ -2434,10 +2470,22 @@ namespace LMDB.CLR
       public const UInt32 C_ORIG_RDONLY = MDB_txn.MDB_TXN_RDONLY;
       /** @} */
       public UInt32 mc_flags;  /**< @ref mdb_cursor */
-      public Ptrs<Ptr<MDB_page>> mc_pg = new Ptrs<Ptr<MDB_page>>( CURSOR_STACK );  /**< stack of pushed pages */
-      public Ptrs<indx_t> mc_ki = new Ptrs<indx_t>( CURSOR_STACK ); /**< stack of page indices */
+      public Ptrs<Ptr_MDB_page> mc_pg;// = new Ptrs<Ptr<MDB_page>>( CURSOR_STACK );  /**< stack of pushed pages */
+      public Ptrs<indx_t> mc_ki; // = new Ptrs<indx_t>( CURSOR_STACK ); /**< stack of page indices */
       public static Object MC_OVPG( Object mc ) => null;
       public static Object MC_SET_OVPG( Object mc, Object pg ) => null;
+
+      public void Init()
+      {
+        mc_pg = new Ptrs<Ptr_MDB_page>( CURSOR_STACK );  /**< stack of pushed pages */
+      }
+    }
+
+    public struct Ptr_MDB_page
+    {
+      public MDB_page Deref;
+      
+      public static implicit operator Ptr<MDB_page>( Ptr_MDB_page a ) => new Ptr<MDB_page>( a.Deref );
     }
 
     /** Context for sorted-dup records.
@@ -2446,7 +2494,8 @@ namespace LMDB.CLR
      *	levels - main DB, optional sub-DB, sorted-duplicate DB.
      */
     [Line( 1428 )]
-    public class MDB_xcursor
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_xcursor
     {
       /** A sub-cursor for traversing the Dup DB */
       public MDB_cursor mx_cursor;
@@ -2481,7 +2530,8 @@ namespace LMDB.CLR
 
     /** State of FreeDB old pages, stored in the MDB_env */
     [Line( 1457 )]
-    public class MDB_pgstate
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_pgstate
     {
       public Ptr<pgno_t> mf_pghead;  /**< Reclaimed freeDB pages, or NULL before use */
       public txnid_t mf_pglast;  /**< ID of last used record, or 0 if !mf_pghead */
@@ -2494,7 +2544,8 @@ namespace LMDB.CLR
      */
     /** The database environment. */
     [Line( 1463 )]
-    public class MDB_env
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_env : IInit
     {
       public HANDLE me_fd;    /**< The main data file */
       public HANDLE me_lfd;   /**< The lock file */
@@ -2520,7 +2571,7 @@ namespace LMDB.CLR
       public String me_path;    /**< path to the DB files */
       public Ptrs<Byte> me_map;   /**< the memory map of the data file */
       public Ptr<MDB_txninfo> me_txns;   /**< the memory map of the lock file or NULL */
-      public Ptrs<Ptr<MDB_meta>> me_metas = new Ptrs<Ptr<MDB_meta>>( NUM_METAS );  /**< pointers to the two meta pages */
+      public Ptrs<Ptr_MDB_meta> me_metas;  /**< pointers to the two meta pages */
       public Ptrs<Byte> me_pbuf;    /**< scratch area for DUPSORT put() */
       public Ptr<MDB_txn> me_txn;    /**< current write transaction */
       public Ptr<MDB_txn> me_txn0;   /**< prealloc'd write transaction */
@@ -2553,11 +2604,22 @@ namespace LMDB.CLR
       public String me_mutexname;
       public Ptrs<Byte> me_userctx;  /**< User-settable context */
       public MDB_assert_func me_assert_func; /**< Callback for assertion failures */
+
+      public void Init()
+      {
+        me_metas = new Ptrs<Ptr_MDB_meta>( NUM_METAS );
+      }
+    }
+
+    public struct Ptr_MDB_meta
+    {
+      public MDB_meta Deref;
     }
 
     /** Nested transaction */
     [Line( 1549 )]
-    public class MDB_ntxn
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_ntxn
     {
       public MDB_txn mnt_txn;   /**< the transaction */
       public MDB_pgstate mnt_pgstate; /**< parent transaction's saved freestate */
@@ -2569,7 +2631,7 @@ namespace LMDB.CLR
     public const UInt32 MAX_WRITE = 0x40000000U;
 
     [Line( 1565 )]
-    public static Boolean TXN_DBI_EXIST( Ptr<MDB_txn> txn, Int32 dbi, Byte validity ) => txn.Deref != null && dbi < txn.Deref.mt_numdbs && ( txn.Deref.mt_dbflags[ dbi ] & validity ) != 0;
+    public static Boolean TXN_DBI_EXIST( Ptr<MDB_txn> txn, Int32 dbi, Byte validity ) => txn != null && dbi < txn.Deref.mt_numdbs && ( txn.Deref.mt_dbflags[ dbi ] & validity ) != 0;
 
     /** Check for misused \b dbi handles */
     [Line( 1569 )]
@@ -2666,7 +2728,8 @@ namespace LMDB.CLR
     public static Object mdb_all_sa; // SECURITY_ATTRIBUTES
     public static Int32 mdb_sec_inited;
 
-    public class MDB_name
+    [StructLayout( LayoutKind.Sequential )]
+    public struct MDB_name
     {
     }
 
@@ -3193,7 +3256,7 @@ namespace LMDB.CLR
       if ( txn.Deref.mt_env.Deref.me_txns != null )
       {
         var r = txn.Deref.mt_env.Deref.me_txns.Deref.mti_readers;
-        for ( var i = (Int32) txn.Deref.mt_env.Deref.me_txns.Deref.mtb.mtb_numreaders; --i >= 0; )
+        for ( var i = (Int32)txn.Deref.mt_env.Deref.me_txns.Deref.mtb.mtb_numreaders; --i >= 0; )
         {
           if ( r[ i ].mrx.mrb_pid != 0 )
           {
@@ -3205,5 +3268,18 @@ namespace LMDB.CLR
       return oldest;
     }
 
+    /** Add a page to the txn's dirty list */
+    [Line( 2391 )]
+    public static void mdb_page_dirty( Ptr<MDB_txn> txn, Ptr<MDB_page> mp )
+    {
+      MDB_ID2 mid;
+      /* With Windows we always write dirty pages with WriteFile,
+               * so we always want them ordered */
+      mid.mid = mp.Deref.mp_pgno;
+      mid.mptr = mp;
+      var rc = mdb_mid2l_insert( txn.Deref.dirty_list, mid );
+      mdb_tassert( txn, rc == 0 );
+      txn.Deref.mt_dirty_room--;
+    }
   }
 }

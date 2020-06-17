@@ -4,7 +4,7 @@
 
 namespace LMDB.CLR
 {
-  public class Ptrs<T>
+  public class Ptrs<T> where T : struct
   {
     public Ptrs( Int32 count ) => _values = new T[ count ];
 
@@ -12,11 +12,11 @@ namespace LMDB.CLR
 
     private readonly T[] _values;
 
-    public T this[ Int32 index ] { get => _values[ index ]; set => _values[ index ] = value; }
+    public ref T this[ Int32 index ] => ref _values[ index ];
 
-    public T this[ UInt32 index ] { get => _values[ (Int32)index ]; set => _values[ (Int32)index ] = value; }
+    public ref T this[ UInt32 index ] => ref _values[ (Int32)index ];
 
-    public T this[ UInt64 index ] { get => _values[ (Int32)index ]; set => _values[ (Int32)index ] = value; }
+    public ref T this[ UInt64 index ] => ref _values[ (Int32)index ];
 
     public ref T Deref => ref _values[ 0 ];
 

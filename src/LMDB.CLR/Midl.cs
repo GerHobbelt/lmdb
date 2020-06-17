@@ -342,7 +342,7 @@ namespace LMDB.CLR
 
     /** An ID2 is an ID/pointer pair.
      */
-    public class MDB_ID2
+    public struct MDB_ID2
     {
       public MDB_ID mid;    /**< The ID */
       public Ptr<MDB_page> mptr;   /**< The pointer */
