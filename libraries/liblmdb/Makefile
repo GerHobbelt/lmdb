@@ -18,12 +18,25 @@
 # There may be other macros in mdb.c of interest. You should
 # read mdb.c before changing any of them.
 #
-CC	= gcc
+CC	= xlc
 AR	= ar
-W	= -W -Wall -Wno-unused-parameter -Wbad-function-cast -Wuninitialized
-THREADS = -pthread
-OPT = -O2 -g
+W	= -Wc,'lang(extc1x),arch(12),float(ieee)' \
+	-qlist=$@.lst \
+	-q64 \
+	-D_XOPEN_SOURCE=600 \
+	-D_UNIX03_THREADS \
+	-D_OPEN_SYS \
+	-D_XOPEN_SOURCE_EXTENDED=1 \
+	-DCACHELINE=256 \
+	-DMDB_FDATASYNC="fsync" \
+	-DMDB_USE_SHM_MUTEX \
+	-DBIG_ENDIAN=4321 \
+	-DBYTE_ORDER=BIG_ENDIAN \
+	-DMISALIGNED_OK=1
+THREADS =
+OPT = -O2
 CFLAGS	= $(THREADS) $(OPT) $(W) $(XCFLAGS)
+LDFLAGS	= -q64
 LDLIBS	= 
 SOLIBS	= 
 SOEXT	= .so
@@ -61,12 +74,28 @@ test:	all
 	rm -rf testdb && mkdir testdb
 	./mtest && ./mdb_stat testdb
 
+test2:	all
+	rm -rf testdb && mkdir testdb
+	./mtest2 && ./mdb_stat testdb
+	
+test3:	all
+	rm -rf testdb && mkdir testdb
+	./mtest3 && ./mdb_stat testdb
+
+test4:	all
+	rm -rf testdb && mkdir testdb
+	./mtest4 && ./mdb_stat testdb
+
+test5:	all
+	rm -rf testdb && mkdir testdb
+	./mtest5 && ./mdb_stat testdb
+
 liblmdb.a:	mdb.o midl.o
 	$(AR) rs $@ mdb.o midl.o
 
-liblmdb$(SOEXT):	mdb.lo midl.lo
+liblmdb$(SOEXT):	mdbx.o midlx.o
 #	$(CC) $(LDFLAGS) -pthread -shared -Wl,-Bsymbolic -o $@ mdb.o midl.o $(SOLIBS)
-	$(CC) $(LDFLAGS) -pthread -shared -o $@ mdb.lo midl.lo $(SOLIBS)
+	$(CC) $(LDFLAGS) -o $@ mdbx.o midlx.o $(SOLIBS)
 
 mdb_stat: mdb_stat.o liblmdb.a
 mdb_copy: mdb_copy.o liblmdb.a
@@ -86,11 +115,11 @@ mdb.o: mdb.c lmdb.h midl.h
 midl.o: midl.c midl.h
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c midl.c
 
-mdb.lo: mdb.c lmdb.h midl.h
-	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -c mdb.c -o $@
+mdbx.o: mdb.c lmdb.h midl.h
+	$(CC) $(CFLAGS) $(CPPFLAGS) -Wc,exportall -c mdb.c -o $@
 
-midl.lo: midl.c midl.h
-	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -c midl.c -o $@
+midlx.o: midl.c midl.h
+	$(CC) $(CFLAGS) $(CPPFLAGS) -Wc,exportall -c midl.c -o $@
 
 %:	%.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@

@@ -102,9 +102,17 @@ static NtCloseFunc *NtClose;
 #include <sys/stat.h>
 #define MDB_PID_T	pid_t
 #define MDB_THR_T	pthread_t
+# ifndef __MVS__
 #include <sys/param.h>
+# else
+#pragma runopts("POSIX(ON)")
+# endif
 #include <sys/uio.h>
 #include <sys/mman.h>
+#  ifdef MDB_USE_SHM_MUTEX
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#  endif
 #ifdef HAVE_SYS_FILE_H
 #include <sys/file.h>
 #endif
@@ -786,6 +794,21 @@ typedef unsigned long long	mdb_hash_t;
 	 */
 #ifndef CACHELINE
 #define CACHELINE	64
+#endif
+
+#ifdef MDB_USE_SHM_MUTEX
+typedef struct MDB_shmem {
+	union {
+		mdb_mutex_t	ms1_rmutex;
+#define msh_rmutex	ms1.ms1_rmutex
+		char pad[(MNAME_LEN+CACHELINE-1) & ~(CACHELINE-1)];
+	} ms1;
+	union {
+		mdb_mutex_t	ms2_wmutex;
+#define msh_wmutex	ms2.ms2_wmutex
+		char pad[(MNAME_LEN+CACHELINE-1) & ~(CACHELINE-1)];
+	} ms2;
+} MDB_shmem;
 #endif
 
 	/**	The information we store in a single slot of the reader table.
@@ -1493,6 +1516,10 @@ struct MDB_env {
 	char		*me_path;		/**< path to the DB files */
 	char		*me_map;		/**< the memory map of the data file */
 	MDB_txninfo	*me_txns;		/**< the memory map of the lock file or NULL */
+#ifdef MDB_USE_SHM_MUTEX
+	MDB_shmem	*me_shm;
+	int 		me_shmid;
+#endif
 	MDB_meta	*me_metas[NUM_METAS];	/**< pointers to the two meta pages */
 	void		*me_pbuf;		/**< scratch area for DUPSORT put() */
 	MDB_txn		*me_txn;		/**< current write transaction */
@@ -1527,8 +1554,13 @@ struct MDB_env {
 	int		ovs;				/**< Count of OVERLAPPEDs */
 #endif
 #ifdef MDB_USE_POSIX_MUTEX	/* Posix mutexes reside in shared mem */
+#  ifdef MDB_USE_SHM_MUTEX
+#	define		me_rmutex	me_shm->msh_rmutex /**< Shared reader lock */
+#	define		me_wmutex	me_shm->msh_wmutex /**< Shared writer lock */
+#  else
 #	define		me_rmutex	me_txns->mti_rmutex /**< Shared reader lock */
 #	define		me_wmutex	me_txns->mti_wmutex /**< Shared writer lock */
+#  endif
 #else
 	mdb_mutex_t	me_rmutex;
 	mdb_mutex_t	me_wmutex;
@@ -5435,8 +5467,8 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 		 * it may skip the init and return EBUSY "seems someone already
 		 * inited" or EINVAL "it was inited differently".
 		 */
-		memset(env->me_txns->mti_rmutex, 0, sizeof(*env->me_txns->mti_rmutex));
-		memset(env->me_txns->mti_wmutex, 0, sizeof(*env->me_txns->mti_wmutex));
+		memset(env->me_rmutex, 0, sizeof(*env->me_rmutex));
+		memset(env->me_wmutex, 0, sizeof(*env->me_wmutex));
 
 		if ((rc = pthread_mutexattr_init(&mattr)) != 0)
 			goto fail;
@@ -5444,8 +5476,8 @@ mdb_env_setup_locks(MDB_env *env, MDB_name *fname, int mode, int *excl)
 #ifdef MDB_ROBUST_SUPPORTED
 		if (!rc) rc = pthread_mutexattr_setrobust(&mattr, PTHREAD_MUTEX_ROBUST);
 #endif
-		if (!rc) rc = pthread_mutex_init(env->me_txns->mti_rmutex, &mattr);
-		if (!rc) rc = pthread_mutex_init(env->me_txns->mti_wmutex, &mattr);
+		if (!rc) rc = pthread_mutex_init(env->me_rmutex, &mattr);
+		if (!rc) rc = pthread_mutex_init(env->me_wmutex, &mattr);
 		pthread_mutexattr_destroy(&mattr);
 		if (rc)
 			goto fail;
@@ -5547,6 +5579,10 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 	}
 #endif
 	flags |= env->me_flags;
+#ifdef __MVS__
+	flags |= MDB_WRITEMAP;
+	flags &= ~MDB_FIXEDMAP;
+#endif
 
 	rc = mdb_fname_init(path, flags, &fname);
 	if (rc)
@@ -5601,6 +5637,28 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 		goto leave;
 	}
 	env->me_dbxs[FREE_DBI].md_cmp = mdb_cmp_long; /* aligned MDB_INTEGERKEY */
+
+#ifdef MDB_USE_SHM_MUTEX
+	key_t key = ftok(env->me_path, 'M');
+	if (key == -1) {
+		perror("ftok");
+		goto leave;
+	}
+	int shmid;
+	shmid = shmget(key, 4096, IPC_CREAT | 0666);
+	if (shmid < 0) {
+		perror("shmget");
+		goto leave;
+	}
+	env->me_shmid = shmid;
+	void *shmad = NULL;
+	shmad = shmat(shmid, NULL, 0);
+	if ((long)shmad < 0) {
+		perror("shmat");
+		goto leave;
+	}
+	env->me_shm = shmad;
+#endif
 
 	/* For RDONLY, get lockfile after we know datafile exists */
 	if (!(flags & (MDB_RDONLY|MDB_NOLOCK))) {
@@ -5698,6 +5756,28 @@ mdb_env_close0(MDB_env *env, int excl)
 			free(env->me_dbxs[i].md_name.mv_data);
 		free(env->me_dbxs);
 	}
+
+#ifdef MDB_USE_SHM_MUTEX
+	struct shmid_ds shmi;
+	int rc = 0;
+	/* Detach from Shared Memory */
+	rc = shmdt(env->me_shm);
+	if (rc < 0) {
+		perror("shmdt");
+	}
+	/* Check if creator's pid of Shared Memory is the current pid */
+	rc = shmctl(env->me_shmid, IPC_STAT, &shmi);
+	if (rc < 0) {
+		perror("shmctl - STAT");
+	}
+	if (env->me_pid == shmi.shm_cpid) {
+		/* Remove Shared Memory */
+		rc = shmctl(env->me_shmid, IPC_RMID, NULL);
+		if (rc < 0) {
+			perror("shmctl - RMID");
+		}
+	}
+#endif
 
 	free(env->me_pbuf);
 	free(env->me_dbiseqs);
@@ -5805,8 +5885,8 @@ mdb_env_close0(MDB_env *env, int excl)
 		if (excl == 0)
 			mdb_env_excl_lock(env, &excl);
 		if (excl > 0) {
-			pthread_mutex_destroy(env->me_txns->mti_rmutex);
-			pthread_mutex_destroy(env->me_txns->mti_wmutex);
+			pthread_mutex_destroy(env->me_rmutex);
+			pthread_mutex_destroy(env->me_wmutex);
 		}
 #endif
 		munmap((void *)env->me_txns, (env->me_maxreaders-1)*sizeof(MDB_reader)+sizeof(MDB_txninfo));
@@ -11120,6 +11200,18 @@ mdb_env_get_maxkeysize(MDB_env *env)
 	return ENV_MAXKEY(env);
 }
 
+#ifdef __MVS__
+long char2long(volatile char *cptr)
+{
+	union {
+		char ctmp[8];
+		long cint;
+	} tmp;
+	memcpy((void*)tmp.ctmp, (const void*)cptr, 8);
+	return tmp.cint;
+}
+#endif
+
 int ESECT
 mdb_reader_list(MDB_env *env, MDB_msg_func *func, void *ctx)
 {
@@ -11138,9 +11230,16 @@ mdb_reader_list(MDB_env *env, MDB_msg_func *func, void *ctx)
 	for (i=0; i<rdrs; i++) {
 		if (mr[i].mr_pid) {
 			txnid_t	txnid = mr[i].mr_txnid;
+#ifdef __MVS__
+			sprintf(buf, txnid == (txnid_t)-1 ?
+				"%10d %"Z"x -\n" : "%10d %"Z"x %"Yu"\n",
+				(int)mr[i].mr_pid,
+				(size_t)char2long(mr[i].mr_tid.__), txnid);
+#else
 			sprintf(buf, txnid == (txnid_t)-1 ?
 				"%10d %"Z"x -\n" : "%10d %"Z"x %"Yu"\n",
 				(int)mr[i].mr_pid, (size_t)mr[i].mr_tid, txnid);
+#endif
 			if (first) {
 				first = 0;
 				rc = func("    pid     thread     txnid\n", ctx);
