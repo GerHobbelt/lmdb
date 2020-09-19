@@ -5,7 +5,7 @@
  *	BerkeleyDB API, but much simplified.
  */
 /*
- * Copyright 2011-2019 Howard Chu, Symas Corp.
+ * Copyright 2011-2020 Howard Chu, Symas Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -124,7 +124,10 @@ typedef SSIZE_T	ssize_t;
 #include <resolv.h>	/* defines BYTE_ORDER on HPUX and Solaris */
 #endif
 
-#if defined(__APPLE__) || defined (BSD) || defined(__FreeBSD_kernel__)
+#if defined(__FreeBSD__) && defined(__FreeBSD_version) && __FreeBSD_version >= 1100110
+# define MDB_USE_POSIX_MUTEX	1
+# define MDB_USE_ROBUST	1
+#elif defined(__APPLE__) || defined (BSD) || defined(__FreeBSD_kernel__)
 # define MDB_USE_POSIX_SEM	1
 # define MDB_FDATASYNC		fsync
 #elif defined(ANDROID)
@@ -1375,7 +1378,7 @@ static int	mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata,
 static int  mdb_env_read_header(MDB_env *env, MDB_meta *meta);
 static MDB_meta *mdb_env_pick_meta(const MDB_env *env);
 static int  mdb_env_write_meta(MDB_txn *txn);
-#ifdef MDB_USE_POSIX_MUTEX /* Drop unused excl arg */
+#if defined(MDB_USE_POSIX_MUTEX) && !defined(MDB_ROBUST_SUPPORTED) /* Drop unused excl arg */
 # define mdb_env_close0(env, excl) mdb_env_close1(env)
 #endif
 static void mdb_env_close0(MDB_env *env, int excl);
@@ -3027,9 +3030,9 @@ mdb_txn_end(MDB_txn *txn, unsigned mode)
 			txn->mt_parent->mt_flags &= ~MDB_TXN_HAS_CHILD;
 			env->me_pgstate = ((MDB_ntxn *)txn)->mnt_pgstate;
 			mdb_midl_free(txn->mt_free_pgs);
-			mdb_midl_free(txn->mt_spill_pgs);
 			free(txn->mt_u.dirty_list);
 		}
+		mdb_midl_free(txn->mt_spill_pgs);
 
 		mdb_midl_free(pghead);
 	}
@@ -3109,9 +3112,9 @@ mdb_freelist_save(MDB_txn *txn)
 			} else {
 				x = mdb_mid2l_search(dl, mp->mp_pgno);
 				mdb_tassert(txn, dl[x].mid == mp->mp_pgno);
+				mdb_dpage_free(env, mp);
 			}
 			dl[x].mptr = NULL;
-			mdb_dpage_free(env, mp);
 		}
 		{
 			/* squash freed slots out of the dirty list */
@@ -3991,9 +3994,9 @@ mdb_env_map(MDB_env *env, void *addr)
 		 * and won't map more than the file size.
 		 * Just set the maxsize right now.
 		 */
-		if (SetFilePointer(env->me_fd, sizelo, &sizehi, 0) != (DWORD)sizelo
+		if (!(flags & MDB_WRITEMAP) && (SetFilePointer(env->me_fd, sizelo, &sizehi, 0) != (DWORD)sizelo
 			|| !SetEndOfFile(env->me_fd)
-			|| SetFilePointer(env->me_fd, 0, NULL, 0) != 0)
+			|| SetFilePointer(env->me_fd, 0, NULL, 0) != 0))
 			return ErrCode();
 	}
 
@@ -4010,13 +4013,18 @@ mdb_env_map(MDB_env *env, void *addr)
 	if (rc)
 		return rc;
 #else
+	int mmap_flags = MAP_SHARED;
 	int prot = PROT_READ;
+#ifdef MAP_NOSYNC	/* Used on FreeBSD */
+	if (flags & MDB_NOSYNC)
+		mmap_flags |= MAP_NOSYNC;
+#endif
 	if (flags & MDB_WRITEMAP) {
 		prot |= PROT_WRITE;
 		if (ftruncate(env->me_fd, env->me_mapsize) < 0)
 			return ErrCode();
 	}
-	env->me_map = mmap(addr, env->me_mapsize, prot, MAP_SHARED,
+	env->me_map = mmap(addr, env->me_mapsize, prot, mmap_flags,
 		env->me_fd, 0);
 	if (env->me_map == MAP_FAILED) {
 		env->me_map = NULL;
@@ -5127,6 +5135,17 @@ mdb_env_close0(MDB_env *env, int excl)
 				sem_unlink(env->me_txns->mti_rmname);
 				sem_unlink(env->me_txns->mti_wmname);
 			}
+		}
+#elif defined(MDB_ROBUST_SUPPORTED)
+		/* If we have the filelock:  If we are the
+		 * only remaining user, clean up robust
+		 * mutexes.
+		 */
+		if (excl == 0)
+			mdb_env_excl_lock(env, &excl);
+		if (excl > 0) {
+			pthread_mutex_destroy(env->me_txns->mti_rmutex);
+			pthread_mutex_destroy(env->me_txns->mti_wmutex);
 		}
 #endif
 		munmap((void *)env->me_txns, (env->me_maxreaders-1)*sizeof(MDB_reader)+sizeof(MDB_txninfo));
@@ -6780,7 +6799,7 @@ more:
 						offset *= 4; /* space for 4 more */
 						break;
 					}
-					/* FALLTHRU: Big enough MDB_DUPFIXED sub-page */
+					/* FALLTHRU */ /* Big enough MDB_DUPFIXED sub-page */
 				case MDB_CURRENT:
 					fp->mp_flags |= P_DIRTY;
 					COPY_PGNO(fp->mp_pgno, mp->mp_pgno);
@@ -8749,7 +8768,7 @@ mdb_page_split(MDB_cursor *mc, MDB_val *newkey, MDB_val *newdata, pgno_t newpgno
 			 * the split so the new page is emptier than the old page.
 			 * This yields better packing during sequential inserts.
 			 */
-			if (nkeys < 20 || nsize > pmax/16 || newindx >= nkeys) {
+			if (nkeys < 32 || nsize > pmax/16 || newindx >= nkeys) {
 				/* Find split point */
 				psize = 0;
 				if (newindx <= split_indx || newindx >= nkeys) {
