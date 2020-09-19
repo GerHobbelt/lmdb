@@ -1,15 +1,15 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27130.2027
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30503.244
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lmdb-static", "msbuild\lmdb-static.vcxproj", "{F22D082B-B83C-4DE1-AB1E-E82006982C8C}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lmdb", "msbuild\lmdb.vcxproj", "{EC4530AC-9CDA-43C5-B1F7-9D667EEE0C97}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lmdb-static-standalone", "msbuild\lmdb-static-standalone.vcxproj", "{E6B06B44-A79B-47F7-BCA6-EEF9B8F94A88}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lmdb-static-standalone", "msbuild\lmdb-static-standalone.vcxproj", "{285FBA51-B4A7-4F1A-BD0A-6E0B5D6545DF}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lmdb-standalone", "msbuild\lmdb-standalone.vcxproj", "{2E12AEF8-D2D6-4067-9BA1-C925DC979B64}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lmdb-standalone", "msbuild\lmdb-standalone.vcxproj", "{E1E7AB91-2C14-47D8-8600-1A08F248ABC1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -37,22 +37,22 @@ Global
 		{EC4530AC-9CDA-43C5-B1F7-9D667EEE0C97}.Release|Win32.Build.0 = Release|Win32
 		{EC4530AC-9CDA-43C5-B1F7-9D667EEE0C97}.Release|x64.ActiveCfg = Release|x64
 		{EC4530AC-9CDA-43C5-B1F7-9D667EEE0C97}.Release|x64.Build.0 = Release|x64
-		{E6B06B44-A79B-47F7-BCA6-EEF9B8F94A88}.Debug|Win32.ActiveCfg = Debug|Win32
-		{E6B06B44-A79B-47F7-BCA6-EEF9B8F94A88}.Debug|Win32.Build.0 = Debug|Win32
-		{E6B06B44-A79B-47F7-BCA6-EEF9B8F94A88}.Debug|x64.ActiveCfg = Debug|x64
-		{E6B06B44-A79B-47F7-BCA6-EEF9B8F94A88}.Debug|x64.Build.0 = Debug|x64
-		{E6B06B44-A79B-47F7-BCA6-EEF9B8F94A88}.Release|Win32.ActiveCfg = Release|Win32
-		{E6B06B44-A79B-47F7-BCA6-EEF9B8F94A88}.Release|Win32.Build.0 = Release|Win32
-		{E6B06B44-A79B-47F7-BCA6-EEF9B8F94A88}.Release|x64.ActiveCfg = Release|x64
-		{E6B06B44-A79B-47F7-BCA6-EEF9B8F94A88}.Release|x64.Build.0 = Release|x64
-		{2E12AEF8-D2D6-4067-9BA1-C925DC979B64}.Debug|Win32.ActiveCfg = Debug|Win32
-		{2E12AEF8-D2D6-4067-9BA1-C925DC979B64}.Debug|Win32.Build.0 = Debug|Win32
-		{2E12AEF8-D2D6-4067-9BA1-C925DC979B64}.Debug|x64.ActiveCfg = Debug|x64
-		{2E12AEF8-D2D6-4067-9BA1-C925DC979B64}.Debug|x64.Build.0 = Debug|x64
-		{2E12AEF8-D2D6-4067-9BA1-C925DC979B64}.Release|Win32.ActiveCfg = Release|Win32
-		{2E12AEF8-D2D6-4067-9BA1-C925DC979B64}.Release|Win32.Build.0 = Release|Win32
-		{2E12AEF8-D2D6-4067-9BA1-C925DC979B64}.Release|x64.ActiveCfg = Release|x64
-		{2E12AEF8-D2D6-4067-9BA1-C925DC979B64}.Release|x64.Build.0 = Release|x64
+		{285FBA51-B4A7-4F1A-BD0A-6E0B5D6545DF}.Debug|Win32.ActiveCfg = Debug|Win32
+		{285FBA51-B4A7-4F1A-BD0A-6E0B5D6545DF}.Debug|Win32.Build.0 = Debug|Win32
+		{285FBA51-B4A7-4F1A-BD0A-6E0B5D6545DF}.Debug|x64.ActiveCfg = Debug|x64
+		{285FBA51-B4A7-4F1A-BD0A-6E0B5D6545DF}.Debug|x64.Build.0 = Debug|x64
+		{285FBA51-B4A7-4F1A-BD0A-6E0B5D6545DF}.Release|Win32.ActiveCfg = Release|Win32
+		{285FBA51-B4A7-4F1A-BD0A-6E0B5D6545DF}.Release|Win32.Build.0 = Release|Win32
+		{285FBA51-B4A7-4F1A-BD0A-6E0B5D6545DF}.Release|x64.ActiveCfg = Release|x64
+		{285FBA51-B4A7-4F1A-BD0A-6E0B5D6545DF}.Release|x64.Build.0 = Release|x64
+		{E1E7AB91-2C14-47D8-8600-1A08F248ABC1}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E1E7AB91-2C14-47D8-8600-1A08F248ABC1}.Debug|Win32.Build.0 = Debug|Win32
+		{E1E7AB91-2C14-47D8-8600-1A08F248ABC1}.Debug|x64.ActiveCfg = Debug|x64
+		{E1E7AB91-2C14-47D8-8600-1A08F248ABC1}.Debug|x64.Build.0 = Debug|x64
+		{E1E7AB91-2C14-47D8-8600-1A08F248ABC1}.Release|Win32.ActiveCfg = Release|Win32
+		{E1E7AB91-2C14-47D8-8600-1A08F248ABC1}.Release|Win32.Build.0 = Release|Win32
+		{E1E7AB91-2C14-47D8-8600-1A08F248ABC1}.Release|x64.ActiveCfg = Release|x64
+		{E1E7AB91-2C14-47D8-8600-1A08F248ABC1}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
