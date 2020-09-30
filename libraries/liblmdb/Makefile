@@ -24,8 +24,8 @@ W	= -W -Wall -Wno-unused-parameter -Wbad-function-cast -Wuninitialized
 THREADS = -pthread
 OPT = -O2 -g
 CFLAGS	= $(THREADS) $(OPT) $(W) $(XCFLAGS)
-LDLIBS	= 
-SOLIBS	= 
+LDLIBS	=
+SOLIBS	=
 SOEXT	= .so
 prefix	= /usr/local
 exec_prefix = $(prefix)
@@ -41,7 +41,7 @@ IHDRS	= lmdb.h
 ILIBS	= liblmdb.a liblmdb$(SOEXT)
 IPROGS	= mdb_stat mdb_copy mdb_dump mdb_load mdb_drop
 IDOCS	= mdb_stat.1 mdb_copy.1 mdb_dump.1 mdb_load.1 mdb_drop.1
-PROGS	= $(IPROGS) mtest mtest2 mtest3 mtest4 mtest5
+PROGS	= $(IPROGS) mtest mtest2 mtest3 mtest4 mtest5 lmdb_demo
 all:	$(ILIBS) $(PROGS)
 
 install: $(ILIBS) $(IPROGS) $(IHDRS)
@@ -63,6 +63,10 @@ test:	all
 
 liblmdb.a:	mdb.o midl.o
 	$(AR) rs $@ mdb.o midl.o
+
+lmdb_method.a: lmdb_method.c mdb.o midl.o
+	$(CC) -g -fPIC -c lmdb_method.c
+	$(AR) rcs lmdb_method.a lmdb_method.o mdb.o midl.o
 
 liblmdb$(SOEXT):	mdb.lo midl.lo
 #	$(CC) $(LDFLAGS) -pthread -shared -Wl,-Bsymbolic -o $@ mdb.o midl.o $(SOLIBS)
@@ -116,3 +120,6 @@ xmdb.o: mdb.c lmdb.h midl.h
 
 xmidl.o: midl.c midl.h
 	$(CC) $(CFLAGS) -fPIC $(CPPFLAGS) -O0 $(COV_FLAGS) -c midl.c -o $@
+
+lmdb_demo: lmdb_demo.c lmdb_method.a
+	$(CC) -o $@ lmdb_demo.c lmdb_method.a -pthread
