@@ -16,6 +16,11 @@
  * <http://www.OpenLDAP.org/license.html>.
  */
 
+#ifdef _WIN32
+#pragma warning( push )
+#pragma warning( disable : 4711 )
+#endif
+
 #include <limits.h>
 #include <string.h>
 #include <stdlib.h>
@@ -416,6 +421,10 @@ int mdb_mid3l_insert( MDB_ID3L ids, MDB_ID3 *id )
 	return 0;
 }
 #endif /* MDB_VL32 */
+
+#ifdef _WIN32
+#pragma warning( pop )
+#endif
 
 /** @} */
 /** @} */
