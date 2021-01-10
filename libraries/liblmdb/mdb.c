@@ -35,6 +35,12 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE 1
 #endif
+
+#ifdef _WIN32
+#pragma warning( push )
+#pragma warning( disable : 4711 )
+#endif
+
 #if defined(MDB_VL32) || defined(__WIN64__)
 #define _FILE_OFFSET_BITS	64
 #endif
@@ -11349,4 +11355,8 @@ utf8_to_utf16(const char *src, MDB_name *dst, int xtra)
 	}
 }
 #endif /* defined(_WIN32) */
+
+#ifdef _WIN32
+#pragma warning( pop )
+#endif
 /** @} */
