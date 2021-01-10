@@ -5519,7 +5519,7 @@ fail:
 	 *	at runtime. Changing other flags requires closing the
 	 *	environment and re-opening it with the new flags.
 	 */
-#define	CHANGEABLE	(MDB_NOSYNC|MDB_NOMETASYNC|MDB_MAPASYNC|MDB_NOMEMINIT)
+#define	CHANGEABLE	(MDB_MAPASYNC|MDB_NOMEMINIT)
 #define	CHANGELESS	(MDB_FIXEDMAP|MDB_NOSUBDIR|MDB_RDONLY| \
 	MDB_WRITEMAP|MDB_NOTLS|MDB_NOLOCK|MDB_NORDAHEAD|MDB_PREVSNAPSHOT)
 
@@ -5619,9 +5619,11 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 	if (rc)
 		goto leave;
 #ifdef _WIN32
-	rc = mdb_fopen(env, &fname, MDB_O_OVERLAPPED, mode, &env->me_ovfd);
-	if (rc)
-		goto leave;
+	if (!(flags & MDB_NOSYNC)) {
+		rc = mdb_fopen(env, &fname, MDB_O_OVERLAPPED, mode, &env->me_ovfd);
+		if (rc)
+			goto leave;
+	}
 #endif
 
 	if ((flags & (MDB_RDONLY|MDB_NOLOCK)) == MDB_RDONLY) {
@@ -5634,9 +5636,11 @@ mdb_env_open(MDB_env *env, const char *path, unsigned int flags, mdb_mode_t mode
 		/* Synchronous fd for meta writes. Needed even with
 		 * MDB_NOSYNC/MDB_NOMETASYNC, in case these get reset.
 		 */
-		rc = mdb_fopen(env, &fname, MDB_O_META, mode, &env->me_mfd);
-		if (rc)
-			goto leave;
+		if (!(flags & (MDB_NOSYNC|MDB_NOMETASYNC))) {
+			rc = mdb_fopen(env, &fname, MDB_O_META, mode, &env->me_mfd);
+			if (rc)
+				goto leave;
+		}
 
 		DPRINTF(("opened dbenv %p", (void *) env));
 		if (excl > 0 && !(flags & MDB_PREVSNAPSHOT)) {
