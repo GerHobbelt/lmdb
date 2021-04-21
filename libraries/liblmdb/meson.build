@@ -1,6 +1,6 @@
 project(
   'liblmdb', 'c',
-  version: '0.9.22',
+  version: '0.9.28',
   default_options: [
     'warning_level=2'
   ],
