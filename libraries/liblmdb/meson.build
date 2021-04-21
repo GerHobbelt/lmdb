@@ -101,7 +101,6 @@ if host_system != 'windows'
     'mdb_copy',
     'mdb_dump',
     'mdb_load',
-    'mdb_drop',
   ]
 endif
 
@@ -139,7 +138,6 @@ man_files = files(
   'mdb_copy.1',
   'mdb_dump.1',
   'mdb_load.1',
-  'mdb_drop.1',
 )
 
 install_man(man_files)
