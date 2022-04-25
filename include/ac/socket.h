@@ -63,13 +63,17 @@
 #ifdef HAVE_WINSOCK2
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#elif HAVE_WINSOCK
+#elif defined(HAVE_WINSOCK)
 #include <winsock.h>
 #endif
 
 #ifdef HAVE_PCNFS
 #include <tklib.h>
 #endif /* HAVE_PCNFS */
+
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
 
 #ifndef INADDR_LOOPBACK
 #define INADDR_LOOPBACK	(0x7f000001UL)
