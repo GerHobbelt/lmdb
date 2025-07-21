@@ -284,7 +284,7 @@ void child()
 		} else if (!strncmp(ptr, SCMP("mdb_env_set_mapsize"))) {
 			void *tenv;
 			envpair *ep;
-			size_t mapsize;
+			mdb_size_t mapsize;
 			sscanf(ptr+SOFF("mdb_env_set_mapsize"), "%p, %"MDB_SCNy(u), &tenv, &mapsize);
 			ep = findenv(tenv);
 			E(mdb_env_set_mapsize(ep->renv, mapsize));
@@ -483,8 +483,8 @@ static pidpair *addpid(int tpid)
 	pipe(fdin);
 	if ((pid = fork()) == 0) {
 		/* child */
-		fclose(stdin);
-		fclose(stdout);
+		fflush(stdin);
+		fflush(stdout);
 		dup2(fdout[0], 0);
 		dup2(fdin[1], 1);
 		stdin = fdopen(0, "r");

@@ -27,7 +27,7 @@ static int mode;
 
 static char *subname = NULL;
 
-static size_t lineno;
+static mdb_size_t lineno;
 static int version;
 
 static int flags;
@@ -41,11 +41,7 @@ static MDB_envinfo info;
 static MDB_val kbuf, dbuf;
 static MDB_val k0buf;
 
-#ifdef _WIN32
-#define Z	"I"
-#else
-#define Z	"z"
-#endif
+#define Yu	MDB_PRIy(u)
 
 #define STRLENOF(s)	(sizeof(s)-1)
 
@@ -77,7 +73,7 @@ static void readhdr(void)
 		if (!strncmp(dbuf.mv_data, "VERSION=", STRLENOF("VERSION="))) {
 			version=atoi((char *)dbuf.mv_data+STRLENOF("VERSION="));
 			if (version > 3) {
-				fprintf(stderr, "%s: line %" Z "d: unsupported VERSION %d\n",
+				fprintf(stderr, "%s: line %"Yu": unsupported VERSION %d\n",
 					prog, lineno, version);
 				exit(EXIT_FAILURE);
 			}
@@ -87,7 +83,7 @@ static void readhdr(void)
 			if (!strncmp((char *)dbuf.mv_data+STRLENOF("FORMAT="), "print", STRLENOF("print")))
 				mode |= PRINT;
 			else if (strncmp((char *)dbuf.mv_data+STRLENOF("FORMAT="), "bytevalue", STRLENOF("bytevalue"))) {
-				fprintf(stderr, "%s: line %" Z "d: unsupported FORMAT %s\n",
+				fprintf(stderr, "%s: line %"Yu": unsupported FORMAT %s\n",
 					prog, lineno, (char *)dbuf.mv_data+STRLENOF("FORMAT="));
 				exit(EXIT_FAILURE);
 			}
@@ -98,7 +94,7 @@ static void readhdr(void)
 			subname = strdup((char *)dbuf.mv_data+STRLENOF("database="));
 		} else if (!strncmp(dbuf.mv_data, "type=", STRLENOF("type="))) {
 			if (strncmp((char *)dbuf.mv_data+STRLENOF("type="), "btree", STRLENOF("btree")))  {
-				fprintf(stderr, "%s: line %" Z "d: unsupported type %s\n",
+				fprintf(stderr, "%s: line %"Yu": unsupported type %s\n",
 					prog, lineno, (char *)dbuf.mv_data+STRLENOF("type="));
 				exit(EXIT_FAILURE);
 			}
@@ -108,7 +104,7 @@ static void readhdr(void)
 			if (ptr) *ptr = '\0';
 			i = sscanf((char *)dbuf.mv_data+STRLENOF("mapaddr="), "%p", &info.me_mapaddr);
 			if (i != 1) {
-				fprintf(stderr, "%s: line %" Z "d: invalid mapaddr %s\n",
+				fprintf(stderr, "%s: line %"Yu": invalid mapaddr %s\n",
 					prog, lineno, (char *)dbuf.mv_data+STRLENOF("mapaddr="));
 				exit(EXIT_FAILURE);
 			}
@@ -116,9 +112,10 @@ static void readhdr(void)
 			int i;
 			ptr = memchr(dbuf.mv_data, '\n', dbuf.mv_size);
 			if (ptr) *ptr = '\0';
-			i = sscanf((char *)dbuf.mv_data+STRLENOF("mapsize="), "%" Z "u", &info.me_mapsize);
+			i = sscanf((char *)dbuf.mv_data+STRLENOF("mapsize="),
+				"%" MDB_SCNy(u), &info.me_mapsize);
 			if (i != 1) {
-				fprintf(stderr, "%s: line %" Z "d: invalid mapsize %s\n",
+				fprintf(stderr, "%s: line %"Yu": invalid mapsize %s\n",
 					prog, lineno, (char *)dbuf.mv_data+STRLENOF("mapsize="));
 				exit(EXIT_FAILURE);
 			}
@@ -128,7 +125,7 @@ static void readhdr(void)
 			if (ptr) *ptr = '\0';
 			i = sscanf((char *)dbuf.mv_data+STRLENOF("maxreaders="), "%u", &info.me_maxreaders);
 			if (i != 1) {
-				fprintf(stderr, "%s: line %" Z "d: invalid maxreaders %s\n",
+				fprintf(stderr, "%s: line %"Yu": invalid maxreaders %s\n",
 					prog, lineno, (char *)dbuf.mv_data+STRLENOF("maxreaders="));
 				exit(EXIT_FAILURE);
 			}
@@ -144,12 +141,12 @@ static void readhdr(void)
 			if (!dbflags[i].bit) {
 				ptr = memchr(dbuf.mv_data, '=', dbuf.mv_size);
 				if (!ptr) {
-					fprintf(stderr, "%s: line %" Z "d: unexpected format\n",
+					fprintf(stderr, "%s: line %"Yu": unexpected format\n",
 						prog, lineno);
 					exit(EXIT_FAILURE);
 				} else {
 					*ptr = '\0';
-					fprintf(stderr, "%s: line %" Z "d: unrecognized keyword ignored: %s\n",
+					fprintf(stderr, "%s: line %"Yu": unrecognized keyword ignored: %s\n",
 						prog, lineno, (char *)dbuf.mv_data);
 				}
 			}
@@ -159,7 +156,7 @@ static void readhdr(void)
 
 static void badend(void)
 {
-	fprintf(stderr, "%s: line %" Z "d: unexpected end of input\n",
+	fprintf(stderr, "%s: line %"Yu": unexpected end of input\n",
 		prog, lineno);
 }
 
@@ -217,7 +214,7 @@ badend:
 		buf->mv_data = realloc(buf->mv_data, buf->mv_size*2);
 		if (!buf->mv_data) {
 			Eof = 1;
-			fprintf(stderr, "%s: line %" Z "d: out of memory, line too long\n",
+			fprintf(stderr, "%s: line %"Yu": out of memory, line too long\n",
 				prog, lineno);
 			return EOF;
 		}
@@ -313,10 +310,11 @@ int main(int argc, char *argv[])
 	 * -n: use NOSUBDIR flag on env_open
 	 * -s: load into named subDB
 	 * -N: use NOOVERWRITE on puts
+	 * -Q: quick mode using NOSYNC
 	 * -T: read plaintext
 	 * -V: print version and exit
 	 */
-	while ((i = getopt(argc, argv, "af:ns:NTV")) != EOF) {
+	while ((i = getopt(argc, argv, "af:ns:NQTV")) != EOF) {
 		switch(i) {
 		case 'V':
 			printf("%s\n", MDB_VERSION_STRING);
@@ -340,6 +338,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'N':
 			putflags = MDB_NOOVERWRITE|MDB_NODUPDATA;
+			break;
+		case 'Q':
+			envflags |= MDB_NOSYNC;
 			break;
 		case 'T':
 			mode |= NOHDR | PRINT;
@@ -391,7 +392,6 @@ int main(int argc, char *argv[])
 	while(!Eof) {
 		MDB_val key, data;
 		int batch = 0;
-		flags = 0;
 		int appflag;
 
 		if (!dohdr) {
@@ -405,9 +405,9 @@ int main(int argc, char *argv[])
 			goto env_close;
 		}
 
-		rc = mdb_open(txn, subname, flags|MDB_CREATE, &dbi);
+		rc = mdb_dbi_open(txn, subname, flags|MDB_CREATE, &dbi);
 		if (rc) {
-			fprintf(stderr, "mdb_open failed, error %d %s\n", rc, mdb_strerror(rc));
+			fprintf(stderr, "mdb_dbi_open failed, error %d %s\n", rc, mdb_strerror(rc));
 			goto txn_abort;
 		}
 		prevk.mv_size = 0;
@@ -430,7 +430,7 @@ int main(int argc, char *argv[])
 
 			rc = readline(&data, &dbuf);
 			if (rc) {
-				fprintf(stderr, "%s: line %" Z "d: failed to read key value\n", prog, lineno);
+				fprintf(stderr, "%s: line %"Yu": failed to read key value\n", prog, lineno);
 				goto txn_abort;
 			}
 
@@ -451,14 +451,14 @@ int main(int argc, char *argv[])
 			if (rc == MDB_KEYEXIST && putflags)
 				continue;
 			if (rc) {
-				fprintf(stderr, "%s: line %" Z "d: mdb_cursor_put failed, error %d %s\n", prog, lineno, rc, mdb_strerror(rc));
+				fprintf(stderr, "%s: line %"Yu": mdb_cursor_put failed, error %d %s\n", prog, lineno, rc, mdb_strerror(rc));
 				goto txn_abort;
 			}
 			batch++;
 			if (batch == 100) {
 				rc = mdb_txn_commit(txn);
 				if (rc) {
-					fprintf(stderr, "%s: line %" Z "d: txn_commit: %s\n",
+					fprintf(stderr, "%s: line %"Yu": txn_commit: %s\n",
 						prog, lineno, mdb_strerror(rc));
 					goto env_close;
 				}
@@ -484,9 +484,16 @@ int main(int argc, char *argv[])
 		rc = mdb_txn_commit(txn);
 		txn = NULL;
 		if (rc) {
-			fprintf(stderr, "%s: line %" Z "d: txn_commit: %s\n",
+			fprintf(stderr, "%s: line %"Yu": txn_commit: %s\n",
 				prog, lineno, mdb_strerror(rc));
 			goto env_close;
+		}
+		if (envflags & MDB_NOSYNC) {
+			rc = mdb_env_sync(env, 1);
+			if (rc) {
+				fprintf(stderr, "mdb_env_sync failed, error %d %s\n", rc, mdb_strerror(rc));
+				goto env_close;
+			}
 		}
 		mdb_dbi_close(env, dbi);
 	}
