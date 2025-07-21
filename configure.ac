@@ -569,7 +569,6 @@ CLIENT_LIBS=
 
 SLAPD_LIBS=
 BALANCER_LIBS=
-BALANCER_INCLUDE=
 
 BUILD_SLAPD=no
 BUILD_BALANCER=no
@@ -1030,7 +1029,14 @@ dnl ----------------------------------------------------------------
 AC_CHECK_HEADERS( sys/event.h )
 if test "${ac_cv_header_sys_event_h}" = yes; then
 AC_MSG_CHECKING(for kqueue system call)
-AC_RUN_IFELSE([AC_LANG_SOURCE([[int main(int argc, char **argv)
+AC_RUN_IFELSE([AC_LANG_SOURCE([[$ac_includes_default
+#ifdef HAVE_SYS_EVENT_H
+#include <sys/event.h>
+#endif
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
+int main(int argc, char **argv)
 {
 	int kqfd = kqueue();
 	exit (kqfd == -1 ? 1 : 0);
@@ -2042,7 +2048,7 @@ dnl
 WITH_SYSTEMD=no
 systemdsystemunitdir=
 ol_link_systemd=no
-if test $ol_enable_slapd == no && test $ol_enable_balancer != yes ; then
+if test $ol_enable_slapd = no && test $ol_enable_balancer != yes ; then
 	if test $ol_with_systemd != no ; then
 		AC_MSG_WARN([servers disabled, ignoring --with-systemd=$ol_with_systemd argument])
 		ol_with_systemd=no
@@ -3055,11 +3061,11 @@ if test "$ol_enable_balancer" != no \
 		-a "$ol_with_threads" != no \
 		-a "$have_libevent" = yes ; then
 	if test "$ol_enable_balancer" = mod; then
-		BALANCER_INCLUDE=Makefile.module
 		BUILD_BALANCER=mod
+		BALANCER_MAKE="servers/lloadd/Makefile_module.in:build/mod.mk"
 	else
-		BALANCER_INCLUDE=Makefile.server
 		BUILD_BALANCER=yes
+		BALANCER_MAKE="servers/lloadd/Makefile_server.in:build/srv.mk"
 	fi
 fi
 
@@ -3070,6 +3076,7 @@ if test "$ol_enable_slapi" != no ; then
 fi
 
 OL_VERSIONED_SYMBOLS=""
+DO_VERSIONED_SYMBOLS="# "
 if test $ol_enable_versioning != no; then
 	LDVS=`$LD --help < /dev/null 2>/dev/null | grep gnu-version-script`
 	if test -z "$LDVS"; then
@@ -3083,6 +3090,9 @@ if test $ol_enable_versioning != no; then
 		fi
 	else
 		OL_VERSIONED_SYMBOLS="-z gnu-version-script="
+	fi
+	if test -n "$OL_VERSIONED_SYMBOLS"; then
+		DO_VERSIONED_SYMBOLS=""
 	fi
 fi
 
@@ -3118,6 +3128,7 @@ AC_SUBST(WITH_SYSTEMD)
 AC_SUBST(BUILD_THREAD)
 AC_SUBST(BUILD_LIBS_DYNAMIC)
 AC_SUBST(OL_VERSIONED_SYMBOLS)
+AC_SUBST(DO_VERSIONED_SYMBOLS)
 
 AC_SUBST(BUILD_SLAPD)
 dnl slapi
@@ -3216,8 +3227,6 @@ AC_SUBST(SLAPD_SQL_INCLUDES)
 AC_SUBST(WT_CFLAGS)
 AC_SUBST(WT_LIBS)
 
-AC_SUBST(BALANCER_INCLUDE)
-
 dnl ----------------------------------------------------------------
 dnl final help output
 AC_ARG_WITH(xxinstall,[
@@ -3264,9 +3273,7 @@ AC_CONFIG_FILES([Makefile:build/top.mk:Makefile.in:build/dir.mk]
 [servers/slapd/slapi/Makefile:build/top.mk:servers/slapd/slapi/Makefile.in:build/lib.mk:build/lib-shared.mk]
 [servers/slapd/overlays/Makefile:build/top.mk:servers/slapd/overlays/Makefile.in:build/lib.mk]
 [servers/slapd/pwmods/Makefile:build/top.mk:servers/slapd/pwmods/Makefile.in:build/lib.mk]
-[servers/lloadd/Makefile:build/top.mk:servers/lloadd/Makefile.in]
-[servers/lloadd/Makefile.server:servers/lloadd/Makefile_server.in:build/srv.mk]
-[servers/lloadd/Makefile.module:servers/lloadd/Makefile_module.in:build/mod.mk]
+[servers/lloadd/Makefile:build/top.mk:servers/lloadd/Makefile.in:$BALANCER_MAKE]
 [tests/Makefile:build/top.mk:tests/Makefile.in:build/dir.mk]
 [tests/run]
 [tests/modules/Makefile:build/top.mk:tests/modules/Makefile.in:build/dir.mk]

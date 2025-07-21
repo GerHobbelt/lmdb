@@ -212,7 +212,7 @@ int connections_timeout_idle(time_t now)
 		/* Don't timeout a slow-running request or a persistent
 		 * outbound connection.
 		 */
-		if((( c->c_n_ops_executing || c->c_n_ops_async ) && !c->c_writewaiter)
+		if( c->c_n_ops_executing || c->c_n_ops_async
 			|| c->c_conn_state == SLAP_C_CLIENT ) {
 			continue;
 		}
@@ -244,7 +244,7 @@ void connections_drop()
 		/* Don't close a slow-running request or a persistent
 		 * outbound connection.
 		 */
-		if((( c->c_n_ops_executing || c->c_n_ops_async ) && !c->c_writewaiter)
+		if( c->c_n_ops_executing || c->c_n_ops_async
 			|| c->c_conn_state == SLAP_C_CLIENT ) {
 			continue;
 		}
@@ -871,13 +871,14 @@ Connection* connection_next( Connection *c, ber_socket_t *index )
 
 	for(; *index < dtblsize; (*index)++) {
 		if( connections[*index].c_sb ) {
-			c = &connections[(*index)++];
+			c = &connections[*index];
 			ldap_pvt_thread_mutex_lock( &c->c_mutex );
 			if ( c->c_conn_state == SLAP_C_INVALID ) {
 				ldap_pvt_thread_mutex_unlock( &c->c_mutex );
 				c = NULL;
 				continue;
 			}
+			(*index)++;
 			break;
 		}
 	}

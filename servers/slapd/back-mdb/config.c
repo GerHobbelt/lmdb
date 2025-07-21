@@ -349,7 +349,7 @@ mdb_setup_indexer( struct mdb_info *mdb )
 	MDB_txn *txn;
 	MDB_cursor *curs;
 	MDB_val key, data;
-	int i, rc;
+	int i, rc, changed = 0;
 	unsigned short s;
 
 	rc = mdb_txn_begin( mdb->mi_dbenv, NULL, 0, &txn );
@@ -363,17 +363,6 @@ mdb_setup_indexer( struct mdb_info *mdb )
 
 	key.mv_size = sizeof( s );
 	key.mv_data = &s;
-
-	/* set indexer task to start at first entry */
-	{
-		ID id = 0;
-		s = 0;			/* key 0 records next entryID to index */
-		data.mv_size = sizeof( ID );
-		data.mv_data = &id;
-		rc = mdb_cursor_put( curs, &key, &data, 0 );
-		if ( rc )
-			goto done;
-	}
 
 	/* record current and new index masks for all new index definitions */
 	{
@@ -389,8 +378,19 @@ mdb_setup_indexer( struct mdb_info *mdb )
 			rc = mdb_cursor_put( curs, &key, &data, 0 );
 			if ( rc )
 				goto done;
+			changed = 1;
 		}
 	}
+
+	/* set indexer task to start at first entry */
+	if ( changed ) {
+		ID id = 0;
+		s = 0;			/* key 0 records next entryID to index */
+		data.mv_size = sizeof( ID );
+		data.mv_data = &id;
+		rc = mdb_cursor_put( curs, &key, &data, 0 );
+	}
+
 done:
 	mdb_cursor_close( curs );
 	if ( !rc )
@@ -400,20 +400,20 @@ done:
 	return rc;
 }
 
-void
+int
 mdb_resume_index( BackendDB *be, MDB_txn *txn )
 {
 	struct mdb_info *mdb = be->be_private;
 	MDB_cursor *curs;
 	MDB_val key, data;
-	int i, rc;
+	int i, rc, do_task = 0;
 	unsigned short *s;
 	slap_mask_t *mask;
 	AttributeDescription *ad;
 
 	rc = mdb_cursor_open( txn, mdb->mi_idxckp, &curs );
 	if ( rc )
-		return;
+		return 0;
 
 	while(( rc = mdb_cursor_get( curs, &key, &data, MDB_NEXT )) == 0) {
 		s = key.mv_data;
@@ -425,11 +425,19 @@ mdb_resume_index( BackendDB *be, MDB_txn *txn )
 				mask = data.mv_data;
 				mdb->mi_attrs[i]->ai_indexmask = mask[0];
 				mdb->mi_attrs[i]->ai_newmask = mask[1];
+				do_task = 1;
 				break;
 			}
 		}
 	}
 	mdb_cursor_close( curs );
+	return do_task;
+}
+
+void
+mdb_start_index_task( BackendDB *be )
+{
+	struct mdb_info *mdb = be->be_private;
 	ldap_pvt_thread_mutex_lock( &slapd_rq.rq_mutex );
 	mdb->mi_index_task = ldap_pvt_runqueue_insert( &slapd_rq, 36000,
 		mdb_online_index, be,
