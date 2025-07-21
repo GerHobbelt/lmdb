@@ -1,7 +1,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -316,9 +316,6 @@ int main( int argc, char **argv )
 
 		newUrls = (char *) lutil_getRegParam(regService, "Urls");
 		if (newUrls) {
-		    if (urls)
-			ch_free(urls);
-
 		    urls = ch_strdup(newUrls);
 		    Debug(LDAP_DEBUG_ANY, "new urls from registry: %s\n",
 				urls );
@@ -367,7 +364,6 @@ int main( int argc, char **argv )
 #endif
 
 		case 'h':	/* listen URLs */
-			if ( urls != NULL ) free( urls );
 			urls = optarg;
 			break;
 

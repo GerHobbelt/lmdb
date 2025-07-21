@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * Portions Copyright 1998-2003 Kurt D. Zeilenga.
  * Portions Copyright 1998-2001 Net Boolean Incorporated.
  * Portions Copyright 2001-2003 IBM Corporation.
@@ -363,7 +363,7 @@ parse_vlv(char *cvalue)
 }
 
 const char options[] = "a:Ab:cE:F:l:Ls:S:tT:uz:"
-	"Cd:D:e:f:h:H:IMnNO:o:p:P:QR:U:vVw:WxX:y:Y:Z";
+	"Cd:D:e:f:H:IMnNO:o:P:QR:U:vVw:WxX:y:Y:Z";
 
 int
 handle_private_option( int i )
@@ -894,7 +894,7 @@ handle_private_option( int i )
 		break;
 	case 'F':	/* uri prefix */
 		if( urlpre ) free( urlpre );
-		urlpre = optarg;
+		urlpre = strdup( optarg );
 		break;
 	case 'l':	/* time limit */
 		if ( strcasecmp( optarg, "none" ) == 0 ) {
@@ -945,7 +945,7 @@ handle_private_option( int i )
 		break;
 	case 'T':	/* tmpdir */
 		if( tmpdir ) free( tmpdir );
-		tmpdir = optarg;
+		tmpdir = strdup( optarg );
 		break;
 	case 'u':	/* include UFN */
 		++includeufn;
@@ -1660,6 +1660,9 @@ getNextPage:
 			free( def_urlpre );
 		free( urlpre );
 	}
+	if ( tmpdir && tmpdir != def_tmpdir ) {
+		free( tmpdir );
+	}
 
 	if ( c ) {
 		for ( ; save_nctrls-- > 0; ) {
@@ -2058,10 +2061,12 @@ static void print_reference(
 	}
 
 	if( refs ) {
-		int i;
-		for( i=0; refs[i] != NULL; i++ ) {
-			tool_write_ldif( ldif ? LDIF_PUT_COMMENT : LDIF_PUT_VALUE,
-				"ref", refs[i], strlen(refs[i]) );
+		if( ldif < 2 ) {
+			int i;
+			for( i=0; refs[i] != NULL; i++ ) {
+				tool_write_ldif( ldif ? LDIF_PUT_COMMENT : LDIF_PUT_VALUE,
+					"ref", refs[i], strlen(refs[i]) );
+			}
 		}
 		ber_memvfree( (void **) refs );
 	}

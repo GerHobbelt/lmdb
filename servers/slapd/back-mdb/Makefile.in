@@ -2,7 +2,7 @@
 # $OpenLDAP$
 ## This work is part of OpenLDAP Software <http://www.openldap.org/>.
 ##
-## Copyright 2011-2022 The OpenLDAP Foundation.
+## Copyright 2011-2024 The OpenLDAP Foundation.
 ## All rights reserved.
 ##
 ## Redistribution and use in source and binary forms, with or without
@@ -32,10 +32,10 @@ LDAP_LIBDIR= ../../../libraries
 MDB_SUBDIR = $(srcdir)/$(LDAP_LIBDIR)/liblmdb
 
 BUILD_OPT = "--enable-mdb"
-BUILD_MOD = @BUILD_MDB@
+BUILD_MOD = $(BUILD_MDB)
 
 mod_DEFS = -DSLAPD_IMPORT
-MOD_DEFS = $(@BUILD_MDB@_DEFS)
+MOD_DEFS = $($(BUILD_MOD)_DEFS)
 MOD_LIBS = $(MDB_LIBS)
 
 shared_LDAP_LIBS = $(LDAP_LIBLDAP_LA) $(LDAP_LIBLBER_LA)

@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2009-2022 The OpenLDAP Foundation.
+ * Copyright 2009-2024 The OpenLDAP Foundation.
  * Copyright 2009-2018 by Howard Chu.
  * All rights reserved.
  *
@@ -670,6 +670,7 @@ static int autoca_cf( ConfigArgs *c )
 				else
 					rc = 1;
 			}
+			break;
 		case ACA_USRKEYBITS:
 			if ( c->value_int < MIN_KEYBITS )
 				rc = 1;

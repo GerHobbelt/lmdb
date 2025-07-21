@@ -2,7 +2,7 @@
 # $OpenLDAP$
 ## This work is part of OpenLDAP Software <http://www.openldap.org/>.
 ##
-## Copyright 1998-2022 The OpenLDAP Foundation.
+## Copyright 1998-2024 The OpenLDAP Foundation.
 ## Portions Copyright 1999 John C. Quillan.
 ## All rights reserved.
 ##
@@ -23,11 +23,11 @@ LDAP_INCDIR= ../../../include
 LDAP_LIBDIR= ../../../libraries
 
 BUILD_OPT = "--enable-perl"
-BUILD_MOD = @BUILD_PERL@
+BUILD_MOD = $(BUILD_PERL)
 PERL_CPPFLAGS = @PERL_CPPFLAGS@
 
 mod_DEFS = -DSLAPD_IMPORT
-MOD_DEFS = $(@BUILD_PERL@_DEFS)
+MOD_DEFS = $($(BUILD_MOD)_DEFS)
 MOD_LIBS = @MOD_PERL_LDFLAGS@
 
 shared_LDAP_LIBS = $(LDAP_LIBLDAP_LA) $(LDAP_LIBLBER_LA)

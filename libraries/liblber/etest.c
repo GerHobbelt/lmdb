@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,10 +37,6 @@
 #include <ac/socket.h>
 #include <ac/string.h>
 #include <ac/unistd.h>
-
-#ifdef HAVE_CONSOLE_H
-#include <console.h>
-#endif /* HAVE_CONSOLE_H */
 
 #include "lber.h"
 
@@ -79,19 +75,7 @@ main( int argc, char **argv )
 		return( EXIT_FAILURE );
 	}
 
-#ifdef HAVE_CONSOLE_H
-	ccommand( &argv );
-	cshow( stdout );
-
-	if (( fd = open( "lber-test", O_WRONLY|O_CREAT|O_TRUNC|O_BINARY ))
-		< 0 ) {
-	    perror( "open" );
-	    return( EXIT_FAILURE );
-	}
-
-#else
 	fd = fileno(stdout);
-#endif
 
 	sb = ber_sockbuf_alloc();
 	ber_sockbuf_add_io( sb, &ber_sockbuf_io_fd, LBER_SBIOD_LEVEL_PROVIDER,

@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2003-2022 The OpenLDAP Foundation.
+ * Copyright 2003-2024 The OpenLDAP Foundation.
  * Portions Copyright 1999-2003 Howard Chu.
  * Portions Copyright 2000-2003 Pierangelo Masarati.
  * All rights reserved.
@@ -213,6 +213,11 @@ ldap_back_db_open( BackendDB *be, ConfigReply *cr )
 	Debug( LDAP_DEBUG_TRACE,
 		"ldap_back_db_open: URI=%s\n",
 		li->li_uri != NULL ? li->li_uri : "" );
+
+	if ( be->be_suffix == NULL ) {
+		Debug( LDAP_DEBUG_ANY, "ldap_back_db_open: need suffix.\n" );
+		return -1;
+	}
 
 	/* by default, use proxyAuthz control on each operation */
 	switch ( li->li_idassert_mode ) {

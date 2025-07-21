@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -74,9 +74,6 @@ char *slapd_pid_file = NULL;
 char *slapd_args_file = NULL;
 #endif /* !BALANCER_MODULE */
 
-static FILE *logfile;
-static char *logfileName;
-
 static struct timeval timeout_api_tv, timeout_net_tv,
         timeout_write_tv = { 10, 0 };
 
@@ -91,8 +88,6 @@ int lload_conn_max_pdus_per_cycle = LLOAD_CONN_MAX_PDUS_PER_CYCLE_DEFAULT;
 struct timeval *lload_timeout_api = NULL;
 struct timeval *lload_timeout_net = NULL;
 struct timeval *lload_write_timeout = &timeout_write_tv;
-
-static slap_verbmasks tlskey[];
 
 static int fp_getline( FILE *fp, ConfigArgs *c );
 static void fp_getline_init( ConfigArgs *c );
@@ -281,7 +276,7 @@ static ConfigTable config_back_cf_table[] = {
         "( OLcfgBkAt:13.5 "
             "NAME 'olcBkLloadListen' "
             "DESC 'A listener adress' "
-            /* We don't handle adding/removing a value, so no EQUALITY yet */
+            "EQUALITY caseExactMatch "
             "SYNTAX OMsDirectoryString )",
         NULL, NULL
     },
@@ -641,7 +636,7 @@ static ConfigTable config_back_cf_table[] = {
         &config_generic,
         "( OLcfgBkAt:13.26 "
             "NAME 'olcBkLloadIOTimeout' "
-            "DESC 'I/O timeout threshold in miliseconds' "
+            "DESC 'I/O timeout threshold in milliseconds' "
             "EQUALITY integerMatch "
             "SYNTAX OMsInteger "
             "SINGLE-VALUE )",
@@ -805,7 +800,6 @@ static ConfigOCs lloadocs[] = {
         "SUP olcBackendConfig "
         "MUST ( olcBkLloadBindconf "
             "$ olcBkLloadIOThreads "
-            "$ olcBkLloadListen "
             "$ olcBkLloadSockbufMaxClient "
             "$ olcBkLloadSockbufMaxUpstream "
             "$ olcBkLloadMaxPDUPerCycle "
@@ -829,6 +823,7 @@ static ConfigOCs lloadocs[] = {
             "$ olcBkLloadWriteCoherence "
             "$ olcBkLloadRestrictExop "
             "$ olcBkLloadRestrictControl "
+            "$ olcBkLloadListen "
         ") )",
         Cft_Backend, config_back_cf_table,
         NULL,
@@ -873,8 +868,6 @@ static ConfigOCs lloadocs[] = {
 };
 #endif /* BALANCER_MODULE */
 
-static int config_syslog;
-
 static int
 config_generic( ConfigArgs *c )
 {
@@ -891,12 +884,6 @@ config_generic( ConfigArgs *c )
                 struct berval bv = BER_BVNULL;
 
                 for ( ; ll && *ll; ll++ ) {
-                    /* The same url could have spawned several consecutive
-                     * listeners */
-                    if ( !BER_BVISNULL( &bv ) &&
-                            !ber_bvcmp( &bv, &(*ll)->sl_url ) ) {
-                        continue;
-                    }
                     ber_dupbv( &bv, &(*ll)->sl_url );
                     ber_bvarray_add( &c->rvalue_vals, &bv );
                 }
@@ -925,8 +912,47 @@ config_generic( ConfigArgs *c )
 
     } else if ( c->op == LDAP_MOD_DELETE ) {
         /* We only need to worry about deletions to multi-value or MAY
-         * attributes that belong to the lloadd module - we don't have any at
-         * the moment */
+         * attributes that belong to the lloadd module */
+        switch ( c->type ) {
+            case CFG_LISTEN_URI: {
+                LloadListener **ll = lloadd_get_listeners();
+                int i;
+
+                lload_change.type = LLOAD_CHANGE_MODIFY;
+                lload_change.object = LLOAD_DAEMON;
+                lload_change.flags.daemon |= LLOAD_DAEMON_MOD_LISTENER;
+
+                /*
+                 * Be as non-destructive as possible, the modify could be
+                 * aborted later and if we can't open the socket again, the
+                 * only alternative would be to stop the server.
+                 *
+                 * This prohibits changes where exchanging urls that aren't the
+                 * same but overlap. People can always split them into multiple
+                 * operations - make simple things easy and complex possible I
+                 * guess?
+                 */
+                if ( c->valx == -1 ) {
+                    for ( i = 0; ll[i]; i++ ) {
+                        ll[i]->sl_removed = 1;
+                    }
+                } else {
+                    /* We don't keep listeners in the same order, need to check
+                     * which one it is */
+                    struct berval bv;
+                    ber_str2bv( c->line, 0, 0, &bv );
+
+                    for ( i = 0; ll[i]; i++ ) {
+                        if ( ber_bvcmp( &ll[i]->sl_url, &bv ) == 0 ) break;
+                    }
+
+                    assert( ll[i] && !ll[i]->sl_removed );
+                    ll[i]->sl_removed = 1;
+                }
+            } break;
+            default:
+                break;
+        }
         return rc;
     }
 
@@ -955,7 +981,10 @@ config_generic( ConfigArgs *c )
             break;
         case CFG_LISTEN_URI: {
             LDAPURLDesc *lud;
-            LloadListener *l;
+            LloadListener *l, **ll;
+            struct berval bv;
+
+            ber_str2bv( c->line, 0, 0, &bv );
 
             if ( ldap_url_parse_ext(
                          c->line, &lud, LDAP_PVT_URL_PARSE_DEF_PORT ) ) {
@@ -971,21 +1000,29 @@ config_generic( ConfigArgs *c )
                         "Load Balancer already configured to listen on %s "
                         "(while adding %s)",
                         l->sl_url.bv_val, c->line );
+                ldap_free_urldesc( lud );
                 goto fail;
             }
 
-            if ( !lloadd_inited ) {
-                if ( lload_open_new_listener( c->line, lud ) ) {
-                    snprintf( c->cr_msg, sizeof(c->cr_msg),
-                            "could not open a listener for %s", c->line );
-                    goto fail;
-                }
-            } else {
+            ll = lloadd_get_listeners();
+            for ( ; ll && *ll; ll++ ) {
+                if ( !(*ll)->sl_removed ||
+                        ber_bvcmp( &(*ll)->sl_url, &bv ) ) continue;
+                /* Restoring a removed listener URL */
+                (*ll)->sl_removed = 0;
+                break;
+            }
+
+            l = lload_configure_listener( c->line, lud );
+            if ( !l ) {
                 snprintf( c->cr_msg, sizeof(c->cr_msg),
-                        "listener changes will not take effect until restart: "
-                        "%s",
-                        c->line );
-                Debug( LDAP_DEBUG_ANY, "%s: %s\n", c->log, c->cr_msg );
+                        "could not configure a listener for %s", c->line );
+                goto fail;
+            }
+            if ( lload_open_new_listener( l ) ) {
+                snprintf( c->cr_msg, sizeof(c->cr_msg),
+                        "could not open a listener for %s", c->line );
+                goto fail;
             }
         } break;
         case CFG_THREADS:
@@ -1326,14 +1363,15 @@ config_bindconf( ConfigArgs *c )
     }
 
     if ( !BER_BVISNULL( &bindconf.sb_authzId ) ) {
-        ber_dupbv( &lloadd_identity, &bindconf.sb_authzId );
+        ber_bvreplace( &lloadd_identity, &bindconf.sb_authzId );
     } else if ( !BER_BVISNULL( &bindconf.sb_authcId ) ) {
-        ber_dupbv( &lloadd_identity, &bindconf.sb_authcId );
+        ber_bvreplace( &lloadd_identity, &bindconf.sb_authcId );
     } else if ( !BER_BVISNULL( &bindconf.sb_binddn ) ) {
         char *ptr;
 
         lloadd_identity.bv_len = STRLENOF("dn:") + bindconf.sb_binddn.bv_len;
-        lloadd_identity.bv_val = ch_malloc( lloadd_identity.bv_len + 1 );
+        lloadd_identity.bv_val = ch_realloc(
+                lloadd_identity.bv_val, lloadd_identity.bv_len + 1 );
 
         ptr = lutil_strcopy( lloadd_identity.bv_val, "dn:" );
         ptr = lutil_strncopy(
@@ -1395,8 +1433,8 @@ static struct {
     { NULL }
 };
 
-static void
-restriction_free( struct restriction_entry *restriction )
+void
+lload_restriction_free( struct restriction_entry *restriction )
 {
     ch_free( restriction->oid.bv_val );
     ch_free( restriction );
@@ -1434,7 +1472,7 @@ config_restrict_oid( ConfigArgs *c )
 
     } else if ( c->op == LDAP_MOD_DELETE ) {
         if ( !c->line ) {
-            ldap_tavl_free( *root, (AVL_FREE)restriction_free );
+            ldap_tavl_free( *root, (AVL_FREE)lload_restriction_free );
             *root = NULL;
             if ( c->type == CFG_RESTRICT_EXOP ) {
                 lload_default_exop_action = LLOAD_OP_NOT_RESTRICTED;
@@ -1559,10 +1597,12 @@ config_tier( ConfigArgs *c )
     if ( CONFIG_ONLINE_ADD( c ) ) {
         assert( tier );
         lload_change.target = tier;
+        ch_free( c->value_string );
         return rc;
     }
 
     tier_impl = lload_tier_find( c->value_string );
+    ch_free( c->value_string );
     if ( !tier_impl ) {
         goto fail;
     }
@@ -1609,7 +1649,7 @@ config_fname( ConfigArgs *c )
 
 #ifdef LDAP_TCP_BUFFER
 static BerVarray tcp_buffer;
-int tcp_buffer_num;
+static int tcp_buffer_num;
 
 #define SLAP_TCP_RMEM ( 0x1U )
 #define SLAP_TCP_WMEM ( 0x2U )
@@ -3771,6 +3811,10 @@ backend_cf_gen( ConfigArgs *c )
             }
 #endif /* ! HAVE_TLS */
             b->b_tls_conf = tlskey[i].mask;
+            if ( b->b_tls != LLOAD_LDAPS ) {
+                b->b_tls = b->b_tls_conf;
+                flag = LLOAD_BACKEND_MOD_OTHER;
+            }
         } break;
         case CFG_WEIGHT:
             b->b_weight = c->value_uint;
@@ -3873,6 +3917,14 @@ lload_tier_ldadd( CfEntryInfo *p, Entry *e, ConfigArgs *ca )
 
     ca->bi = p->ce_bi;
     ca->ca_private = tier;
+
+    if ( !lloadd_inited ) {
+        if ( LDAP_STAILQ_EMPTY( &tiers ) ) {
+            LDAP_STAILQ_INSERT_HEAD( &tiers, tier, t_next );
+        } else {
+            LDAP_STAILQ_INSERT_TAIL( &tiers, tier, t_next );
+        }
+    }
 
     /* ca cleanups are only run in the case of online config but we use it to
      * save the new config when done with the entry */

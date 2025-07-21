@@ -2,7 +2,7 @@
 /* syncprov.c - syncrepl provider */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2004-2022 The OpenLDAP Foundation.
+ * Copyright 2004-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -699,6 +699,7 @@ syncprov_findcsn( Operation *op, find_csn_t mode, struct berval *csn )
 				"FIND_PRESENT",
 		csn ? csn->bv_val : "" );
 
+again:
 	fop = *op;
 	fop.o_sync_mode &= SLAP_CONTROL_MASK;	/* turn off sync_mode */
 	/* We want pure entries, not referrals */
@@ -716,7 +717,6 @@ syncprov_findcsn( Operation *op, find_csn_t mode, struct berval *csn )
 	fop.ors_filter = &cf;
 	fop.ors_filterstr.bv_val = buf;
 
-again:
 	switch( mode ) {
 	case FIND_MAXCSN:
 		cf.f_choice = LDAP_FILTER_GE;
@@ -871,6 +871,11 @@ static void free_resinfo( syncres *sr )
 
 #define FS_UNLINK	1
 #define FS_LOCK		2
+#define FS_DEFER	4
+
+#define FSR_NOTFREE	0
+#define FSR_DIDFREE	1
+#define FSR_CANFREE	2
 
 static int
 syncprov_free_syncop( syncops *so, int flags )
@@ -881,12 +886,19 @@ syncprov_free_syncop( syncops *so, int flags )
 	if ( flags & FS_LOCK )
 		ldap_pvt_thread_mutex_lock( &so->s_mutex );
 	/* already being freed, or still in use */
-	if ( !so->s_inuse || --so->s_inuse > 0 ) {
+	if ( !so->s_inuse || so->s_inuse > 1 ) {
 		if ( flags & FS_LOCK )
 			ldap_pvt_thread_mutex_unlock( &so->s_mutex );
-		return 0;
+		if ( !( flags & FS_DEFER ) && so->s_inuse )
+			so->s_inuse--;
+		return FSR_NOTFREE;
 	}
 	ldap_pvt_thread_mutex_unlock( &so->s_mutex );
+
+	/* caller wants to cleanup other stuff before actual free */
+	if ( flags & FS_DEFER )
+		return FSR_CANFREE;
+
 	if (( flags & FS_UNLINK ) && so->s_si ) {
 		syncops **sop;
 		ldap_pvt_thread_mutex_lock( &so->s_si->si_ops_mutex );
@@ -914,7 +926,7 @@ syncprov_free_syncop( syncops *so, int flags )
 	}
 	ldap_pvt_thread_mutex_destroy( &so->s_mutex );
 	ch_free( so );
-	return 1;
+	return FSR_DIDFREE;
 }
 
 /* Send a persistent search response */
@@ -1029,6 +1041,9 @@ syncprov_qplay( Operation *op, syncops *so )
 			} else {
 				rc = syncprov_sendresp( op, sr->s_info, so, sr->s_mode );
 			}
+		} else {
+			/* set rc so we don't do a new qstart */
+			rc = 1;
 		}
 
 		free_resinfo( sr );
@@ -1055,6 +1070,9 @@ syncprov_qplay( Operation *op, syncops *so )
 	return rc;
 }
 
+static int
+syncprov_drop_psearch( syncops *so, int lock );
+
 /* task for playing back queued responses */
 static void *
 syncprov_qtask( void *ctx, void *arg )
@@ -1063,7 +1081,7 @@ syncprov_qtask( void *ctx, void *arg )
 	OperationBuffer opbuf;
 	Operation *op;
 	BackendDB be;
-	int rc;
+	int rc, flag, frc;
 
 	op = &opbuf.ob_op;
 	*op = *so->s_op;
@@ -1092,12 +1110,22 @@ syncprov_qtask( void *ctx, void *arg )
 	if ( !rc && !so->s_res )
 		rc = 1;
 
+	flag = FS_UNLINK;
+	if ( rc && op->o_abandon )
+		flag = FS_DEFER;
+
 	/* decrement use count... */
-	if ( !syncprov_free_syncop( so, FS_UNLINK )) {
+	frc = syncprov_free_syncop( so, flag );
+	if ( frc == FSR_NOTFREE ) {
 		if ( rc )
 			/* if we didn't unlink, and task is no longer queued, clear flag */
 			so->s_flags ^= PS_TASK_QUEUED;
 		ldap_pvt_thread_mutex_unlock( &so->s_mutex );
+	}
+
+	/* if we got abandoned while processing, cleanup now */
+	if ( frc == FSR_CANFREE ) {
+		syncprov_drop_psearch( so, 1 );
 	}
 
 	return NULL;
@@ -1274,7 +1302,9 @@ syncprov_op_abandon( Operation *op, SlapReply *rs )
 				return SLAP_CB_CONTINUE;
 			}
 		}
-		syncprov_drop_psearch( so, 0 );
+		/* if task is active, it must drop itself */
+		if ( !( so->s_flags & PS_TASK_QUEUED ))
+			syncprov_drop_psearch( so, 0 );
 	}
 	return SLAP_CB_CONTINUE;
 }
@@ -1291,17 +1321,9 @@ syncprov_matchops( Operation *op, opcookie *opc, int saveit )
 	Entry *e = NULL;
 	Attribute *a;
 	int rc, gonext;
-	struct berval newdn;
-	int freefdn = 0;
 	BackendDB *b0 = op->o_bd, db;
 
-	fc.fdn = &op->o_req_ndn;
-	/* compute new DN */
-	if ( op->o_tag == LDAP_REQ_MODRDN && !saveit ) {
-		ber_dupbv_x( &newdn, &op->orr_nnewDN, op->o_tmpmemctx );
-		fc.fdn = &newdn;
-		freefdn = 1;
-	}
+	fc.fdn = saveit ? &op->o_req_ndn : &opc->sndn;
 	if ( !saveit && op->o_tag == LDAP_REQ_DELETE ) {
 		/* Delete succeeded, there is no entry */
 	} else if ( op->o_tag != LDAP_REQ_ADD ) {
@@ -1334,8 +1356,13 @@ syncprov_matchops( Operation *op, opcookie *opc, int saveit )
 	}
 
 	if ( saveit || op->o_tag == LDAP_REQ_ADD ) {
-		ber_dupbv_x( &opc->sdn, &e->e_name, op->o_tmpmemctx );
-		ber_dupbv_x( &opc->sndn, &e->e_nname, op->o_tmpmemctx );
+		if ( op->o_tag == LDAP_REQ_MODRDN ) {
+			ber_dupbv_x( &opc->sdn, &op->orr_newDN, op->o_tmpmemctx );
+			ber_dupbv_x( &opc->sndn, &op->orr_nnewDN, op->o_tmpmemctx );
+		} else {
+			ber_dupbv_x( &opc->sdn, &e->e_name, op->o_tmpmemctx );
+			ber_dupbv_x( &opc->sndn, &e->e_nname, op->o_tmpmemctx );
+		}
 		opc->sreference = is_entry_referral( e );
 		a = attr_find( e->e_attrs, slap_schema.si_ad_entryUUID );
 		if ( a )
@@ -1343,11 +1370,6 @@ syncprov_matchops( Operation *op, opcookie *opc, int saveit )
 		Debug( LDAP_DEBUG_SYNC, "%s syncprov_matchops: "
 			"%srecording uuid for dn=%s on opc=%p\n",
 			op->o_log_prefix, a ? "" : "not ", opc->sdn.bv_val, opc );
-	} else if ( op->o_tag == LDAP_REQ_MODRDN && !saveit ) {
-		op->o_tmpfree( opc->sndn.bv_val, op->o_tmpmemctx );
-		op->o_tmpfree( opc->sdn.bv_val, op->o_tmpmemctx );
-		ber_dupbv_x( &opc->sdn, &e->e_name, op->o_tmpmemctx );
-		ber_dupbv_x( &opc->sndn, &e->e_nname, op->o_tmpmemctx );
 	}
 
 	ldap_pvt_thread_mutex_lock( &si->si_ops_mutex );
@@ -1491,9 +1513,6 @@ syncprov_matchops( Operation *op, opcookie *opc, int saveit )
 			free_resinfo( &opc->ssres );
 		else if ( opc->se )
 			entry_free( opc->se );
-	}
-	if ( freefdn ) {
-		op->o_tmpfree( fc.fdn->bv_val, op->o_tmpmemctx );
 	}
 	op->o_bd = b0;
 }
@@ -2929,6 +2948,7 @@ syncprov_search_response( Operation *op, SlapReply *rs )
 {
 	searchstate *ss = op->o_callback->sc_private;
 	slap_overinst *on = ss->ss_on;
+	syncops *so = ss->ss_so;
 	syncprov_info_t *si = (syncprov_info_t *)on->on_bi.bi_private;
 	sync_control *srs = op->o_controls[slap_cids.sc_LDAPsync];
 
@@ -2957,7 +2977,7 @@ syncprov_search_response( Operation *op, SlapReply *rs )
 			sid = slap_parse_csn_sid( &a->a_nvals[0] );
 
 			/* If not a persistent search */
-			if ( !ss->ss_so ) {
+			if ( !so ) {
 				/* Make sure entry is less than the snapshot'd contextCSN */
 				for ( i=0; i<ss->ss_numcsns; i++ ) {
 					if ( sid == ss->ss_sids[i] && ber_bvcmp( &a->a_nvals[0],
@@ -3022,7 +3042,7 @@ syncprov_search_response( Operation *op, SlapReply *rs )
 		/* Is this a regular refresh?
 		 * Note: refresh never gets here if there were no changes
 		 */
-		if ( !ss->ss_so ) {
+		if ( !so ) {
 			rs->sr_ctrls = op->o_tmpalloc( sizeof(LDAPControl *)*2,
 				op->o_tmpmemctx );
 			rs->sr_ctrls[1] = NULL;
@@ -3033,6 +3053,7 @@ syncprov_search_response( Operation *op, SlapReply *rs )
 			op->o_tmpfree( cookie.bv_val, op->o_tmpmemctx );
 		} else {
 		/* It's RefreshAndPersist, transition to Persist phase */
+			rs->sr_err = SLAPD_NO_REPLY;
 			syncprov_sendinfo( op, rs, ( ss->ss_flags & SS_PRESENT ) ?
 				LDAP_TAG_SYNC_REFRESH_PRESENT : LDAP_TAG_SYNC_REFRESH_DELETE,
 				( ss->ss_flags & SS_CHANGED ) ? &cookie : NULL,
@@ -3050,25 +3071,52 @@ syncprov_search_response( Operation *op, SlapReply *rs )
 				return SLAPD_ABANDON;
 
 			} else {
-				ldap_pvt_thread_mutex_lock( &ss->ss_so->s_mutex );
+				ldap_pvt_thread_mutex_lock( &so->s_mutex );
 				/* Turn off the refreshing flag */
-				ss->ss_so->s_flags ^= PS_IS_REFRESHING;
+				so->s_flags ^= PS_IS_REFRESHING;
 
 				Debug( LDAP_DEBUG_SYNC, "%s syncprov_search_response: "
 					"detaching op\n", op->o_log_prefix );
-				syncprov_detach_op( op, ss->ss_so, on );
+				syncprov_detach_op( op, so, on );
 
 				ldap_pvt_thread_mutex_unlock( &op->o_conn->c_mutex );
 
 				/* If there are queued responses, fire them off */
-				if ( ss->ss_so->s_res )
-					syncprov_qstart( ss->ss_so );
-				ldap_pvt_thread_mutex_unlock( &ss->ss_so->s_mutex );
-				return SLAPD_NO_REPLY;
+				if ( so->s_res )
+					syncprov_qstart( so );
+				ldap_pvt_thread_mutex_unlock( &so->s_mutex );
+				return rs->sr_err;
 			}
 		}
 	}
 
+	return SLAP_CB_CONTINUE;
+}
+
+static int
+syncprov_search_cb( Operation *op, SlapReply *rs )
+{
+	/*
+	 * Prevent the glue overlay from processing subordinates when it is
+	 * configured (explicitly or implicitly) below the syncprov overlay.
+	 */
+	if ( rs->sr_type == REP_RESULT )
+		op->o_no_subordinate_glue = 1;
+	return SLAP_CB_CONTINUE;
+}
+
+static int
+syncprov_search_cleanup( Operation *op, SlapReply *rs )
+{
+	if ( rs->sr_type == REP_RESULT || rs->sr_type == REP_INTERMEDIATE ||
+		rs->sr_err == SLAPD_ABANDON || op->o_abandon ) {
+		searchstate *ss = op->o_callback->sc_private;
+		if ( ss && ss->ss_numcsns ) {
+			ber_bvarray_free_x( ss->ss_ctxcsn, op->o_tmpmemctx );
+			op->o_tmpfree( ss->ss_sids, op->o_tmpmemctx );
+		}
+		slap_freeself_cb( op, rs );
+	}
 	return SLAP_CB_CONTINUE;
 }
 
@@ -3087,6 +3135,14 @@ syncprov_op_search( Operation *op, SlapReply *rs )
 	struct berval mincsn, maxcsn;
 	int minsid, maxsid;
 	int dirty = 0;
+
+	if ( op->o_sync > SLAP_CONTROL_IGNORED ) {
+		cb = op->o_tmpcalloc( 1, sizeof(slap_callback), op->o_tmpmemctx );
+		cb->sc_response = syncprov_search_cb;
+		cb->sc_cleanup = syncprov_search_cleanup;
+		cb->sc_next = op->o_callback;
+		op->o_callback = cb;
+	}
 
 	if ( !(op->o_sync_mode & SLAP_SYNC_REFRESH) ) return SLAP_CB_CONTINUE;
 
@@ -3294,6 +3350,10 @@ bailout:
 				}
 				rs->sr_ctrls = NULL;
 				send_ldap_result( op, rs );
+				if ( numcsns ) {
+					ber_bvarray_free_x( ctxcsn, op->o_tmpmemctx );
+					op->o_tmpfree( sids, op->o_tmpmemctx );
+				}
 				return rs->sr_err;
 			}
 		}
@@ -3316,6 +3376,10 @@ no_change:	if ( !(op->o_sync_mode & SLAP_SYNC_PERSIST) ) {
 				rs->sr_err = LDAP_SUCCESS;
 				send_ldap_result( op, rs );
 				rs->sr_ctrls = NULL;
+				if ( numcsns ) {
+					ber_bvarray_free_x( ctxcsn, op->o_tmpmemctx );
+					op->o_tmpfree( sids, op->o_tmpmemctx );
+				}
 				return rs->sr_err;
 			}
 			Debug( LDAP_DEBUG_SYNC, "%s syncprov_op_search: "
@@ -3403,10 +3467,6 @@ no_change:	if ( !(op->o_sync_mode & SLAP_SYNC_PERSIST) ) {
 			/* No, so a reload is required */
 			/* the 2.2 consumer doesn't send this hint */
 			if ( si->si_usehint && srs->sr_rhint == 0 ) {
-				if ( ctxcsn )
-					ber_bvarray_free_x( ctxcsn, op->o_tmpmemctx );
-				if ( sids )
-					op->o_tmpfree( sids, op->o_tmpmemctx );
 				rs->sr_err = LDAP_SYNC_REFRESH_REQUIRED;
 				rs->sr_text = "sync cookie is stale";
 				goto bailout;
@@ -3426,13 +3486,8 @@ no_change:	if ( !(op->o_sync_mode & SLAP_SYNC_PERSIST) ) {
 		} else {
 			gotstate = 1;
 			/* If changed and doing Present lookup, send Present UUIDs */
-			if ( syncprov_findcsn( op, FIND_PRESENT, 0 ) != LDAP_SUCCESS ) {
-				if ( ctxcsn )
-					ber_bvarray_free_x( ctxcsn, op->o_tmpmemctx );
-				if ( sids )
-					op->o_tmpfree( sids, op->o_tmpmemctx );
+			if ( syncprov_findcsn( op, FIND_PRESENT, 0 ) != LDAP_SUCCESS )
 				goto bailout;
-			}
 		}
 	} else {
 		/* The consumer knows nothing, we know nothing. OK. */
@@ -3490,6 +3545,7 @@ shortcut:
 	ss->ss_numcsns = numcsns;
 	ss->ss_sids = sids;
 	cb->sc_response = syncprov_search_response;
+	cb->sc_cleanup = syncprov_search_cleanup;
 	cb->sc_private = ss;
 	cb->sc_next = op->o_callback;
 	op->o_callback = cb;
@@ -3577,7 +3633,7 @@ syncprov_setup_accesslog(void)
 		if ( slap_str2ad( "reqType", &ad_reqType, &text ) ) {
 			Debug( LDAP_DEBUG_ANY, "syncprov_setup_accesslog: "
 					"couldn't get definition for attribute reqType, "
-					"is accessslog configured?\n" );
+					"is accesslog configured?\n" );
 			return rc;
 		}
 	}
@@ -3586,7 +3642,7 @@ syncprov_setup_accesslog(void)
 		if ( slap_str2ad( "reqResult", &ad_reqResult, &text ) ) {
 			Debug( LDAP_DEBUG_ANY, "syncprov_setup_accesslog: "
 					"couldn't get definition for attribute reqResult, "
-					"is accessslog configured?\n" );
+					"is accesslog configured?\n" );
 			return rc;
 		}
 	}
@@ -3595,7 +3651,7 @@ syncprov_setup_accesslog(void)
 		if ( slap_str2ad( "reqDN", &ad_reqDN, &text ) ) {
 			Debug( LDAP_DEBUG_ANY, "syncprov_setup_accesslog: "
 					"couldn't get definition for attribute reqDN, "
-					"is accessslog configured?\n" );
+					"is accesslog configured?\n" );
 			return rc;
 		}
 	}
@@ -3604,7 +3660,7 @@ syncprov_setup_accesslog(void)
 		if ( slap_str2ad( "reqEntryUUID", &ad_reqEntryUUID, &text ) ) {
 			Debug( LDAP_DEBUG_ANY, "syncprov_setup_accesslog: "
 					"couldn't get definition for attribute reqEntryUUID, "
-					"is accessslog configured?\n" );
+					"is accesslog configured?\n" );
 			return rc;
 		}
 	}
@@ -3826,13 +3882,13 @@ sp_cf_gen(ConfigArgs *c)
 		break;
 	case SP_NOPRES:
 		si->si_nopres = c->value_int;
-		break;
-	case SP_USEHINT:
-		si->si_usehint = c->value_int;
-		if ( si->si_usehint ) {
+		if ( si->si_nopres ) {
 			/* Consider we might be a delta provider, but it's ok if not */
 			(void)syncprov_setup_accesslog();
 		}
+		break;
+	case SP_USEHINT:
+		si->si_usehint = c->value_int;
 		break;
 	case SP_LOGDB:
 		if ( si->si_logs ) {

@@ -1,6 +1,6 @@
 .TH LDAP_SEARCH 3 "RELEASEDATE" "OpenLDAP LDVERSION"
 .\" $OpenLDAP$
-.\" Copyright 1998-2022 The OpenLDAP Foundation All Rights Reserved.
+.\" Copyright 1998-2024 The OpenLDAP Foundation All Rights Reserved.
 .\" Copying restrictions apply.  See COPYRIGHT/LICENSE.
 .SH NAME
 ldap_search, ldap_search_s, ldap_search_st, ldap_search_ext, ldap_search_ext_s \- Perform an LDAP search operation
@@ -42,6 +42,12 @@ LDAPControl **\fIclientctrls\fB,
 struct timeval *\fItimeout\fB,
 int \fIsizelimit\fB,
 LDAPMessage **\fIres\fB );
+.RE
+.LP
+.ft B
+#include <openldap.h>
+.LP
+.BI "int ldap_pvt_put_filter( BerElement *" ber ", const char *" str " );"
 .RE
 .SH DESCRIPTION
 These routines are used to perform LDAP search operations.
@@ -105,6 +111,18 @@ case of failure, indicating the nature of the failure
 of the operation.  See
 .BR ldap_error (3)
 for details.
+.LP
+.B ldap_pvt_put_filter()
+parses a string filter provided in
+.IR str ,
+performs structural validation and serializes it into the BerElement
+passed in
+.I ber
+as a side-effect. On error, the encoding state of
+.IR ber
+is not specified in any way. There is currently no way to learn what part of
+the string caused the validation to fail.
+.LP
 .SH NOTES
 Note that both read
 and list functionality are subsumed by these routines,
@@ -139,6 +157,7 @@ routine.
 .SH SEE ALSO
 .BR ldap (3),
 .BR ldap_result (3),
-.BR ldap_error (3)
+.BR ldap_error (3),
+.BR lber-types (3)
 .SH ACKNOWLEDGEMENTS
 .so ../Project

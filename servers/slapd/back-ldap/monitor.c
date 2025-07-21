@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2003-2022 The OpenLDAP Foundation.
+ * Copyright 2003-2024 The OpenLDAP Foundation.
  * Portions Copyright 1999-2003 Howard Chu.
  * Portions Copyright 2000-2003 Pierangelo Masarati.
  * All rights reserved.
@@ -824,6 +824,7 @@ ldap_back_monitor_ops_init(
 				"ldap_back_monitor_ops_init: "
 				"unable to register entry \"%s\" for monitoring\n",
 				e->e_name.bv_val );
+			ch_free( counter );
 			ch_free( cb );
 			break;
 		}

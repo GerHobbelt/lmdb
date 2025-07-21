@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -102,6 +102,42 @@ lload_global_init( void )
     if ( lload_exop_init() ) {
         return -1;
     }
+    return 0;
+}
+
+int
+lload_global_destroy( void )
+{
+    if ( !BER_BVISNULL( &lloadd_identity ) ) {
+        ch_free( lloadd_identity.bv_val );
+        BER_BVZERO( &lloadd_identity );
+    }
+
+    lload_exop_destroy();
+    ldap_tavl_free( lload_control_actions, (AVL_FREE)lload_restriction_free );
+    ldap_tavl_free( lload_exop_actions, (AVL_FREE)lload_restriction_free );
+
+#ifdef HAVE_TLS
+    if ( lload_tls_backend_ld ) {
+        ldap_unbind_ext( lload_tls_backend_ld, NULL, NULL );
+    }
+    if ( lload_tls_ld ) {
+        ldap_unbind_ext( lload_tls_ld, NULL, NULL );
+    }
+    if ( lload_tls_ctx ) {
+        ldap_pvt_tls_ctx_free( lload_tls_ctx );
+    }
+#endif
+
+    ldap_pvt_thread_mutex_destroy( &lload_wait_mutex );
+    ldap_pvt_thread_cond_destroy( &lload_wait_cond );
+    ldap_pvt_thread_cond_destroy( &lload_pause_cond );
+
+    ldap_pvt_thread_mutex_destroy( &clients_mutex );
+    ldap_pvt_thread_mutex_destroy( &lload_pin_mutex );
+
+    lload_libevent_destroy();
+
     return 0;
 }
 

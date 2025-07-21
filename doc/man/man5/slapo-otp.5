@@ -1,5 +1,5 @@
 .TH SLAPO_OTP 5 "2018/6/29" "SLAPO-OTP"
-.\" Copyright 2015-2022 The OpenLDAP Foundation.
+.\" Copyright 2015-2024 The OpenLDAP Foundation.
 .\" Portions Copyright 2015 by Howard Chu, Symas Corp. All rights reserved.
 .\" Portions Copyright 2018 by Ondřej Kuzník, Symas Corp. All rights reserved.
 .\" Copying restrictions apply.  See COPYRIGHT/LICENSE.
@@ -79,6 +79,16 @@ indicates that the named entry is designated to hold the parameters to generate
 one-time password shared secret: its length and algorithm to use as well as the
 permitted number of passwords to skip.
 .RE
+
+The overlay also intercepts LDAP Compare requests against the
+.B oathSecret
+attribute of an
+.B oathTOTPToken
+or
+.B oathHOTPToken
+entry and checks the asserted value against the configured secret. This is subject to
+.B compare
+access to the attribute.
 
 The following parts of the OATH-LDAP schema are implemented.
 

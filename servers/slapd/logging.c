@@ -1,7 +1,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2021-2022 The OpenLDAP Foundation.
+ * Copyright 2021-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,7 +25,9 @@
 #include <ac/ctype.h>
 
 #include <sys/stat.h>
+#ifndef _WIN32
 #include <sys/uio.h>
+#endif
 #include <fcntl.h>
 
 #include "slap.h"
@@ -42,15 +44,23 @@ static long logfile_fslimit;
 static int logfile_age, logfile_only, logfile_max;
 static char *syslog_prefix;
 static int splen;
+static int logfile_rotfail, logfile_openfail;
 
-typedef enum { LFMT_DEFAULT, LFMT_DEBUG, LFMT_SYSLOG_UTC, LFMT_SYSLOG_LOCAL } LogFormat;
+typedef enum { LFMT_DEBUG, LFMT_SYSLOG, LFMT_RFC3339 } LogFormat;
 static LogFormat logfile_format;
+
+#define LFMT_LOCALTIME 0x80
+#define LFMT_DEFAULT	LFMT_DEBUG
+#define LFMT_SYSLOG_LOCAL	(LFMT_SYSLOG|LFMT_LOCALTIME)
+#define LFMT_SYSLOG_UTC	(LFMT_SYSLOG)
+#define LFMT_RFC3339_UTC	(LFMT_RFC3339)
 
 static slap_verbmasks logformat_key[] = {
 	{ BER_BVC("default"),		LFMT_DEFAULT },
 	{ BER_BVC("debug"),			LFMT_DEBUG },
 	{ BER_BVC("syslog-utc"),	LFMT_SYSLOG_UTC },
 	{ BER_BVC("syslog-localtime"),		LFMT_SYSLOG_LOCAL },
+	{ BER_BVC("rfc3339-utc"),		LFMT_RFC3339_UTC },
 	{ BER_BVNULL, 0 }
 };
 
@@ -66,36 +76,69 @@ static char logpaths[2][MAXPATHLEN];
 static int logpathlen;
 
 #define SYSLOG_STAMP	"Mmm dd hh:mm:ss"
+#ifdef HAVE_CLOCK_GETTIME
+#define RFC3339_FRAC	".fffffffffZ"
+#else
+#define RFC3339_FRAC	".ffffffZ"
+#endif
+#define RFC3339_BASE	"YYYY-mm-ddTHH:MM:SS"
+#define RFC3339_STAMP	 RFC3339_BASE RFC3339_FRAC
 
 void
 slap_debug_print( const char *data )
 {
+#ifdef _WIN32
+	char msgbuf[4096];
+	int prefixlen, poffset = 0, datalen;
+#else
 	char prefix[sizeof("ssssssssssssssss.ffffffff 0xtttttttttttttttt ")];
 	struct iovec iov[2];
+#endif
 	int rotate = 0;
 #ifdef HAVE_CLOCK_GETTIME
 	struct timespec tv;
 #define	TS	"%08x"
+#define	TSf	".%09ldZ"
 #define	Tfrac	tv.tv_nsec
 #define gettime(tv)	clock_gettime( CLOCK_REALTIME, tv )
 #else
 	struct timeval tv;
 #define	TS	"%05x"
+#define	TSf	".%06ldZ"
 #define	Tfrac	tv.tv_usec
 #define	gettime(tv)	gettimeofday( tv, NULL )
 #endif
+	char *ptr;
+	int len;
 
 
 	gettime( &tv );
+#ifdef _WIN32
+	ptr = msgbuf;
+	prefixlen = sprintf( ptr, "%lx." TS " %p ",
+		(long)tv.tv_sec, (unsigned int)Tfrac, (void *)ldap_pvt_thread_self() );
+	if ( prefixlen < splen ) {
+		poffset = splen - prefixlen;
+		AC_MEMCPY( ptr+poffset, ptr, prefixlen );
+	}
+
+	ptr = lutil_strncopy( ptr+poffset+prefixlen, data, sizeof(msgbuf) - prefixlen);
+	len = ptr - msgbuf - poffset;
+	datalen = len - prefixlen;
+	if ( !logfile_only )
+		(void)!write( 2, msgbuf+poffset, len );
+	ptr = msgbuf;
+#else
 	iov[0].iov_base = prefix;
 	iov[0].iov_len = sprintf( prefix, "%lx." TS " %p ",
 		(long)tv.tv_sec, (unsigned int)Tfrac, (void *)ldap_pvt_thread_self() );
 	iov[1].iov_base = (void *)data;
 	iov[1].iov_len = strlen( data );
+	len = iov[0].iov_len + iov[1].iov_len;
 	if ( !logfile_only )
 		(void)!writev( 2, iov, 2 );
+#endif
 	if ( logfile_fd >= 0 ) {
-		int len = iov[0].iov_len + iov[1].iov_len;
 		if ( logfile_fslimit || logfile_age ) {
 			ldap_pvt_thread_mutex_lock( &logfile_mutex );
 			if ( logfile_fslimit && logfile_fsize + len > logfile_fslimit )
@@ -103,28 +146,82 @@ slap_debug_print( const char *data )
 			if ( logfile_age && tv.tv_sec - logfile_fcreated >= logfile_age )
 				rotate |= 2;
 			if ( rotate ) {
-				close( logfile_fd );
-				logfile_fd = -1;
+				int rc, savefd;
 				strcpy( logpaths[0]+logpathlen, ".tmp" );
-				rename( logfile_path, logpaths[0] );
-				logfile_open( logfile_path );
+				if ( rename( logfile_path, logpaths[0] )) {
+					rc = errno;
+					if ( !logfile_rotfail ) {
+						char buf[BUFSIZ];
+						char ebuf[128];
+						int len = snprintf(buf, sizeof( buf ), "ERROR! logfile rotate failure, err=%d \"%s\"\n",
+							rc, AC_STRERROR_R( rc, ebuf, sizeof(ebuf) ));
+						if ( !logfile_only )
+							!write( 2, buf, len );
+						!write( logfile_fd, buf, len );
+						logfile_rotfail = 1;
+					}
+					rotate = 0;	/* don't bother since it will fail */
+				} else {
+					logfile_rotfail = 0;
+				}
+				savefd = logfile_fd;
+				logfile_fd = -1;
+				if (( rc = logfile_open( logfile_path ))) {
+					logfile_fd = savefd;
+					if ( !logfile_openfail ) {
+						char buf[BUFSIZ];
+						char ebuf[128];
+						int len = snprintf(buf, sizeof( buf ), "ERROR! logfile couldn't be reopened, err=%d \"%s\"\n",
+							rc, AC_STRERROR_R( rc, ebuf, sizeof(ebuf) ));
+						if ( !logfile_only )
+							!write( 2, buf, len );
+						!write( logfile_fd, buf, len );
+						logfile_openfail = 1;
+					}
+				} else {
+					close( savefd );
+					logfile_openfail = 0;
+				}
 			}
 		}
 
 		if ( logfile_format > LFMT_DEBUG ) {
 			struct tm tm;
-			if ( logfile_format == LFMT_SYSLOG_UTC )
+			if ( !( logfile_format & LFMT_LOCALTIME ) )
 				ldap_pvt_gmtime( &tv.tv_sec, &tm );
 			else
 				ldap_pvt_localtime( &tv.tv_sec, &tm );
-			strftime( syslog_prefix, sizeof( SYSLOG_STAMP ),
-				"%b %d %T", &tm );
-			syslog_prefix[ sizeof( SYSLOG_STAMP )-1 ] = ' ';
+#ifdef _WIN32
+			if ( splen < prefixlen )
+				ptr += prefixlen - splen;
+			memcpy( ptr, syslog_prefix, splen );
+#else
+			ptr = syslog_prefix;
+#endif
+			if ( logfile_format & LFMT_SYSLOG ) {
+				ptr += strftime( ptr, sizeof( SYSLOG_STAMP ),
+					"%b %d %H:%M:%S", &tm );
+			}	else {
+				ptr += strftime( ptr, sizeof( RFC3339_BASE ),
+					"%Y-%m-%dT%H:%M:%S", &tm );
+				ptr += snprintf( ptr, sizeof( RFC3339_FRAC ), TSf, Tfrac );
+			}
+			*ptr = ' ';
+#ifdef _WIN32
+			len = datalen + splen;
+#else
 			iov[0].iov_base = syslog_prefix;
 			iov[0].iov_len = splen;
+#endif
 		}
 
+#ifdef _WIN32
+		if ( logfile_format <= LFMT_DEBUG )
+			ptr += poffset;	/* only nonzero if logfile-format was explicitly set */
+		len = write( logfile_fd, ptr, len );
+#else
 		len = writev( logfile_fd, iov, 2 );
+#endif
 		if ( len > 0 )
 			logfile_fsize += len;
 		if ( logfile_fslimit || logfile_age )
@@ -158,7 +255,11 @@ logfile_open( const char *path )
 	struct stat st;
 	int fd, saved_errno;
 
-	fd = open( path, O_CREAT|O_WRONLY, 0640 );
+	/* the logfile is for slapd only, not tools */
+	if ( !( slapMode & SLAP_SERVER_MODE ))
+		return 0;
+
+	fd = open( path, O_CREAT|O_WRONLY|O_APPEND, 0640 );
 	if ( fd < 0 ) {
 		saved_errno = errno;
 fail:
@@ -186,7 +287,6 @@ fail:
 	logfile_fsize = st.st_size;
 	logfile_fcreated = st.st_ctime;	/* not strictly true but close enough */
 	logfile_fd = fd;
-	lseek( fd, 0, SEEK_END );
 
 	return 0;
 }
@@ -713,6 +813,14 @@ reset:
 
 		case CFG_LOGFILE:
 			rc = logfile_open( c->value_string );
+			if ( rc ) {
+				char ebuf[128];
+				snprintf( c->cr_msg, sizeof( c->cr_msg ), "<%s> unable to open logfile, err=%d \"%s\"",
+					c->argv[0], rc, AC_STRERROR_R( rc, ebuf, sizeof(ebuf) ) );
+				Debug( LDAP_DEBUG_ANY, "%s: %s \"%s\"\n",
+					c->log, c->cr_msg, c->argv[1]);
+				return( 1 );
+			}
 			ch_free( c->value_string );
 			break;
 
@@ -728,11 +836,12 @@ reset:
 			}
 			if ( syslog_prefix )
 				ch_free( syslog_prefix );
-			len = strlen( global_host ) + 1 + strlen( serverName ) + 1 + sizeof("[123456789]:") +
-				sizeof( SYSLOG_STAMP );
-			syslog_prefix = ch_malloc( len );
-			splen = sprintf( syslog_prefix, SYSLOG_STAMP " %s %s[%d]: ", global_host, serverName, getpid() );
 			logfile_format = logformat_key[i].mask;
+			len = strlen( global_host ) + 1 + strlen( serverName ) + 1 + sizeof(("[123456789]:")) +
+				(( logfile_format & LFMT_RFC3339) ? sizeof( RFC3339_STAMP ) : sizeof( SYSLOG_STAMP ));
+			syslog_prefix = ch_malloc( len );
+			splen = sprintf( syslog_prefix, "%s %s %s[%d]: ", ( logfile_format & LFMT_RFC3339 ) ?
+				RFC3339_STAMP : SYSLOG_STAMP, global_host, serverName, getpid() );
 			}
 			break;
 

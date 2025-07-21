@@ -2,7 +2,7 @@ dnl OpenLDAP Autoconf Macros
 dnl $OpenLDAP$
 dnl This work is part of OpenLDAP Software <http://www.openldap.org/>.
 dnl
-dnl Copyright 1998-2022 The OpenLDAP Foundation.
+dnl Copyright 1998-2024 The OpenLDAP Foundation.
 dnl All rights reserved.
 dnl
 dnl Redistribution and use in source and binary forms, with or without
@@ -39,6 +39,21 @@ AC_DEFUN([OL_ARG_ENABLE], [# OpenLDAP --enable-$1
 dnl AC_MSG_RESULT([OpenLDAP -enable-$1 $ol_enable_$1])
 	popdef([ol_DefVal])
 # end --enable-$1
+])dnl
+AC_DEFUN([OL_ARG_ENABLE_BK], [
+	Backends="$Backends $1"
+	Bk_help_$1="$2"
+	OL_ARG_ENABLE($1, [AS_HELP_STRING([--enable-$1], [enable $2])], $3, $4, $5)
+])dnl
+AC_DEFUN([OL_ARG_ENABLE_OV], [
+	Overlays="$Overlays $1"
+	Ov_help_$1="$2"
+	OL_ARG_ENABLE($1, [AS_HELP_STRING([--enable-$1], [$2])], $3, $4, $5)
+])dnl
+AC_DEFUN([OL_ARG_ENABLE_PW], [
+	Pwmods="$Pwmods $1"
+	Pw_help_$1="$2"
+	OL_ARG_ENABLE($1, [AS_HELP_STRING([--enable-$1], [$2])], $3, $4, $5)
 ])dnl
 dnl
 dnl --------------------------------------------------------------------
@@ -154,6 +169,7 @@ fi
 if test $ol_cv_header_stdc = yes; then
   # /bin/cc in Irix-4.0.5 gets non-ANSI ctype macros unless using -ansi.
 AC_RUN_IFELSE([AC_LANG_SOURCE([[#include <ctype.h>
+#include <stdlib.h>
 #ifndef HAVE_EBCDIC
 #	define ISLOWER(c) ('a' <= (c) && (c) <= 'z')
 #	define TOUPPER(c) (ISLOWER(c) ? 'A' + ((c) - 'a') : (c))
@@ -303,8 +319,12 @@ AC_DEFUN([OL_PTHREAD_TEST_INCLUDES], [[
 #define NULL (void*)0
 #endif
 
+#ifdef __STDC__
+static void *task(void *p)
+#else
 static void *task(p)
 	void *p;
+#endif
 {
 	return (void *) (p == NULL);
 }
@@ -360,9 +380,13 @@ AC_DEFUN([OL_PTHREAD_TEST_FUNCTION],[[
 AC_DEFUN([OL_PTHREAD_TEST_PROGRAM],
 [AC_LANG_SOURCE([OL_PTHREAD_TEST_INCLUDES
 
+#ifdef __STDC__
+int main(int argc, char **argv)
+#else
 int main(argc, argv)
 	int argc;
 	char **argv;
+#endif
 {
 OL_PTHREAD_TEST_FUNCTION
 }
@@ -484,7 +508,7 @@ AC_CACHE_CHECK([for compatible POSIX regex],ol_cv_c_posix_regex,[
 #include <sys/types.h>
 #include <regex.h>
 static char *pattern, *string;
-main()
+int main(void)
 {
 	int rc;
 	regex_t re;
@@ -511,7 +535,8 @@ AC_DEFUN([OL_C_UPPER_LOWER],
 [AC_CACHE_CHECK([if toupper() requires islower()],ol_cv_c_upper_lower,[
 	AC_RUN_IFELSE([AC_LANG_SOURCE([[
 #include <ctype.h>
-main()
+#include <stdlib.h>
+int main(void)
 {
 	if ('C' == toupper('C'))
 		exit(0);
@@ -569,7 +594,7 @@ AC_DEFUN([OL_NONPOSIX_STRERROR_R],
 			]])],[ol_cv_nonposix_strerror_r=yes],[ol_cv_nonposix_strerror_r=no])
 	else
 		AC_RUN_IFELSE([AC_LANG_SOURCE([[
-			main() {
+			int main(void) {
 				char buf[100];
 				buf[0] = 0;
 				strerror_r( 1, buf, sizeof buf );

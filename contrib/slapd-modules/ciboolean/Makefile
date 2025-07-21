@@ -1,7 +1,7 @@
 # $OpenLDAP$
 # This work is part of OpenLDAP Software <http://www.openldap.org/>.
 #
-# Copyright 1998-2022 The OpenLDAP Foundation.
+# Copyright 1998-2024 The OpenLDAP Foundation.
 # Copyright 2022 Symas Corp. All Rights Reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -20,13 +20,19 @@ LDAP_LIB = $(LDAP_BUILD)/libraries/libldap/libldap.la \
 
 SRCDIR = ./
 
+PLAT = UNIX
+NT_LIB = -L$(LDAP_BUILD)/servers/slapd -lslapd
+NT_LDFLAGS = -no-undefined -avoid-version
+UNIX_LDFLAGS = -version-info $(LTVER)
+
 LIBTOOL = $(LDAP_BUILD)/libtool
 INSTALL = /usr/bin/install
 CC = gcc
 OPT = -g -O2
 DEFS = -DSLAPD_MOD_CIBOOLEAN=SLAPD_MOD_DYNAMIC
 INCS = $(LDAP_INC)
-LIBS = $(LDAP_LIB)
+LIBS = $($(PLAT)_LIB) $(LDAP_LIB)
+LD_FLAGS = $(LDFLAGS) $($(PLAT)_LDFLAGS) -rpath $(moduledir) -module
 
 PROGRAMS = ciboolean.la
 MANPAGES = slapo-ciboolean.5
@@ -56,8 +62,7 @@ include $(dir)/Rules.mk
 
 
 ciboolean.la: ciboolean.lo
-	$(LIBTOOL) --mode=link $(CC) $(LDFLAGS) -version-info $(LTVER) \
-	-rpath $(moduledir) -module -o $@ $? $(LIBS)
+	$(LIBTOOL) --mode=link $(CC) $(LD_FLAGS) -o $@ $? $(LIBS)
 
 clean:
 	rm -rf $(CLEAN)

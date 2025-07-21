@@ -1,7 +1,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -213,6 +213,11 @@ ldap_get_option(
 
 	case LDAP_OPT_DEREF:
 		* (int *) outvalue = lo->ldo_deref;
+		rc = LDAP_OPT_SUCCESS;
+		break;
+
+	case LDAP_OPT_REFHOPLIMIT:
+		* (int *) outvalue = lo->ldo_refhoplimit;
 		rc = LDAP_OPT_SUCCESS;
 		break;
 
@@ -836,6 +841,7 @@ ldap_set_option(
 
 	/* options which cannot withstand invalue == NULL */
 	case LDAP_OPT_DEREF:
+	case LDAP_OPT_REFHOPLIMIT:
 	case LDAP_OPT_SIZELIMIT:
 	case LDAP_OPT_TIMELIMIT:
 	case LDAP_OPT_PROTOCOL_VERSION:
@@ -878,6 +884,11 @@ ldap_set_option(
 	case LDAP_OPT_DEREF:
 		/* FIXME: check value for protocol compliance? */
 		lo->ldo_deref = * (const int *) invalue;
+		rc = LDAP_OPT_SUCCESS;
+		break;
+
+	case LDAP_OPT_REFHOPLIMIT:
+		lo->ldo_refhoplimit = * (const int *) invalue;
 		rc = LDAP_OPT_SUCCESS;
 		break;
 

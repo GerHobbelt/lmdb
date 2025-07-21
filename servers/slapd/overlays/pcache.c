@@ -1,7 +1,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2003-2022 The OpenLDAP Foundation.
+ * Copyright 2003-2024 The OpenLDAP Foundation.
  * Portions Copyright 2003 IBM Corporation.
  * Portions Copyright 2003-2009 Symas Corporation.
  * All rights reserved.
@@ -21,7 +21,7 @@
 
 #include "portable.h"
 
-#ifdef SLAPD_OVER_PROXYCACHE
+#ifdef SLAPD_OVER_PCACHE
 
 #include <stdio.h>
 
@@ -749,7 +749,7 @@ url2query(
 		}
 	}
 
-	if ( got != GOT_ALL ) {
+	if ( (got & GOT_ALL) != GOT_ALL) {
 		rc = 1;
 		goto error;
 	}
@@ -802,7 +802,11 @@ url2query(
 			goto error;
 		}
 
-		cq = add_query( op, qm, &query, qt, PC_POSITIVE, 0 );
+		if (BER_BVISNULL( &uuid )) {
+		  cq = add_query( op, qm, &query, qt, PC_NEGATIVE, 0 );
+		} else {
+		  cq = add_query( op, qm, &query, qt, PC_POSITIVE, 0 );
+		}
 		if ( cq != NULL ) {
 			cq->expiry_time = expiry_time;
 			cq->refresh_time = refresh_time;
@@ -1580,6 +1584,8 @@ add_query(
 
 	case PC_NEGATIVE:
 		ttl = templ->negttl;
+		if ( templ->ttr )
+			ttr = now + templ->ttr;
 		break;
 
 	case PC_SIZELIMIT:
@@ -3514,7 +3520,7 @@ consistency_check(
 	Operation *op;
 
 	CachedQuery *query, *qprev;
-	CachedQuery *expires = NULL;
+	CachedQuery *expires;
 	int return_val, pause = PCACHE_CC_PAUSED;
 	QueryTemplate *templ;
 
@@ -3537,6 +3543,7 @@ consistency_check(
 		time_t ttl;
 		if ( !templ->query_last ) continue;
 		pause = 0;
+		expires = NULL;
 		op->o_time = slap_get_time();
 		if ( !templ->ttr ) {
 			ttl = templ->ttl;
@@ -3840,8 +3847,8 @@ pc_cfadd( Operation *op, SlapReply *rs, Entry *p, ConfigArgs *ca )
 
 	/* We can only create this entry if the database is table-driven
 	 */
-	if ( cm->db.bd_info->bi_cf_ocs )
-		config_build_entry( op, rs, pe, ca, &bv, cm->db.bd_info->bi_cf_ocs,
+	if ( cm->db.be_cf_ocs )
+		config_build_entry( op, rs, pe, ca, &bv, cm->db.be_cf_ocs,
 			&pcocs[1] );
 
 	return 0;
@@ -5690,9 +5697,9 @@ static char *obsolete_names[] = {
 	NULL
 };
 
-#if SLAPD_OVER_PROXYCACHE == SLAPD_MOD_DYNAMIC
+#if SLAPD_OVER_PCACHE == SLAPD_MOD_DYNAMIC
 static
-#endif /* SLAPD_OVER_PROXYCACHE == SLAPD_MOD_DYNAMIC */
+#endif /* SLAPD_OVER_PCACHE == SLAPD_MOD_DYNAMIC */
 int
 pcache_initialize()
 {
@@ -5805,10 +5812,10 @@ pcache_initialize()
 	return overlay_register( &pcache );
 }
 
-#if SLAPD_OVER_PROXYCACHE == SLAPD_MOD_DYNAMIC
+#if SLAPD_OVER_PCACHE == SLAPD_MOD_DYNAMIC
 int init_module(int argc, char *argv[]) {
 	return pcache_initialize();
 }
 #endif
 
-#endif	/* defined(SLAPD_OVER_PROXYCACHE) */
+#endif	/* defined(SLAPD_OVER_PCACHE) */

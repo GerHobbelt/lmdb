@@ -1,7 +1,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@ request_abandon( LloadConnection *c, LloadOperation *op )
                 "connid=%lu msgid=%d invalid integer sent in abandon request\n",
                 c->c_connid, op->o_client_msgid );
 
-        operation_unlink( op );
+        OPERATION_UNLINK(op);
         CONNECTION_LOCK_DESTROY(c);
         return -1;
     }
@@ -81,7 +81,7 @@ request_abandon( LloadConnection *c, LloadOperation *op )
     operation_abandon( request );
 
 done:
-    operation_unlink( op );
+    OPERATION_UNLINK(op);
     return rc;
 }
 
@@ -332,7 +332,7 @@ fail:
         operation_send_reject( op, LDAP_OTHER, "internal error", 0 );
     }
 
-    operation_unlink( op );
+    OPERATION_UNLINK(op);
     if ( rc ) {
         CONNECTION_LOCK_DESTROY(client);
     }
@@ -381,7 +381,7 @@ handle_one_request( LloadConnection *c )
         case LDAP_REQ_UNBIND:
             /* There is never a response for this operation */
             op->o_res = LLOAD_OP_COMPLETED;
-            operation_unlink( op );
+            OPERATION_UNLINK(op);
 
             Debug( LDAP_DEBUG_STATS, "handle_one_request: "
                     "received unbind, closing client connid=%lu\n",
@@ -538,7 +538,8 @@ fail:
 LloadConnection *
 client_init(
         ber_socket_t s,
-        const char *peername,
+        LloadListenerSocket *ls,
+        struct berval *peername,
         struct event_base *base,
         int flags )
 {
@@ -547,7 +548,8 @@ client_init(
     event_callback_fn read_cb = connection_read_cb,
                       write_cb = connection_write_cb;
 
-    if ( (c = lload_connection_init( s, peername, flags) ) == NULL ) {
+    if ( (c = lload_connection_init(
+                    s, &ls->ls_name, peername, flags )) == NULL ) {
         return NULL;
     }
 
@@ -557,6 +559,7 @@ client_init(
     }
 
     c->c_state = LLOAD_C_READY;
+    c->c_listener = ls;
 
     if ( flags & CONN_IS_TLS ) {
 #ifdef HAVE_TLS
@@ -796,8 +799,10 @@ client_destroy( LloadConnection *c )
 void
 clients_destroy( int gentle )
 {
+    epoch_t epoch = epoch_join();
     checked_lock( &clients_mutex );
     connections_walk(
             &clients_mutex, &clients, lload_connection_close, &gentle );
     checked_unlock( &clients_mutex );
+    epoch_leave( epoch );
 }

@@ -1,7 +1,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -308,6 +308,13 @@ ldap_initialize( LDAP **ldp, LDAP_CONST char *url )
 			ldap_ld_free(ld, 1, NULL, NULL);
 			return rc;
 		}
+		if ( ldap_url_check_ext( ld->ld_options.ldo_defludp )) {
+			rc = LDAP_NOT_SUPPORTED;
+			ld->ld_errno = rc;
+			ldap_ld_free(ld, 1, NULL, NULL);
+			return rc;
+		}
+
 #ifdef LDAP_CONNECTIONLESS
 		if (ldap_is_ldapc_url(url))
 			LDAP_IS_UDP(ld) = 1;
@@ -341,6 +348,12 @@ ldap_init_fd(
 	if (url != NULL) {
 		rc = ldap_set_option(ld, LDAP_OPT_URI, url);
 		if ( rc != LDAP_SUCCESS ) {
+			ldap_ld_free(ld, 1, NULL, NULL);
+			return rc;
+		}
+		if ( ldap_url_check_ext( ld->ld_options.ldo_defludp )) {
+			rc = LDAP_NOT_SUPPORTED;
+			ld->ld_errno = rc;
 			ldap_ld_free(ld, 1, NULL, NULL);
 			return rc;
 		}
@@ -501,6 +514,11 @@ ldap_int_open_connection(
 	if( proto == LDAP_PROTO_UDP ) return 0;
 #endif
 
+	if ( async && rc == -2) {
+		/* Need to let the connect complete asynchronously before we continue */
+		return -2;
+	}
+
 #ifdef HAVE_TLS
 	if ((rc == 0 || rc == -2) && ( ld->ld_options.ldo_tls_mode == LDAP_OPT_X_TLS_HARD ||
 		strcmp( srv->lud_scheme, "ldaps" ) == 0 ))
@@ -538,6 +556,7 @@ ldap_int_open_connection(
 				LDAP_MUTEX_UNLOCK( &lo->ldo_mutex );
 			}
 			ber_int_sb_close( conn->lconn_sb );
+			ber_int_sb_destroy( conn->lconn_sb );
 			return -1;
 		}
 	}
@@ -585,9 +604,9 @@ ldap_open_internal_connection( LDAP **ldp, ber_socket_t *fdp )
 	/* Attach the passed socket as the *LDAP's connection */
 	c = ldap_new_connection( ld, NULL, 1, 0, NULL, 0, 0 );
 	if( c == NULL ) {
+		LDAP_MUTEX_UNLOCK( &ld->ld_conn_mutex );
 		ldap_unbind_ext( ld, NULL, NULL );
 		*ldp = NULL;
-		LDAP_MUTEX_UNLOCK( &ld->ld_conn_mutex );
 		return( LDAP_NO_MEMORY );
 	}
 	ber_sockbuf_ctrl( c->lconn_sb, LBER_SB_OPT_SET_FD, fdp );

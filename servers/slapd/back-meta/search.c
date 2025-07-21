@@ -1,7 +1,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1999-2022 The OpenLDAP Foundation.
+ * Copyright 1999-2024 The OpenLDAP Foundation.
  * Portions Copyright 2001-2003 Pierangelo Masarati.
  * Portions Copyright 1999-2003 Howard Chu.
  * All rights reserved.
@@ -177,7 +177,6 @@ meta_search_dobind_init(
 
 	/* NOTE: this obsoletes pseudorootdn */
 	if ( op->o_conn != NULL &&
-		!op->o_do_not_cache &&
 		( BER_BVISNULL( &msc->msc_bound_ndn ) ||
 			BER_BVISEMPTY( &msc->msc_bound_ndn ) ||
 			( mt->mt_idassert_flags & LDAP_BACK_AUTH_OVERRIDE ) ) )
@@ -723,7 +722,7 @@ retry:;
 		break;
 	
 	case LDAP_SERVER_DOWN:
-		if ( nretries && meta_back_retry( op, rs, mcp, candidate, LDAP_BACK_DONTSEND ) ) {
+		if ( nretries && meta_back_retry( op, rs, mcp, candidate, LDAP_BACK_DONTSEND, candidates ) ) {
 			nretries = 0;
 			/* if the identity changed, there might be need to re-authz */
 			(void)mi->mi_ldap_extra->controls_free( op, rs, &ctrls );
@@ -799,8 +798,9 @@ meta_back_search( Operation *op, SlapReply *rs )
 	 * FIXME: in case of values return filter, we might want
 	 * to map attrs and maybe rewrite value
 	 */
+	candidates = meta_back_candidates_get( op );
 getconn:;
-	mc = meta_back_getconn( op, rs, NULL, sendok );
+	mc = meta_back_getconn( op, rs, NULL, sendok, candidates );
 	if ( !mc ) {
 		return rs->sr_err;
 	}
@@ -808,7 +808,6 @@ getconn:;
 	dc.conn = op->o_conn;
 	dc.rs = rs;
 
-	if ( candidates == NULL ) candidates = meta_back_candidates_get( op );
 	/*
 	 * Inits searches
 	 */
@@ -1147,7 +1146,7 @@ really_bad:;
 				if ( candidates[ i ].sr_type == REP_INTERMEDIATE ) {
 					candidates[ i ].sr_type = REP_RESULT;
 
-					if ( meta_back_retry( op, rs, &mc, i, LDAP_BACK_DONTSEND ) ) {
+					if ( meta_back_retry( op, rs, &mc, i, LDAP_BACK_DONTSEND, candidates ) ) {
 						candidates[ i ].sr_msgid = META_MSGID_IGNORE;
 						switch ( meta_back_search_start( op, rs, &dc, &mc, i, candidates, NULL, 0 ) )
 						{
@@ -1998,6 +1997,7 @@ finish:;
 		ldap_pvt_thread_mutex_unlock( &mi->mi_conninfo.lai_mutex );
 	}
 
+	op->o_tmpfree( candidates, op->o_tmpmemctx );
 	return rs->sr_err;
 }
 
@@ -2016,6 +2016,7 @@ meta_send_entry(
 	Entry 			ent = { 0 };
 	BerElement 		ber = *ldap_get_message_ber( e );
 	Attribute 		*attr, **attrp;
+	LDAPControl **res_ctrls;
 	struct berval 		bdn,
 				dn = BER_BVNULL;
 	const char 		*text;
@@ -2396,12 +2397,13 @@ next_attr:;
 	}
 
 	ldap_get_entry_controls( mc->mc_conns[target].msc_ld,
-		e, &rs->sr_ctrls );
+		e, &res_ctrls );
 	rs->sr_entry = &ent;
 	rs->sr_attrs = op->ors_attrs;
 	rs->sr_operational_attrs = NULL;
 	rs->sr_flags = mi->mi_targets[ target ]->mt_rep_flags;
 	rs->sr_err = LDAP_SUCCESS;
+	rs->sr_ctrls = res_ctrls;
 	rc = send_search_entry( op, rs );
 	switch ( rc ) {
 	case LDAP_UNAVAILABLE:
@@ -2412,8 +2414,8 @@ next_attr:;
 done:;
 	rs->sr_entry = NULL;
 	rs->sr_attrs = NULL;
-	if ( rs->sr_ctrls != NULL ) {
-		ldap_controls_free( rs->sr_ctrls );
+	if ( res_ctrls != NULL ) {
+		ldap_controls_free( res_ctrls );
 		rs->sr_ctrls = NULL;
 	}
 	if ( !BER_BVISNULL( &ent.e_name ) ) {

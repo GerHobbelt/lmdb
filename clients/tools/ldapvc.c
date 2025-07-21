@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * Portions Copyright 2010 Kurt D. Zeilenga.
  * All rights reserved.
  *
@@ -86,7 +86,7 @@ usage( void )
 
 
 const char options[] = "abE:"
-	"d:D:e:h:H:InNO:o:p:QR:U:vVw:WxX:y:Y:Z";
+	"d:D:e:H:InNO:o:QR:U:vVw:WxX:y:Y:Z";
 
 int
 handle_private_option( int i )
@@ -165,6 +165,9 @@ handle_private_option( int i )
 			}
 
 			vc_sasl_mech = ber_strdup(cvalue);
+			if (vc_sasl_mech == NULL) {
+				exit(EXIT_FAILURE);
+			}
 #else
 #endif
 
@@ -182,6 +185,9 @@ handle_private_option( int i )
 			}
 
 			vc_sasl_realm = ber_strdup(cvalue);
+			if (vc_sasl_realm == NULL) {
+				exit(EXIT_FAILURE);
+			}
 #else
 			fprintf(stderr,
 				_("%s: not compiled with SASL support\n"), prog);
@@ -202,6 +208,9 @@ handle_private_option( int i )
 			}
 
 			vc_sasl_authcid = ber_strdup(cvalue);
+			if (vc_sasl_authcid == NULL) {
+				exit(EXIT_FAILURE);
+			}
 #else
 			fprintf(stderr,
 				_("%s: not compiled with SASL support\n"), prog);
@@ -222,6 +231,9 @@ handle_private_option( int i )
 			}
 
 			vc_sasl_authzid = ber_strdup(cvalue);
+			if (vc_sasl_authzid == NULL) {
+				exit(EXIT_FAILURE);
+			}
 #else
 			fprintf(stderr,
 				_("%s: not compiled with SASL support\n"), prog);
@@ -242,6 +254,9 @@ handle_private_option( int i )
 			}
 
 			vc_sasl_secprops = ber_strdup(cvalue);
+			if (vc_sasl_secprops == NULL) {
+				exit(EXIT_FAILURE);
+			}
 #else
 			fprintf(stderr,
 				_("%s: not compiled with SASL support\n"), prog);
@@ -309,8 +324,13 @@ main( int argc, char *argv[] )
 #endif
            && !cred.bv_val)
 	{
-		cred.bv_val = strdup(getpassphrase(_("User's password: ")));
-	    cred.bv_len = strlen(cred.bv_val);
+		char *userpw = getpassphrase(_("User's password: "));
+		if ( userpw == NULL ) /* Allow EOF to exit. */
+		{
+			tool_exit( ld, EXIT_FAILURE );
+		}
+		cred.bv_val = strdup(userpw);
+		cred.bv_len = strlen(cred.bv_val);
 	}
 
 #ifdef LDAP_API_FEATURE_VERIFY_CREDENTIALS_INTERACTIVE

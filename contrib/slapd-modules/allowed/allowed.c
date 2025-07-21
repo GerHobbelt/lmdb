@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2006-2022 The OpenLDAP Foundation.
+ * Copyright 2006-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -268,7 +268,7 @@ aa_operational( Operation *op, SlapReply *rs )
 
 	ch_free( ocp );
 
-	if ( atp != NULL ) {
+	if ( atp != NULL && atp[0] != NULL ) {
 		BerVarray	bv_allowed = NULL,
 				bv_effective = NULL;
 		int		i, ja = 0, je = 0;
@@ -323,8 +323,10 @@ aa_operational( Operation *op, SlapReply *rs )
 			(*ap)->a_nvals = bv_effective;
 			(*ap)->a_numvals = je;
 			ap = &(*ap)->a_next;
+			bv_effective = NULL;
 		}
 
+		ch_free( bv_effective );
 		*ap = NULL;
 	}
 
@@ -409,8 +411,10 @@ done_ce:;
 			(*ap)->a_nvals = bv_effective;
 			(*ap)->a_numvals = je;
 			ap = &(*ap)->a_next;
+			bv_effective = NULL;
 		}
 
+		ch_free( bv_effective );
 		*ap = NULL;
 	}
 

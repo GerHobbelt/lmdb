@@ -1,5 +1,5 @@
 .TH SLAPD-CONFIG 5 "RELEASEDATE" "OpenLDAP LDVERSION"
-.\" Copyright 1998-2022 The OpenLDAP Foundation All Rights Reserved.
+.\" Copyright 1998-2024 The OpenLDAP Foundation All Rights Reserved.
 .\" Copying restrictions apply.  See COPYRIGHT/LICENSE.
 .\" $OpenLDAP$
 .SH NAME
@@ -501,7 +501,7 @@ feature.  The default is 0. You may also want to set the
 .B olcWriteTimeout
 option.
 .TP
-.B olcIndexHash64: { on | off }
+.B olcIndexHash64: { TRUE | FALSE }
 Use a 64 bit hash for indexing. The default is to use 32 bit hashes.
 These hashes are used for equality and substring indexing. The 64 bit
 version may be needed to avoid index collisions when the number of
@@ -564,14 +564,15 @@ see
 option description.  The default is 71.
 .TP
 .B olcLogFile: <filename>
-Specify a file for recording slapd debug messages. By default these messages
-only go to stderr, are not recorded anywhere else, and are unrelated to
-messages exposed by the
+Specify a file for recording slapd debug messages. These messages are
+unrelated to messages exposed by the
 .B olcLogLevel
-configuration parameter. Specifying a logfile copies messages to both stderr
-and the logfile.
+configuration parameter. This setting only affects the slapd daemon and has
+no effect on the command line tools. By default these messages
+only go to stderr and are not recorded anywhere else.
+Specifying a logfile copies messages to both stderr and the logfile.
 .TP
-.B olcLogFileFormat: debug | syslog-utc | syslog-localtime
+.B olcLogFileFormat: debug|syslog-utc|syslog-localtime|rfc3339-utc
 Specify the prefix format for messages written to the logfile. The debug
 format is the normal format used for slapd debug messages, with a timestamp
 in hexadecimal, followed by a thread ID.  The other options are to
@@ -903,6 +904,7 @@ you can specify.
 Permits configuring what ciphers will be accepted and the preference order.
 <cipher-suite-spec> should be a cipher specification for the TLS library
 in use (OpenSSL or GnuTLS).
+This directive is not supported when using MbedTLS.
 Example:
 .RS
 .RS
@@ -952,6 +954,13 @@ or the olcTLSCACertificateFile is defined. If both are specified, both
 locations will be used. Multiple directories may be specified,
 separated by a semi-colon.
 .TP
+.B olcTLSCACertificate: <CA cert>
+Stores a single CA certificate that will be trusted by the server, in DER format.
+If this option is set, the \fBolcTLSCACertificateFile\fP and
+\fBolcTLSCACertificatePath\fP options are ignored. If multiple
+CA certificates are required, the \fBolcTLSCACertificateFile\fP
+or \fBolcTLSCACertificatePath\fP options must be used instead of this option.
+.TP
 .B olcTLSCertificateFile: <filename>
 Specifies the file that contains the
 .B slapd
@@ -960,16 +969,23 @@ server certificate.
 When using OpenSSL that file may also contain any number of intermediate
 certificates after the server certificate.
 .TP
+.B olcTLSCertificate: <cert>
+Stores a single certificate for the server, in DER format. If this option is
+used, the \fBolcTLSCertificateFile\fP option is ignored.
+.TP
 .B olcTLSCertificateKeyFile: <filename>
 Specifies the file that contains the
 .B slapd
-server private key that matches the certificate stored in the
-.B olcTLSCertificateFile
-file. If the private key is protected with a password, the password must
+server private key that matches the specified server certificate.
+If the private key file is protected with a password, the password must
 be manually typed in when slapd starts.  Usually the private key is not
 protected with a password, to allow slapd to start without manual
 intervention, so
 it is of critical importance that the file is protected carefully. 
+.TP
+.B olcTLSCertificateKey <key>
+Stores the private key that matches the server certificate. If this option is
+used, the \fBolcTLSCertificateKeyFile\fP option is ignored.
 .TP
 .B olcTLSDHParamFile: <filename>
 This directive specifies the file that contains parameters for Diffie-Hellman
@@ -982,6 +998,7 @@ actual client or server authentication and provide no protection against
 man-in-the-middle attacks.
 You should append "!ADH" to your cipher suites to ensure that these suites
 are not used.
+This directive is not supported when using MbedTLS.
 .TP
 .B olcTLSECName: <name>
 Specify the name of the curve(s) to use for Elliptic curve Diffie-Hellman
@@ -1508,7 +1525,9 @@ will be updated. More than
 .B integer
 seconds must have passed since the last successful bind. In a
 replicated environment with frequent bind activity it may be
-useful to set this to a large value.
+useful to set this to a large value. On a backend, if set to
+.B 0
+(the default), the value set on the frontend is used.
 .TP
 .B olcLimits: <selector> <limit> [<limit> [...]]
 Specify time and size limits based on the operation's initiator or
@@ -2135,7 +2154,8 @@ log format, or "changelog" if the log conforms
 to the obsolete \fIchangelog\fP format. If the
 .B syncdata
 parameter is omitted or set to "default" then the log parameters are
-ignored.
+ignored. If \fBmultiprovider\fP is being used, the same \fBlogbase\fP
+database must be configured on all of the providers.
 
 The
 .B lazycommit

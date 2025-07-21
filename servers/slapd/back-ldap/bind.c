@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1999-2022 The OpenLDAP Foundation.
+ * Copyright 1999-2024 The OpenLDAP Foundation.
  * Portions Copyright 2000-2003 Pierangelo Masarati.
  * Portions Copyright 1999-2003 Howard Chu.
  * All rights reserved.
@@ -268,7 +268,7 @@ retry:;
 	}
 
 	ldap_pvt_thread_mutex_lock( &li->li_counter_mutex );
-	ldap_pvt_mp_add( li->li_ops_completed[ SLAP_OP_BIND ], 1 );
+	ldap_pvt_mp_add_ulong( li->li_ops_completed[ SLAP_OP_BIND ], 1 );
 	ldap_pvt_thread_mutex_unlock( &li->li_counter_mutex );
 
 	ldap_back_controls_free( op, rs, &ctrls );
@@ -1434,7 +1434,7 @@ retry_lock:;
 				defaults );
 
 		ldap_pvt_thread_mutex_lock( &li->li_counter_mutex );
-		ldap_pvt_mp_add( li->li_ops_completed[ SLAP_OP_BIND ], 1 );
+		ldap_pvt_mp_add_ulong( li->li_ops_completed[ SLAP_OP_BIND ], 1 );
 		ldap_pvt_thread_mutex_unlock( &li->li_counter_mutex );
 
 		lutil_sasl_freedefs( defaults );
@@ -1504,7 +1504,7 @@ retry:;
 			NULL, NULL, &msgid );
 
 	ldap_pvt_thread_mutex_lock( &li->li_counter_mutex );
-	ldap_pvt_mp_add( li->li_ops_completed[ SLAP_OP_BIND ], 1 );
+	ldap_pvt_mp_add_ulong( li->li_ops_completed[ SLAP_OP_BIND ], 1 );
 	ldap_pvt_thread_mutex_unlock( &li->li_counter_mutex );
 
 	if ( rs->sr_err == LDAP_SERVER_DOWN ) {
@@ -1978,7 +1978,6 @@ retry:;
 			rs->sr_flags |= REP_CTRLS_MUSTBEFREED;
 
 		} else {
-			assert( rs->sr_ctrls != NULL );
 			rs->sr_ctrls = NULL;
 		}
 
@@ -2339,7 +2338,7 @@ ldap_back_proxy_authz_bind(
 		} while ( rs->sr_err == LDAP_SASL_BIND_IN_PROGRESS );
 
 		ldap_pvt_thread_mutex_lock( &li->li_counter_mutex );
-		ldap_pvt_mp_add( li->li_ops_completed[ SLAP_OP_BIND ], 1 );
+		ldap_pvt_mp_add_ulong( li->li_ops_completed[ SLAP_OP_BIND ], 1 );
 		ldap_pvt_thread_mutex_unlock( &li->li_counter_mutex );
 
 		switch ( rs->sr_err ) {
@@ -2450,7 +2449,7 @@ ldap_back_proxy_authz_bind(
 			-1, ( sendok | LDAP_BACK_BINDING ) );
 
 		ldap_pvt_thread_mutex_lock( &li->li_counter_mutex );
-		ldap_pvt_mp_add( li->li_ops_completed[ SLAP_OP_BIND ], 1 );
+		ldap_pvt_mp_add_ulong( li->li_ops_completed[ SLAP_OP_BIND ], 1 );
 		ldap_pvt_thread_mutex_unlock( &li->li_counter_mutex );
 		break;
 
@@ -3205,17 +3204,24 @@ ldap_back_schedule_conn_expiry( ldapinfo_t *li, ldapconn_t *lc ) {
 	 * timeout of this connection.
 	 *
 	 * If the task is already running, this connection cannot be next one
-	 * to expire and therefore timeout does not need to be re-calculated.
+	 * to expire (all connections share the same timeout) and therefore timeout
+	 * does not need to be re-calculated.
 	 */
 	ldap_pvt_thread_mutex_lock( &slapd_rq.rq_mutex );
 	if ( li->li_conn_expire_task == NULL ) {
-		li->li_conn_expire_task = ldap_pvt_runqueue_insert( &slapd_rq,
-			ldap_back_conn_expire_time( li, lc ) - slap_get_time(),
+		li->li_conn_expire_task = ldap_pvt_runqueue_insert( &slapd_rq, 0,
 			ldap_back_conn_expire_fn, li, "ldap_back_conn_expire_fn",
 			"ldap_back_conn_expire_timer" );
+
+		li->li_conn_expire_task->interval.tv_sec =
+			ldap_back_conn_expire_time( li, lc ) - slap_get_time();
+		ldap_pvt_runqueue_resched( &slapd_rq, li->li_conn_expire_task, 0 );
 		Debug( LDAP_DEBUG_TRACE,
 			"ldap_back_conn_prune: scheduled connection expiry timer to %ld sec\n",
 			li->li_conn_expire_task->interval.tv_sec );
+
+		/* Make this a one-shot task */
+		li->li_conn_expire_task->interval.tv_sec = 0;
 	}
 	ldap_pvt_thread_mutex_unlock( &slapd_rq.rq_mutex );
 

@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -88,6 +88,9 @@ static AttributeDescription *ad_olmCompletedOps;
 static AttributeDescription *ad_olmFailedOps;
 static AttributeDescription *ad_olmConnectionType;
 static AttributeDescription *ad_olmConnectionState;
+static AttributeDescription *ad_olmConnectionLocalAddress;
+static AttributeDescription *ad_olmConnectionPeerAddress;
+static AttributeDescription *ad_olmConnectionAuthzDN;
 static AttributeDescription *ad_olmPendingOps;
 static AttributeDescription *ad_olmPendingConnections;
 static AttributeDescription *ad_olmActiveConnections;
@@ -208,6 +211,28 @@ static struct {
       "SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 "
       "USAGE dSAOperation )",
         &ad_olmConnectionState },
+    { "( olmBalancerAttributes:14 "
+      "NAME ( 'olmConnectionLocalAddress' ) "
+      "DESC 'Connection local address' "
+      "EQUALITY caseIgnoreMatch "
+      "SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 "
+      "USAGE dSAOperation )",
+        &ad_olmConnectionLocalAddress },
+    { "( olmBalancerAttributes:15 "
+      "NAME ( 'olmConnectionPeerAddress' ) "
+      "DESC 'Connection peer address' "
+      "EQUALITY caseIgnoreMatch "
+      "SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 "
+      "USAGE dSAOperation )",
+        &ad_olmConnectionPeerAddress },
+    { "( olmBalancerAttributes:16 "
+      "NAME ( 'olmConnectionAuthzDN' ) "
+      "DESC 'AuthZ DN of last successful bind' "
+      /* "SUP distinguishedName " */
+      "EQUALITY distinguishedNameMatch "
+      "SYNTAX 1.3.6.1.4.1.1466.115.121.1.12 "
+      "USAGE dSAOperation )",
+        &ad_olmConnectionAuthzDN },
 
     { NULL }
 };
@@ -265,6 +290,9 @@ static struct {
       "MAY ( "
       "olmConnectionType "
       "$ olmConnectionState "
+      "$ olmConnectionLocalAddress "
+      "$ olmConnectionPeerAddress "
+      "$ olmConnectionAuthzDN "
       "$ olmPendingOps "
       "$ olmReceivedOps "
       "$ olmCompletedOps "
@@ -277,6 +305,16 @@ static struct {
 static int
 lload_monitor_subsystem_destroy( BackendDB *be, monitor_subsys_t *ms )
 {
+    ch_free( ms->mss_dn.bv_val );
+    ch_free( ms->mss_ndn.bv_val );
+    return LDAP_SUCCESS;
+}
+
+static int
+lload_monitor_subsystem_free( BackendDB *be, monitor_subsys_t *ms )
+{
+    lload_monitor_subsystem_destroy( be, ms );
+    ch_free( ms );
     return LDAP_SUCCESS;
 }
 
@@ -287,16 +325,14 @@ lload_monitor_backend_destroy( BackendDB *be, monitor_subsys_t *ms )
     monitor_extra_t *mbe;
     int rc = LDAP_SUCCESS;
 
+    ms->mss_destroy = lload_monitor_subsystem_free;
+
     mbe = (monitor_extra_t *)be->bd_info->bi_extra;
     if ( b->b_monitor ) {
-        ms->mss_destroy = lload_monitor_subsystem_destroy;
-
         assert( b->b_monitor == ms );
         b->b_monitor = NULL;
 
         rc = mbe->unregister_entry( &ms->mss_ndn );
-        ber_memfree( ms->mss_dn.bv_val );
-        ber_memfree( ms->mss_ndn.bv_val );
     }
 
     return rc;
@@ -306,19 +342,21 @@ static int
 lload_monitor_tier_destroy( BackendDB *be, monitor_subsys_t *ms )
 {
     LloadTier *tier = ms->mss_private;
-    monitor_extra_t *mbe;
 
-    mbe = (monitor_extra_t *)be->bd_info->bi_extra;
-    if ( tier->t_monitor ) {
-        ms->mss_destroy = lload_monitor_subsystem_destroy;
+    assert( slapd_shutdown || ( tier && tier->t_monitor == ms ) );
 
-        assert( tier->t_monitor == ms );
+    ms->mss_destroy = lload_monitor_subsystem_free;
+
+    if ( !slapd_shutdown ) {
+        monitor_extra_t *mbe;
+
         tier->t_monitor = NULL;
 
+        mbe = (monitor_extra_t *)be->bd_info->bi_extra;
         return mbe->unregister_entry( &ms->mss_ndn );
     }
 
-    return LDAP_SUCCESS;
+    return ms->mss_destroy( be, ms );
 }
 
 static void
@@ -531,6 +569,17 @@ done:
     return rc;
 }
 
+static void *
+lload_monitor_release_conn( void *ctx, void *arg )
+{
+    LloadConnection *c = arg;
+    epoch_t epoch = epoch_join();
+
+    RELEASE_REF( c, c_refcnt, c->c_destroy );
+    epoch_leave( epoch );
+    return NULL;
+}
+
 static int
 lload_monitor_conn_modify( Operation *op, SlapReply *rs, Entry *e, void *priv )
 {
@@ -563,9 +612,21 @@ lload_monitor_conn_modify( Operation *op, SlapReply *rs, Entry *e, void *priv )
             goto done;
         }
     }
+
 done:
-    RELEASE_REF( c, c_refcnt, c->c_destroy );
     epoch_leave( epoch );
+    /*
+     * The connection might have been ready to disappear in epoch_leave(), that
+     * involves deleting this monitor entry. Make sure that doesn't happen
+     * punting the decref into a separate task that's not holding any locks and
+     * finishes after we did.
+     *
+     * FIXME: It would probably be cleaner to defer the entry deletion into a
+     * separate task instead but the entry holds a pointer to this connection
+     * that might not be safe to manipulate.
+     */
+    ldap_pvt_thread_pool_submit(
+            &connection_pool, lload_monitor_release_conn, c );
     return rc;
 }
 
@@ -662,6 +723,12 @@ lload_monitor_conn_update( Operation *op, SlapReply *rs, Entry *e, void *priv )
     }
     a->a_vals[0] = bv_state;
 
+    attr_delete( &e->e_attrs, ad_olmConnectionAuthzDN );
+    if ( !BER_BVISNULL( &c->c_auth ) ) {
+        attr_merge_normalize_one( e, ad_olmConnectionAuthzDN,
+                &c->c_auth, op->o_tmpmemctx );
+    }
+
     a = attr_find( e->e_attrs, ad_olmPendingOps );
     assert( a != NULL );
     UI2BV( &a->a_vals[0], pending );
@@ -744,6 +811,8 @@ lload_monitor_conn_entry_create( LloadConnection *c, monitor_subsys_t *ms )
 
     attr_merge_one( e, ad_olmConnectionType, &value, NULL );
     attr_merge_one( e, ad_olmConnectionState, &value, NULL );
+    attr_merge_one( e, ad_olmConnectionLocalAddress, &c->c_local_name, NULL );
+    attr_merge_one( e, ad_olmConnectionPeerAddress, &c->c_peer_name, NULL );
     attr_merge_one( e, ad_olmPendingOps, &zero, NULL );
     attr_merge_one( e, ad_olmReceivedOps, &zero, NULL );
     attr_merge_one( e, ad_olmCompletedOps, &zero, NULL );

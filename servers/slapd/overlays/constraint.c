@@ -42,7 +42,9 @@
 #define REGEX_STR "regex"
 #define NEG_REGEX_STR "negregex"
 #define URI_STR "uri"
+#define NEG_URI_STR "neguri"
 #define SET_STR "set"
+#define NEG_SET_STR "negset"
 #define SIZE_STR "size"
 #define COUNT_STR "count"
 
@@ -75,6 +77,11 @@ typedef struct constraint {
 	struct berval filter;
 } constraint;
 
+typedef struct constraint_info {
+	struct constraint *constraint;
+	int allow_empty;
+} constraint_info;
+
 enum {
 	CONSTRAINT_ATTRIBUTE = 1,
 	CONSTRAINT_COUNT,
@@ -82,18 +89,28 @@ enum {
 	CONSTRAINT_REGEX,
 	CONSTRAINT_NEG_REGEX,
 	CONSTRAINT_SET,
+	CONSTRAINT_NEG_SET,
 	CONSTRAINT_URI,
+	CONSTRAINT_NEG_URI,
+	CONSTRAINT_ALLOWEMPTY,
 };
 
 static ConfigDriver constraint_cf_gen;
 
 static ConfigTable constraintcfg[] = {
-	{ "constraint_attribute", "attribute[list]> (regex|negregex|uri|set|size|count) <value> [<restrict URI>]",
+	{ "constraint_attribute", "attribute[list]> (regex|negregex|uri|neguri|set|negset|size|count) <value> [<restrict URI>]",
 	  4, 0, 0, ARG_MAGIC | CONSTRAINT_ATTRIBUTE, constraint_cf_gen,
 	  "( OLcfgOvAt:13.1 NAME 'olcConstraintAttribute' "
 	  "DESC 'constraint for list of attributes' "
 	  "EQUALITY caseIgnoreMatch "
 	  "SYNTAX OMsDirectoryString )", NULL, NULL },
+	{ "constraint_allowempty", "on|off", 1, 2, 0,
+	  ARG_ON_OFF | ARG_OFFSET | CONSTRAINT_ALLOWEMPTY,
+	  (void *)offsetof(constraint_info,allow_empty),
+	  "( OLcfgOvAt:13.2 NAME 'olcConstraintAllowEmpty' "
+	  "DESC 'are empty modify requests allowed?' "
+	  "EQUALITY booleanMatch "
+	  "SYNTAX OMsBoolean SINGLE-VALUE )", NULL, NULL },
 	{ NULL, NULL, 0, 0, 0, ARG_IGNORED }
 };
 
@@ -102,7 +119,7 @@ static ConfigOCs constraintocs[] = {
 	  "NAME 'olcConstraintConfig' "
 	  "DESC 'Constraint overlay configuration' "
 	  "SUP olcOverlayConfig "
-	  "MAY ( olcConstraintAttribute ) )",
+	  "MAY ( olcConstraintAttribute $ olcConstraintAllowEmpty ) )",
 	  Cft_Overlay, constraintcfg },
 	{ NULL, 0, NULL }
 };
@@ -138,7 +155,8 @@ static int
 constraint_cf_gen( ConfigArgs *c )
 {
 	slap_overinst *on = (slap_overinst *)(c->bi);
-	constraint *cn = on->on_bi.bi_private, *cp;
+	constraint_info *ov = on->on_bi.bi_private;
+	constraint *cn = ov->constraint, *cp;
 	struct berval bv;
 	int i, rc = 0;
 	constraint ap = { NULL };
@@ -187,8 +205,16 @@ constraint_cf_gen( ConfigArgs *c )
 						tstr = SET_STR;
 						quotes = 1;
 						break;
+					case CONSTRAINT_NEG_SET:
+						tstr = NEG_SET_STR;
+						quotes = 1;
+						break;
 					case CONSTRAINT_URI:
 						tstr = URI_STR;
+						quotes = 1;
+						break;
+					case CONSTRAINT_NEG_URI:
+						tstr = NEG_URI_STR;
 						quotes = 1;
 						break;
 					default:
@@ -259,8 +285,8 @@ constraint_cf_gen( ConfigArgs *c )
 					constraint_free( cn, 1 );
 					cn = cp;
 				}
-						
-				on->on_bi.bi_private = NULL;
+
+				ov->constraint = NULL;
 			} else {
 				constraint **cpp;
 						
@@ -274,7 +300,7 @@ constraint_cf_gen( ConfigArgs *c )
 					*cpp = cp->ap_next;
 					constraint_free( cp, 1 );
 				}
-				on->on_bi.bi_private = cn;
+				ov->constraint = cn;
 			}
 			break;
 
@@ -339,10 +365,10 @@ constraint_cf_gen( ConfigArgs *c )
 				ap.count = strtoull(c->argv[3], &endptr, 10);
 				if ( *endptr )
 					rc = ARG_BAD_CONF;
-			} else if ( strcasecmp( c->argv[2], URI_STR ) == 0 ) {
+			} else if ( strcasecmp( c->argv[2], URI_STR ) == 0 || strcasecmp( c->argv[2], NEG_URI_STR ) == 0 ) {
 				int err;
 			
-				ap.type = CONSTRAINT_URI;
+				ap.type = strcasecmp( c->argv[2], URI_STR ) == 0 ? CONSTRAINT_URI : CONSTRAINT_NEG_URI;
 				err = ldap_url_parse(c->argv[3], &ap.lud);
 				if ( err != LDAP_URL_SUCCESS ) {
 					snprintf( c->cr_msg, sizeof( c->cr_msg ),
@@ -369,6 +395,7 @@ constraint_cf_gen( ConfigArgs *c )
 						ap.attrs[i] = NULL;
 						if ( slap_str2ad( ap.lud->lud_attrs[i], &ap.attrs[i], &text ) ) {
 							ch_free( ap.attrs );
+							ap.attrs = NULL;
 							snprintf( c->cr_msg, sizeof( c->cr_msg ),
 								"%s <%s>: %s\n", c->argv[0], ap.lud->lud_attrs[i], text );
 							rc = ARG_BAD_CONF;
@@ -419,6 +446,11 @@ constraint_cf_gen( ConfigArgs *c )
 				ap.set = 1;
 				ber_str2bv( c->argv[3], 0, 1, &ap.val );
 				ap.type = CONSTRAINT_SET;
+
+			} else if ( strcasecmp( c->argv[2], NEG_SET_STR ) == 0 ) {
+				ap.set = 1;
+				ber_str2bv( c->argv[3], 0, 1, &ap.val );
+				ap.type = CONSTRAINT_NEG_SET;
 
 			} else {
 				snprintf( c->cr_msg, sizeof( c->cr_msg ),
@@ -557,7 +589,7 @@ done:;
 				a2->restrict_filter = ap.restrict_filter;
 				a2->restrict_val = ap.restrict_val;
 
-				for ( app = &on->on_bi.bi_private; *app; app = &(*app)->ap_next )
+				for ( app = &ov->constraint; *app; app = &(*app)->ap_next )
 					/* Get to the end */ ;
 
 				a2->ap_next = *app;
@@ -615,7 +647,9 @@ constraint_violation( constraint *c, struct berval *bv, Operation *op )
 			if (regexec(c->re, bv->bv_val, 0, NULL, 0) != REG_NOMATCH)
 				return LDAP_CONSTRAINT_VIOLATION; /* regular expression violation */
 			break;
-		case CONSTRAINT_URI: {
+		case CONSTRAINT_URI: /* fallthrough */
+		case CONSTRAINT_NEG_URI:
+		{
 			Operation nop = *op;
 			slap_overinst *on = (slap_overinst *) op->o_bd->bd_info;
 			slap_callback cb = { 0 };
@@ -718,7 +752,7 @@ constraint_violation( constraint *c, struct berval *bv, Operation *op )
 				return rc; /* unexpected error */
 			}
 
-			if (!found)
+			if (found ^ c->type == CONSTRAINT_URI)
 				return LDAP_CONSTRAINT_VIOLATION; /* constraint violation */
 			break;
 		}
@@ -808,19 +842,27 @@ static int
 constraint_add( Operation *op, SlapReply *rs )
 {
 	slap_overinst *on = (slap_overinst *) op->o_bd->bd_info;
+	constraint_info *ov = on->on_bi.bi_private;
+	constraint *c = ov->constraint, *cp;
 	Attribute *a;
-	constraint *c = on->on_bi.bi_private, *cp;
 	BerVarray b = NULL;
 	int i;
 	struct berval rsv = BER_BVC("add breaks constraint");
 	int rc = 0;
 	char *msg = NULL;
 
-	if (get_relax(op) || SLAPD_SYNC_IS_SYNCCONN( op->o_connid )) {
+	if ( get_relax(op) || be_shadow_update( op ) ) {
 		return SLAP_CB_CONTINUE;
 	}
 
 	if ((a = op->ora_e->e_attrs) == NULL) {
+		if ( ov->allow_empty ) {
+			/*
+			 * Probably results in an error later on as an empty add makes no
+			 * sense.
+			 */
+			return SLAP_CB_CONTINUE;
+		}
 		op->o_bd->bd_info = (BackendInfo *)(on->on_info);
 		send_ldap_error(op, rs, LDAP_INVALID_SYNTAX,
 			"constraint_add: no attrs");
@@ -855,6 +897,10 @@ constraint_add( Operation *op, SlapReply *rs )
 					break;
 				case CONSTRAINT_SET:
 					if (acl_match_set(&cp->val, op, op->ora_e, NULL) == 0)
+						rc = LDAP_CONSTRAINT_VIOLATION;
+					break;
+				case CONSTRAINT_NEG_SET:
+					if (acl_match_set(&cp->val, op, op->ora_e, NULL) != 0)
 						rc = LDAP_CONSTRAINT_VIOLATION;
 					break;
 				default:
@@ -948,7 +994,8 @@ constraint_update( Operation *op, SlapReply *rs )
 {
 	slap_overinst *on = (slap_overinst *) op->o_bd->bd_info;
 	Backend *be = op->o_bd;
-	constraint *c = on->on_bi.bi_private, *cp;
+	constraint_info *ov = on->on_bi.bi_private;
+	constraint *c = ov->constraint, *cp;
 	Entry *target_entry = NULL, *target_entry_copy = NULL;
 	Modifications *modlist, *m;
 	BerVarray b = NULL;
@@ -958,7 +1005,7 @@ constraint_update( Operation *op, SlapReply *rs )
 	char *msg = NULL;
 	int is_v;
 
-	if (get_relax(op) || SLAPD_SYNC_IS_SYNCCONN( op->o_connid )) {
+	if ( get_relax(op) || be_shadow_update( op ) ) {
 		return SLAP_CB_CONTINUE;
 	}
 
@@ -978,6 +1025,9 @@ constraint_update( Operation *op, SlapReply *rs )
 	
 	Debug( LDAP_DEBUG_CONFIG|LDAP_DEBUG_NONE, "constraint_update()\n" );
 	if ((m = modlist) == NULL) {
+		if ( ov->allow_empty ) {
+			return SLAP_CB_CONTINUE;
+		}
 		op->o_bd->bd_info = (BackendInfo *)(on->on_info);
 		send_ldap_error(op, rs, LDAP_INVALID_SYNTAX,
 						"constraint_update() got null modlist");
@@ -1050,7 +1100,7 @@ constraint_update( Operation *op, SlapReply *rs )
 				}
 			}
 
-			if (cp->type == CONSTRAINT_SET && target_entry) {
+			if ((cp->type == CONSTRAINT_SET || cp->type == CONSTRAINT_NEG_SET) && target_entry) {
 				if (target_entry_copy == NULL) {
 					Modifications *ml;
 
@@ -1144,7 +1194,7 @@ constraint_update( Operation *op, SlapReply *rs )
 					}
 				}
 
-				if ( acl_match_set(&cp->val, op, target_entry_copy, NULL) == 0) {
+				if ((acl_match_set(&cp->val, op, target_entry_copy, NULL) == 1) ^ (cp->type == CONSTRAINT_SET)) {
 					rc = LDAP_CONSTRAINT_VIOLATION;
 					goto mod_violation;
 				}
@@ -1186,17 +1236,31 @@ mod_violation:
 }
 
 static int
+constraint_init(
+	BackendDB *be,
+	ConfigReply *cr )
+{
+	slap_overinst *on = (slap_overinst *) be->bd_info;
+
+	on->on_bi.bi_private = ch_calloc( sizeof(constraint_info), 1 );
+
+	return 0;
+}
+
+static int
 constraint_destroy(
 	BackendDB *be,
 	ConfigReply *cr )
 {
 	slap_overinst *on = (slap_overinst *) be->bd_info;
+	constraint_info *ov = on->on_bi.bi_private;
 	constraint *ap, *a2;
 
-	for ( ap = on->on_bi.bi_private; ap; ap = a2 ) {
+	for ( ap = ov->constraint; ap; ap = a2 ) {
 		a2 = ap->ap_next;
 		constraint_free( ap, 1 );
 	}
+	ch_free( ov );
 
 	return 0;
 }
@@ -1212,6 +1276,7 @@ constraint_initialize( void ) {
 
 	constraint_ovl.on_bi.bi_type = "constraint";
 	constraint_ovl.on_bi.bi_flags = SLAPO_BFLAG_SINGLE;
+	constraint_ovl.on_bi.bi_db_init = constraint_init;
 	constraint_ovl.on_bi.bi_db_destroy = constraint_destroy;
 	constraint_ovl.on_bi.bi_op_add = constraint_add;
 	constraint_ovl.on_bi.bi_op_modify = constraint_update;

@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2003-2022 The OpenLDAP Foundation.
+ * Copyright 2003-2024 The OpenLDAP Foundation.
  * Portions Copyright 2003 Pierangelo Masarati.
  * All rights reserved.
  *
@@ -1813,6 +1813,16 @@ rwm_response( Operation *op, SlapReply *rs )
 
 		rwm_matched( op, rs );
 		break;
+	}
+
+	if ( op->o_tag == LDAP_REQ_ADD && op->ora_e ) {
+		/*
+		 * Rewrite back the dn and attributes of the added entry op->ora_e
+		 */
+		SlapReply rs2 = *rs;
+		rs2.sr_entry = op->ora_e;
+		rs2.sr_flags |= REP_ENTRY_MODIFIABLE;
+		return rwm_send_entry( op, &rs2 );
 	}
 
 	return SLAP_CB_CONTINUE;

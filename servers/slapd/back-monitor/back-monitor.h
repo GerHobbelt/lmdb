@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2001-2022 The OpenLDAP Foundation.
+ * Copyright 2001-2024 The OpenLDAP Foundation.
  * Portions Copyright 2001-2003 Pierangelo Masarati.
  * All rights reserved.
  *
@@ -140,6 +140,13 @@ typedef struct monitor_info_t {
 	AttributeDescription	*mi_ad_monitorConnectionOpsAsync;
 	AttributeDescription	*mi_ad_monitorLogLevel;
 	AttributeDescription	*mi_ad_monitorDebugLevel;
+	AttributeDescription	*mi_ad_monitorTotalListenerConnections;
+	AttributeDescription	*mi_ad_monitorConnectionOpsDeferTotal;
+	AttributeDescription	*mi_ad_monitorConnectionOpsDeferBinding;
+	AttributeDescription	*mi_ad_monitorConnectionOpsDeferClosing;
+	AttributeDescription	*mi_ad_monitorConnectionOpsDeferExecuting;
+	AttributeDescription	*mi_ad_monitorConnectionOpsDeferPending;
+	AttributeDescription	*mi_ad_monitorConnectionOpsDeferWritewait;
 
 	/*
 	 * Generic description attribute

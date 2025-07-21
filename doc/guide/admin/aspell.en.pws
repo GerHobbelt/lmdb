@@ -680,7 +680,6 @@ affectsMultipleDSAs
 Preprocessor
 lastName
 lldap
-cachesize
 slapauth
 attributeType
 attributetype
@@ -1173,6 +1172,7 @@ whitespace
 seeAlso
 monitorRuntimeConfig
 olcAuditlogFile
+olcAuditlogNonBlocking
 namingContexts
 referralAttrDN
 moddn

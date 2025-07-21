@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * Portions Copyright 2003 Kurt D. Zeilenga.
  * Portions Copyright 2003 IBM Corporation.
  * All rights reserved.
@@ -218,17 +218,31 @@ st_value( LDAP *ld, struct berval *value )
 	char		*ip = NULL, *name = NULL;
 	struct berval	id = { 0 };
 	char		namebuf[ MAXHOSTNAMELEN ];
+#ifdef LDAP_PF_INET6
+	char		ip6buf[ INET6_ADDRSTRLEN ];
+#endif
 
 	if ( gethostname( namebuf, sizeof( namebuf ) ) == 0 ) {
-		struct hostent	*h;
-		struct in_addr	addr;
-
 		name = namebuf;
+	}
 
-		h = gethostbyname( name );
-		if ( h != NULL ) {
-			AC_MEMCPY( &addr, h->h_addr, sizeof( addr ) );
-			ip = inet_ntoa( addr );
+	{
+		int sd;
+		if ( ldap_get_option( ld, LDAP_OPT_DESC, &sd ) == LDAP_SUCCESS ) {
+			struct sockaddr_storage sa;
+			socklen_t sl = sizeof(sa);
+			if ( getsockname( sd, (struct sockaddr *)&sa, &sl ) == 0 ) {
+				if ( sa.ss_family == AF_INET ) {
+					struct sockaddr_in *sai = (struct sockaddr_in *)&sa;
+					ip = inet_ntoa( sai->sin_addr );
+				}
+#ifdef LDAP_PF_INET6
+				else if ( sa.ss_family == AF_INET6 ) {
+					struct sockaddr_in6 *sai = (struct sockaddr_in6 *)&sa;
+					ip = inet_ntop( AF_INET6, &sai->sin6_addr, ip6buf, sizeof( ip6buf ));
+				}
+#endif
+			}
 		}
 	}
 
@@ -780,6 +794,9 @@ tool_args( int argc, char **argv )
 				exit( EXIT_FAILURE );
 			}
 			ldapuri = ber_strdup( optarg );
+			if ( ldapuri == NULL ) {
+				exit( EXIT_FAILURE );
+			}
 			break;
 		case 'I':
 #ifdef HAVE_CYRUS_SASL
@@ -980,6 +997,9 @@ tool_args( int argc, char **argv )
 			break;
 		case 'w':	/* password */
 			passwd.bv_val = ber_strdup( optarg );
+			if ( passwd.bv_val == NULL ) {
+				exit( EXIT_FAILURE );
+			}
 			{
 				char* p;
 
@@ -1166,6 +1186,7 @@ tool_conn_setup( int dont, void (*private_setup)( LDAP * ) )
 	LDAP *ld = NULL;
 
 	if ( debug ) {
+#ifdef LDAP_DEBUG
 		if( ber_set_option( NULL, LBER_OPT_DEBUG_LEVEL, &debug )
 			!= LBER_OPT_SUCCESS )
 		{
@@ -1178,6 +1199,10 @@ tool_conn_setup( int dont, void (*private_setup)( LDAP * ) )
 			fprintf( stderr,
 				"Could not set LDAP_OPT_DEBUG_LEVEL %d\n", debug );
 		}
+#else /* !LDAP_DEBUG */
+		fprintf( stderr,
+				"Must compile with LDAP_DEBUG for debugging\n", prog );
+#endif /* !LDAP_DEBUG */
 	}
 
 #ifdef SIGPIPE
@@ -1365,6 +1390,24 @@ dnssrv_free:;
 			tool_exit( ld, EXIT_FAILURE );
 		}
 
+		if ( nettimeout.tv_sec > 0 ) {
+			if ( ldap_set_option( ld, LDAP_OPT_NETWORK_TIMEOUT, (void *) &nettimeout )
+				!= LDAP_OPT_SUCCESS )
+			{
+				fprintf( stderr, "Could not set LDAP_OPT_NETWORK_TIMEOUT %ld\n",
+					(long)nettimeout.tv_sec );
+				tool_exit( ld, EXIT_FAILURE );
+			}
+		}
+
+		rc = ldap_connect( ld );
+		if( rc != LDAP_SUCCESS ) {
+			fprintf( stderr,
+				"Could not connect to URI=%s (%d): %s\n",
+				ldapuri, rc, ldap_err2string(rc) );
+			tool_exit( ld, EXIT_FAILURE );
+		}
+
 		if ( use_tls ) {
 			rc = ldap_start_tls_s( ld, NULL, NULL );
 			if ( rc != LDAP_SUCCESS ) {
@@ -1378,15 +1421,6 @@ dnssrv_free:;
 			}
 		}
 
-		if ( nettimeout.tv_sec > 0 ) {
-	 		if ( ldap_set_option( ld, LDAP_OPT_NETWORK_TIMEOUT, (void *) &nettimeout )
-				!= LDAP_OPT_SUCCESS )
-			{
-		 		fprintf( stderr, "Could not set LDAP_OPT_NETWORK_TIMEOUT %ld\n",
-					(long)nettimeout.tv_sec );
-	 			tool_exit( ld, EXIT_FAILURE );
-			}
-		}
 	}
 
 	return ld;
@@ -1472,10 +1506,14 @@ tool_bind( LDAP *ld )
 
 		} else {
 			char *pw = getpassphrase( _("Enter LDAP Password: ") );
-			if ( pw ) {
-				passwd.bv_val = ber_strdup( pw );
-				passwd.bv_len = strlen( passwd.bv_val );
+			if ( pw == NULL ) { /* Allow EOF to exit. */
+				tool_exit( ld, EXIT_FAILURE );
 			}
+			passwd.bv_val = ber_strdup( pw );
+			if ( passwd.bv_val == NULL ) {
+				tool_exit( ld, EXIT_FAILURE );
+			}
+			passwd.bv_len = strlen( passwd.bv_val );
 		}
 	}
 
@@ -2210,7 +2248,7 @@ print_vlv( LDAP *ld, LDAPControl *ctrl )
 			ber_memfree( bv.bv_val );
 
 		tool_write_ldif( ldif ? LDIF_PUT_COMMENT : LDIF_PUT_VALUE,
-			ldif ? "vlvResult" : "vlvResult", buf, rc );
+			ldif ? "vlvResult: " : "vlvResult", buf, rc );
 	}
 
 	return rc;

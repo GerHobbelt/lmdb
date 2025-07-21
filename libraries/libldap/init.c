@@ -1,7 +1,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -82,6 +82,8 @@ static const struct ol_attribute {
 	{0, ATTR_OPT_INT,	"VERSION",		NULL,	LDAP_OPT_PROTOCOL_VERSION},
 	{0, ATTR_KV,		"DEREF",	deref_kv, /* or &deref_kv[0] */
 		offsetof(struct ldapoptions, ldo_deref)},
+	{0, ATTR_INT,		"REFHOPLIMIT",	NULL,
+		offsetof(struct ldapoptions, ldo_refhoplimit)},
 	{0, ATTR_INT,		"SIZELIMIT",	NULL,
 		offsetof(struct ldapoptions, ldo_sizelimit)},
 	{0, ATTR_INT,		"TIMELIMIT",	NULL,
@@ -96,9 +98,9 @@ static const struct ol_attribute {
 	{0, ATTR_OPTION,	"URI",			NULL,	LDAP_OPT_URI}, /* replaces HOST/PORT */
 	{0, ATTR_OPTION,	"SOCKET_BIND_ADDRESSES",	NULL,	LDAP_OPT_SOCKET_BIND_ADDRESSES},
 	{0, ATTR_BOOL,		"REFERRALS",	NULL,	LDAP_BOOL_REFERRALS},
-	{0, ATTR_INT,		"KEEPALIVE_IDLE",	NULL,	LDAP_OPT_X_KEEPALIVE_IDLE},
-	{0, ATTR_INT,		"KEEPALIVE_PROBES",	NULL,	LDAP_OPT_X_KEEPALIVE_PROBES},
-	{0, ATTR_INT,		"KEEPALIVE_INTERVAL",	NULL,	LDAP_OPT_X_KEEPALIVE_INTERVAL},
+	{0, ATTR_OPT_INT,	"KEEPALIVE_IDLE",	NULL,	LDAP_OPT_X_KEEPALIVE_IDLE},
+	{0, ATTR_OPT_INT,	"KEEPALIVE_PROBES",	NULL,	LDAP_OPT_X_KEEPALIVE_PROBES},
+	{0, ATTR_OPT_INT,	"KEEPALIVE_INTERVAL",	NULL,	LDAP_OPT_X_KEEPALIVE_INTERVAL},
 
 #if 0
 	/* This should only be allowed via ldap_set_option(3) */
@@ -631,6 +633,25 @@ void ldap_int_initialize_global_options( struct ldapoptions *gopts, int *dbglvl 
 
 #if defined(HAVE_TLS) || defined(HAVE_CYRUS_SASL)
 char * ldap_int_hostname = NULL;
+
+void
+ldap_int_resolve_hostname(void)
+{
+	static int resolved = 0;
+
+	LDAP_MUTEX_LOCK( &ldap_int_hostname_mutex );
+	if ( !resolved ) {
+		char	*name = ldap_int_hostname;
+
+		ldap_int_hostname = ldap_pvt_get_fqdn( name );
+
+		if ( name != NULL && name != ldap_int_hostname ) {
+			LDAP_FREE( name );
+		}
+		resolved = 1;
+	}
+	LDAP_MUTEX_UNLOCK( &ldap_int_hostname_mutex );
+}
 #endif
 
 #ifdef LDAP_R_COMPILE
@@ -686,20 +707,6 @@ void ldap_int_initialize( struct ldapoptions *gopts, int *dbglvl )
 	    goto done;
 	}
 }
-#endif
-
-#if defined(HAVE_TLS) || defined(HAVE_CYRUS_SASL)
-	LDAP_MUTEX_LOCK( &ldap_int_hostname_mutex );
-	{
-		char	*name = ldap_int_hostname;
-
-		ldap_int_hostname = ldap_pvt_get_fqdn( name );
-
-		if ( name != NULL && name != ldap_int_hostname ) {
-			LDAP_FREE( name );
-		}
-	}
-	LDAP_MUTEX_UNLOCK( &ldap_int_hostname_mutex );
 #endif
 
 #ifndef HAVE_POLL

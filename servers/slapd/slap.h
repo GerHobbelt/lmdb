@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -71,6 +71,7 @@ LDAP_BEGIN_DECL
 #endif
 
 #define SLAP_CONFIG_DELETE
+#define SLAP_CONFIG_RENAME
 #define SLAP_AUXPROP_DONTUSECOPY
 #define LDAP_DYNAMIC_OBJECTS
 #define SLAP_CONTROL_X_TREE_DELETE LDAP_CONTROL_X_TREE_DELETE
@@ -1322,12 +1323,15 @@ typedef struct AuthorizationInformation {
 	slap_ssf_t	sai_sasl_ssf;		/* SASL SSF */
 } AuthorizationInformation;
 
+typedef struct config_args_s ConfigArgs;	/* slap-config.h */
+typedef struct config_reply_s ConfigReply;	/* slap-config.h */
+
 #ifdef SLAP_DYNACL
 
 /*
  * "dynamic" ACL infrastructure (for ACIs and more)
  */
-typedef int (slap_dynacl_parse) LDAP_P(( const char *fname, int lineno,
+typedef int (slap_dynacl_parse) LDAP_P(( ConfigArgs *ca,
 	const char *opts, slap_style_t, const char *, void **privp ));
 typedef int (slap_dynacl_unparse) LDAP_P(( void *priv, struct berval *bv ));
 typedef int (slap_dynacl_mask) LDAP_P((
@@ -1890,6 +1894,7 @@ struct BackendDB {
 #define SLAP_DBFLAG_DISABLED	0x100000U
 #define SLAP_DBFLAG_LASTBIND	0x200000U
 #define SLAP_DBFLAG_OPEN	0x400000U	/* db is currently open */
+#define SLAP_DBFLAG_LASTBIND_ASSERT	0x800000U /* send assert control when forwarding pwdLastSuccess */
 	slap_mask_t	be_flags;
 #define SLAP_DBFLAGS(be)			((be)->be_flags)
 #define SLAP_NOLASTMOD(be)			(SLAP_DBFLAGS(be) & SLAP_DBFLAG_NOLASTMOD)
@@ -1922,6 +1927,7 @@ struct BackendDB {
 #define SLAP_DBOPEN(be)			(SLAP_DBFLAGS(be) & SLAP_DBFLAG_OPEN)
 #define SLAP_DBACL_ADD(be)			(SLAP_DBFLAGS(be) & SLAP_DBFLAG_ACL_ADD)
 #define SLAP_SYNC_SUBENTRY(be)			(SLAP_DBFLAGS(be) & SLAP_DBFLAG_SYNC_SUBENTRY)
+#define SLAP_LASTBIND_ASSERT(be)		(SLAP_DBFLAGS(be) & SLAP_DBFLAG_LASTBIND_ASSERT)
 
 	slap_mask_t	be_restrictops;		/* restriction operations */
 #define SLAP_RESTRICT_OP_ADD		0x0001U
@@ -2028,7 +2034,6 @@ typedef int (BI_config) LDAP_P((BackendInfo *bi,
 	const char *fname, int lineno,
 	int argc, char **argv));
 
-typedef struct config_reply_s ConfigReply; /* slap-config.h */
 typedef int (BI_db_func) LDAP_P((Backend *bd, ConfigReply *cr));
 typedef BI_db_func BI_db_init;
 typedef BI_db_func BI_db_open;
@@ -2987,6 +2992,13 @@ struct Connection {
 	long	c_n_ops_completed;	/* num of ops completed */
 	long	c_n_ops_async;		/* mum of ops currently executing asynchronously */
 
+	long    c_n_ops_defer_total;      /* num of total deferred ops */
+	long    c_n_ops_defer_binding;    /* num of ops deferred because the connection is binding */
+	long    c_n_ops_defer_closing;    /* num of ops deferred because the connection is closing */
+	long    c_n_ops_defer_executing;  /* num of ops deferred because of too many executing ops */
+	long    c_n_ops_defer_pending;    /* num of ops deferred because of too many pending ops */
+	long    c_n_ops_defer_writewait;  /* num of ops deferred because the connection is waiting to write */
+
 	long	c_n_get;		/* num of get calls */
 	long	c_n_read;		/* num of read calls */
 	long	c_n_write;		/* num of write calls */
@@ -3043,6 +3055,7 @@ struct Listener {
 	int	sl_tcp_rmem;	/* custom TCP read buffer size */
 	int	sl_tcp_wmem;	/* custom TCP write buffer size */
 #endif
+	ldap_pvt_mp_t sl_n_conns_opened; /* total number of connections opened since startup */
 };
 
 /*

@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2002-2022 The OpenLDAP Foundation.
+ * Copyright 2002-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -164,7 +164,7 @@ wt_cf_gen( ConfigArgs *c )
 					return 1;
 				}
 				ldap_pvt_thread_mutex_lock( &slapd_rq.rq_mutex );
-				wi->wi_index_task = ldap_pvt_runqueue_insert(&slapd_rq, 36000,
+				wi->wi_index_task = ldap_pvt_runqueue_insert(&slapd_rq, 0,
 															 wt_online_index, c->be,
 															 LDAP_XSTRING(wt_online_index),
 															 c->be->be_suffix[0].bv_val );

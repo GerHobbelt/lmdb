@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2005-2022 The OpenLDAP Foundation.
+ * Copyright 2005-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -176,6 +176,7 @@ enum {
 	CFG_LASTMOD,
 	CFG_LASTBIND,
 	CFG_LASTBIND_PRECISION,
+	CFG_LASTBIND_ASSERT,
 	CFG_AZPOLICY,
 	CFG_AZREGEXP,
 	CFG_AZDUC,
@@ -285,6 +286,7 @@ static OidRec OidMacros[] = {
  * OLcfgOv{Oc|At}:21			-> sssvlv
  * OLcfgOv{Oc|At}:22			-> autoca
  * OLcfgOv{Oc|At}:24			-> remoteauth
+ * OLcfgOv{Oc|At}:25			-> nestgroup
  */
 
 /* alphabetical ordering */
@@ -455,6 +457,12 @@ static ConfigTable config_back_cf_table[] = {
 			"EQUALITY integerMatch "
 			"SYNTAX OMsInteger SINGLE-VALUE )", NULL,
 			{ .v_uint = 0 }
+	},
+	{ "lastbind-send-assert", "on|off", 2, 2, 0,
+		ARG_DB|ARG_ON_OFF|ARG_MAGIC|CFG_LASTBIND_ASSERT,
+		&config_generic, "( OLcfgDbAt:0.24 NAME 'olcLastBindSendAssert' "
+			"EQUALITY booleanMatch "
+			"SYNTAX OMsBoolean SINGLE-VALUE )", NULL, NULL,
 	},
 	{ "ldapsyntax",	"syntax", 2, 0, 0,
 		ARG_PAREN|ARG_MAGIC|CFG_SYNTAX,
@@ -1033,7 +1041,7 @@ static ConfigOCs cf_ocs[] = {
 		 "olcReplogFile $ olcRequires $ olcRestrict $ olcRootDN $ olcRootPW $ "
 		 "olcSchemaDN $ olcSecurity $ olcSizeLimit $ olcSyncUseSubentry $ olcSyncrepl $ "
 		 "olcTimeLimit $ olcUpdateDN $ olcUpdateRef $ olcMultiProvider $ "
-		 "olcMonitoring $ olcExtraAttrs ) )",
+		 "olcMonitoring $ olcExtraAttrs $ olcLastBindSendAssert ) )",
 		 	Cft_Database, NULL, cfAddDatabase },
 	{ "( OLcfgGlOc:5 "
 		"NAME 'olcOverlayConfig' "
@@ -1109,6 +1117,26 @@ config_substr_if_check( ConfigArgs *c )
 		return 1;
 	}
 	return LDAP_SUCCESS;
+}
+
+static int
+config_copy_controls( Operation *op, SlapReply *rs )
+{
+	/* Accumulate response controls so we can return them to client */
+	if ( rs->sr_ctrls ) {
+		LDAPControl **prepared = op->o_callback->sc_private,
+					**received = rs->sr_ctrls;
+		slap_mask_t oldflags = rs->sr_flags;
+
+		rs->sr_ctrls = prepared;
+		rs->sr_flags |= REP_CTRLS_MUSTBEFREED;
+		slap_add_ctrls( op, rs, received, 0 );
+		op->o_callback->sc_private = rs->sr_ctrls;
+
+		rs->sr_ctrls = received;
+		rs->sr_flags = oldflags;
+	}
+	return 0;
 }
 
 #define	GOT_CONFIG	1
@@ -1392,6 +1420,9 @@ config_generic(ConfigArgs *c) {
 		case CFG_LASTBIND_PRECISION:
 			c->value_uint = c->be->be_lastbind_precision;
 			break;
+		case CFG_LASTBIND_ASSERT:
+			c->value_int = (SLAP_LASTBIND_ASSERT(c->be) != 0);
+			break;
 		case CFG_SYNC_SUBENTRY:
 			c->value_int = (SLAP_SYNC_SUBENTRY(c->be) != 0);
 			break;
@@ -1549,6 +1580,10 @@ config_generic(ConfigArgs *c) {
 			c->be->be_lastbind_precision = 0;
 			break;
 
+		case CFG_LASTBIND_ASSERT:
+			SLAP_DBFLAGS(c->be) &= ~SLAP_DBFLAG_LASTBIND_ASSERT;
+			break;
+
 		case CFG_RO:
 			c->be->be_restrictops &= ~SLAP_RESTRICT_READONLY;
 			break;
@@ -1635,14 +1670,16 @@ config_generic(ConfigArgs *c) {
 
 		case CFG_DISABLED:
 			if ( c->bi ) {
-				c->bi->bi_flags &= ~SLAP_DBFLAG_DISABLED;
-				if ( c->bi->bi_db_open ) {
-					BackendInfo *bi_orig = c->be->bd_info;
-					c->be->bd_info = c->bi;
-					rc = c->bi->bi_db_open( c->be, &c->reply );
-					c->be->bd_info = bi_orig;
+				if ( c->bi->bi_flags & SLAP_DBFLAG_DISABLED ) {
+					c->bi->bi_flags &= ~SLAP_DBFLAG_DISABLED;
+					if ( c->bi->bi_db_open ) {
+						BackendInfo *bi_orig = c->be->bd_info;
+						c->be->bd_info = c->bi;
+						rc = c->bi->bi_db_open( c->be, &c->reply );
+						c->be->bd_info = bi_orig;
+					}
 				}
-			} else {
+			} else if ( c->be->be_flags & SLAP_DBFLAG_DISABLED ){
 				c->be->be_flags &= ~SLAP_DBFLAG_DISABLED;
 				rc = backend_startup_one( c->be, &c->reply );
 			}
@@ -2282,7 +2319,7 @@ sortval_reject:
 				for ( a=c->be->be_acl; a; a = a->acl_next )
 					i++;
 			}
-			if ( parse_acl(c->be, c->fname, c->lineno, c->argc, c->argv, i ) ) {
+			if ( parse_acl( c, i ) ) {
 				if ( SLAP_CONFIG( c->be ) && !c->be->be_acl) {
 					c->be->be_acl = defacl_parsed;
 				}
@@ -2422,6 +2459,13 @@ sortval_reject:
 			c->be->be_lastbind_precision = c->value_uint;
 			break;
 
+		case CFG_LASTBIND_ASSERT:
+			if (c->value_int)
+				SLAP_DBFLAGS(c->be) |= SLAP_DBFLAG_LASTBIND_ASSERT;
+			else
+				SLAP_DBFLAGS(c->be) &= ~SLAP_DBFLAG_LASTBIND_ASSERT;
+			break;
+
 		case CFG_MULTIPROVIDER:
 			/* Matching on sid_list rather than serverID to keep tools in check */
 			if ( c->value_int && !sid_list ) {
@@ -2558,7 +2602,7 @@ sortval_reject:
 
 #ifdef LDAP_SLAPI
 		case CFG_PLUGIN:
-			if(slapi_int_read_config(c->be, c->fname, c->lineno, c->argc, c->argv, c->valx) != LDAP_SUCCESS)
+			if(slapi_int_read_config(c) != LDAP_SUCCESS)
 				return(1);
 			slapi_plugins_used++;
 			break;
@@ -2950,13 +2994,16 @@ config_subordinate(ConfigArgs *c)
 		}
 
 		if ( c->argc == 2 ) {
-			if ( strcasecmp( c->argv[1], "advertise" ) == 0 ) {
+			if ( strcasecmp( c->argv[1], "FALSE" ) == 0 ) {
+				rc = 0;
+				break;
+			} else if ( strcasecmp( c->argv[1], "advertise" ) == 0 ) {
 				advertise = 1;
 
 			} else if ( strcasecmp( c->argv[1], "TRUE" ) != 0 ) {
 				/* log error */
 				snprintf( c->cr_msg, sizeof( c->cr_msg),
-					"subordinate must be \"TRUE\" or \"advertise\"" );
+					"subordinate must be \"TRUE\", \"FALSE\" or \"advertise\"" );
 				Debug( LDAP_DEBUG_ANY,
 					"%s: suffix \"%s\": %s.\n",
 					c->log, c->be->be_suffix[0].bv_val, c->cr_msg );
@@ -2978,7 +3025,7 @@ config_subordinate(ConfigArgs *c)
 
 #ifdef LDAP_TCP_BUFFER
 static BerVarray tcp_buffer;
-int tcp_buffer_num;
+static int tcp_buffer_num;
 
 #define SLAP_TCP_RMEM (0x1U)
 #define SLAP_TCP_WMEM (0x2U)
@@ -4143,7 +4190,8 @@ config_tls_config(ConfigArgs *c) {
 #endif
 
 static CfEntryInfo *
-config_find_base( CfEntryInfo *root, struct berval *dn, CfEntryInfo **last )
+config_find_base( CfEntryInfo *root, struct berval *dn, CfEntryInfo **last,
+	Operation *op )
 {
 	struct berval cdn;
 	char *c;
@@ -4160,7 +4208,14 @@ config_find_base( CfEntryInfo *root, struct berval *dn, CfEntryInfo **last )
 	for (;*c != ',';c--);
 
 	while(root) {
-		*last = root;
+		if ( !op || access_allowed( op, root->ce_entry,
+					slap_schema.si_ad_entry, NULL, ACL_DISCLOSE, NULL ) ) {
+			/*
+			 * ITS#10139: Only record the lowermost entry that the user has
+			 * disclose access to
+			 */
+			*last = root;
+		}
 		for (--c;c>dn->bv_val && *c != ',';c--);
 		cdn.bv_val = c;
 		if ( *c == ',' )
@@ -4807,7 +4862,7 @@ config_rename_one( Operation *op, SlapReply *rs, Entry *e,
 	if ( use_ldif ) {
 		CfBackInfo *cfb = (CfBackInfo *)op->o_bd->be_private;
 		BackendDB *be = op->o_bd;
-		slap_callback sc = { NULL, slap_null_cb, NULL, NULL }, *scp;
+		slap_callback sc = { NULL, config_copy_controls, NULL, rs->sr_ctrls }, *scp;
 		struct berval dn, ndn, xdn, xndn;
 
 		op->o_bd = &cfb->cb_db;
@@ -4824,6 +4879,8 @@ config_rename_one( Operation *op, SlapReply *rs, Entry *e,
 
 		scp = op->o_callback;
 		op->o_callback = &sc;
+		rs->sr_ctrls = NULL;
+
 		op->orr_newrdn = *newrdn;
 		op->orr_nnewrdn = *nnewrdn;
 		op->orr_newSup = NULL;
@@ -4843,6 +4900,9 @@ config_rename_one( Operation *op, SlapReply *rs, Entry *e,
 		op->o_ndn = ndn;
 		op->o_req_dn = xdn;
 		op->o_req_ndn = xndn;
+
+		rs->sr_ctrls = sc.sc_private;
+		rs->sr_flags |= REP_CTRLS_MUSTBEFREED;
 	}
 	free( odn.bv_val );
 	free( ondn.bv_val );
@@ -5281,7 +5341,7 @@ config_add_internal( CfBackInfo *cfb, Entry *e, ConfigArgs *ca, SlapReply *rs,
 	 * Databases and Overlays to be inserted. Don't do any
 	 * auto-renumbering if manageDSAit control is present.
 	 */
-	ce = config_find_base( cfb->cb_root, &e->e_nname, &last );
+	ce = config_find_base( cfb->cb_root, &e->e_nname, &last, op );
 	if ( ce ) {
 		if ( ( op && op->o_managedsait ) ||
 			( ce->ce_type != Cft_Database && ce->ce_type != Cft_Overlay &&
@@ -5302,14 +5362,14 @@ config_add_internal( CfBackInfo *cfb, Entry *e, ConfigArgs *ca, SlapReply *rs,
 	/* If last is NULL, the new entry is the root/suffix entry, 
 	 * otherwise last should be the parent.
 	 */
-	if ( last && !dn_match( &last->ce_entry->e_nname, &pdn ) ) {
-		if ( rs ) {
+	if ( cfb->cb_root && ( !last || !dn_match( &last->ce_entry->e_nname, &pdn ) ) ) {
+		if ( last && rs ) {
 			rs->sr_matched = last->ce_entry->e_name.bv_val;
 		}
 		Debug( LDAP_DEBUG_TRACE, "%s: config_add_internal: "
 			"DN=\"%s\" not child of DN=\"%s\"\n",
 			log_prefix, e->e_name.bv_val,
-			last->ce_entry->e_name.bv_val );
+			last ? last->ce_entry->e_name.bv_val : "" );
 		return LDAP_NO_SUCH_OBJECT;
 	}
 
@@ -5471,7 +5531,8 @@ config_add_internal( CfBackInfo *cfb, Entry *e, ConfigArgs *ca, SlapReply *rs,
 			goto done_noop;
 		}
 		if ( renum && *renum && coptr->co_type != Cft_Database &&
-			coptr->co_type != Cft_Overlay )
+			coptr->co_type != Cft_Overlay &&
+			( coptr->co_type != Cft_Misc || !coptr->co_ldmove ) )
 		{
 			snprintf( ca->cr_msg, sizeof( ca->cr_msg ),
 				"operation requires sibling renumbering" );
@@ -5551,7 +5612,7 @@ ok:
 				snprintf( ca->cr_msg, sizeof( ca->cr_msg ), "<%s> failed startup", ca->argv[0] );
 
 			Debug(LDAP_DEBUG_ANY, "%s: %s (%s)!\n",
-				ca->log, ca->cr_msg, ca->argv[1] );
+				ca->log, ca->cr_msg, e->e_name.bv_val );
 			rc = LDAP_OTHER;
 			goto done;
 		}
@@ -5634,6 +5695,7 @@ config_rename_add( Operation *op, SlapReply *rs, CfEntryInfo *ce,
 	CfEntryInfo *ce2, *ce3, *cetmp = NULL, *cerem = NULL;
 	ConfigType etype = ce->ce_type;
 	int count = 0, rc = 0;
+	char preread = op->o_preread, postread = op->o_postread;
 
 	/* Reverse ce list */
 	for (ce2 = ce->ce_sibs;ce2;ce2 = ce3) {
@@ -5651,6 +5713,9 @@ config_rename_add( Operation *op, SlapReply *rs, CfEntryInfo *ce,
 		}
 	}
 
+	/* Suppress control generation for internal ops */
+	op->o_postread = SLAP_CONTROL_NONE;
+
 	/* Move original to a temp name until increments are done */
 	if ( rebase ) {
 		ce->ce_entry->e_private = NULL;
@@ -5658,6 +5723,8 @@ config_rename_add( Operation *op, SlapReply *rs, CfEntryInfo *ce,
 			base+BIGTMP, 0, use_ldif );
 		ce->ce_entry->e_private = ce;
 	}
+	op->o_preread = SLAP_CONTROL_NONE;
+
 	/* start incrementing */
 	for (ce2=cetmp; ce2; ce2=ce3) {
 		ce3 = ce2->ce_sibs;
@@ -5668,9 +5735,12 @@ config_rename_add( Operation *op, SlapReply *rs, CfEntryInfo *ce,
 				count+base, 0, use_ldif );
 		count--;
 	}
+
+	op->o_postread = postread;
 	if ( rebase )
 		rc = config_renumber_one( op, rs, ce->ce_parent, ce->ce_entry,
 			base, 0, use_ldif );
+	op->o_preread = preread;
 	return rc;
 }
 
@@ -5678,7 +5748,11 @@ static int
 config_rename_del( Operation *op, SlapReply *rs, CfEntryInfo *ce,
 	CfEntryInfo *ce2, int old, int use_ldif )
 {
-	int count = 0;
+	int rc, count = 0;
+	char preread = op->o_preread, postread = op->o_postread;
+
+	/* Suppress control generation for internal ops */
+	op->o_postread = SLAP_CONTROL_NONE;
 
 	/* Renumber original to a temp value */
 	ce->ce_entry->e_private = NULL;
@@ -5686,14 +5760,20 @@ config_rename_del( Operation *op, SlapReply *rs, CfEntryInfo *ce,
 		old+BIGTMP, 0, use_ldif );
 	ce->ce_entry->e_private = ce;
 
+	op->o_preread = SLAP_CONTROL_NONE;
+
 	/* start decrementing */
 	for (; ce2 != ce; ce2=ce2->ce_sibs) {
 		config_renumber_one( op, rs, ce2->ce_parent, ce2->ce_entry,
 			count+old, 0, use_ldif );
 		count++;
 	}
-	return config_renumber_one( op, rs, ce->ce_parent, ce->ce_entry,
+
+	op->o_postread = postread;
+	rc = config_renumber_one( op, rs, ce->ce_parent, ce->ce_entry,
 		count+old, 0, use_ldif );
+	op->o_preread = preread;
+	return rc;
 }
 
 /* Parse an LDAP entry into config directives, then store in underlying
@@ -5709,7 +5789,9 @@ config_back_add( Operation *op, SlapReply *rs )
 	LDAPControl **postread_ctrl = NULL;
 	LDAPControl *ctrls[SLAP_MAX_RESPONSE_CONTROLS];
 	int num_ctrls = 0;
+	char postread = op->o_postread;
 
+	op->o_postread = SLAP_CONTROL_NONE;
 	ctrls[num_ctrls] = NULL;
 
 	if ( !access_allowed( op, op->ora_e, slap_schema.si_ad_entry,
@@ -5746,12 +5828,21 @@ config_back_add( Operation *op, SlapReply *rs )
 		}
 	}
 
+	/*
+	 * ITS#10045 Pre-check for abandon but be willing to handle that the
+	 * operation might be abandoned while waiting for the server to pause.
+	 */
 	if ( op->o_abandon ) {
 		rs->sr_err = SLAPD_ABANDON;
+		dopause = 0;
 		goto out;
 	}
 	if ( slap_pause_server() < 0 )
 		dopause = 0;
+	if ( op->o_abandon ) {
+		rs->sr_err = SLAPD_ABANDON;
+		goto unpause;
+	}
 
 	ldap_pvt_thread_rdwr_wlock( &cfb->cb_rwlock );
 
@@ -5782,7 +5873,7 @@ config_back_add( Operation *op, SlapReply *rs )
 
 	if ( cfb->cb_use_ldif ) {
 		BackendDB *be = op->o_bd;
-		slap_callback sc = { NULL, slap_null_cb, NULL, NULL }, *scp;
+		slap_callback sc = { NULL, config_copy_controls, NULL, rs->sr_ctrls }, *scp;
 		struct berval dn, ndn;
 
 		op->o_bd = &cfb->cb_db;
@@ -5795,12 +5886,18 @@ config_back_add( Operation *op, SlapReply *rs )
 
 		scp = op->o_callback;
 		op->o_callback = &sc;
+		op->o_postread = postread;
+		rs->sr_ctrls = NULL;
+
 		op->o_bd->be_add( op, rs );
 		op->o_bd = be;
 		op->o_callback = scp;
 		op->o_dn = dn;
 		op->o_ndn = ndn;
-	} else if ( op->o_postread ) {
+
+		rs->sr_ctrls = sc.sc_private;
+		rs->sr_flags |= REP_CTRLS_MUSTBEFREED;
+	} else if ( postread ) {
 		if ( postread_ctrl == NULL ) {
 			postread_ctrl = &ctrls[num_ctrls++];
 			ctrls[num_ctrls] = NULL;
@@ -5820,6 +5917,8 @@ config_back_add( Operation *op, SlapReply *rs )
 
 out2:;
 	ldap_pvt_thread_rdwr_wunlock( &cfb->cb_rwlock );
+
+unpause:;
 	if ( dopause )
 		slap_unpause_server();
 
@@ -6252,7 +6351,7 @@ static int
 config_back_modify( Operation *op, SlapReply *rs )
 {
 	CfBackInfo *cfb;
-	CfEntryInfo *ce, *last;
+	CfEntryInfo *ce, *last = NULL;
 	Modifications *ml;
 	ConfigArgs ca = {0};
 	struct berval rdn;
@@ -6269,11 +6368,17 @@ config_back_modify( Operation *op, SlapReply *rs )
 
 	cfb = (CfBackInfo *)op->o_bd->be_private;
 
-	ce = config_find_base( cfb->cb_root, &op->o_req_ndn, &last );
+	ce = config_find_base( cfb->cb_root, &op->o_req_ndn, &last, op );
 	if ( !ce ) {
 		if ( last )
 			rs->sr_matched = last->ce_entry->e_name.bv_val;
 		rs->sr_err = LDAP_NO_SUCH_OBJECT;
+		goto out;
+	}
+
+	/* global schema rejects all writes */
+	if ( ce->ce_type == Cft_Schema && ce->ce_parent->ce_type == Cft_Global ) {
+		rs->sr_err = LDAP_UNWILLING_TO_PERFORM;
 		goto out;
 	}
 
@@ -6329,12 +6434,21 @@ config_back_modify( Operation *op, SlapReply *rs )
 	}
 
 	if ( do_pause ) {
+		/*
+		 * ITS#10045 Pre-check for abandon but be willing to handle that the
+		 * operation might be abandoned while waiting for the server to pause.
+		 */
 		if ( op->o_abandon ) {
 			rs->sr_err = SLAPD_ABANDON;
+			do_pause = 0;
 			goto out;
 		}
 		if ( slap_pause_server() < 0 )
 			do_pause = 0;
+		if ( op->o_abandon ) {
+			rs->sr_err = SLAPD_ABANDON;
+			goto unpause;
+		}
 	}
 	ldap_pvt_thread_rdwr_wlock( &cfb->cb_rwlock );
 
@@ -6349,7 +6463,7 @@ config_back_modify( Operation *op, SlapReply *rs )
 		rs->sr_text = ca.cr_msg;
 	} else if ( cfb->cb_use_ldif ) {
 		BackendDB *be = op->o_bd;
-		slap_callback sc = { NULL, slap_null_cb, NULL, NULL }, *scp;
+		slap_callback sc = { NULL, config_copy_controls, NULL, rs->sr_ctrls }, *scp;
 		struct berval dn, ndn;
 
 		op->o_bd = &cfb->cb_db;
@@ -6361,11 +6475,16 @@ config_back_modify( Operation *op, SlapReply *rs )
 
 		scp = op->o_callback;
 		op->o_callback = &sc;
+		rs->sr_ctrls = NULL;
+
 		op->o_bd->be_modify( op, rs );
 		op->o_bd = be;
 		op->o_callback = scp;
 		op->o_dn = dn;
 		op->o_ndn = ndn;
+
+		rs->sr_ctrls = sc.sc_private;
+		rs->sr_flags |= REP_CTRLS_MUSTBEFREED;
 	} else if ( op->o_postread ) {
 		if ( postread_ctrl == NULL ) {
 			postread_ctrl = &ctrls[num_ctrls++];
@@ -6381,6 +6500,7 @@ config_back_modify( Operation *op, SlapReply *rs )
 	}
 
 	ldap_pvt_thread_rdwr_wunlock( &cfb->cb_rwlock );
+unpause:;
 	if ( do_pause )
 		slap_unpause_server();
 out:
@@ -6394,7 +6514,7 @@ static int
 config_back_modrdn( Operation *op, SlapReply *rs )
 {
 	CfBackInfo *cfb;
-	CfEntryInfo *ce, *last;
+	CfEntryInfo *ce, *last = NULL;
 	struct berval rdn;
 	int ixold, ixnew, dopause = 1;
 
@@ -6402,12 +6522,14 @@ config_back_modrdn( Operation *op, SlapReply *rs )
 	LDAPControl **postread_ctrl = NULL;
 	LDAPControl *ctrls[SLAP_MAX_RESPONSE_CONTROLS];
 	int num_ctrls = 0;
+	char preread = op->o_preread, postread = op->o_postread;
 
 	ctrls[num_ctrls] = NULL;
+	op->o_preread = op->o_postread = SLAP_CONTROL_NONE;
 
 	cfb = (CfBackInfo *)op->o_bd->be_private;
 
-	ce = config_find_base( cfb->cb_root, &op->o_req_ndn, &last );
+	ce = config_find_base( cfb->cb_root, &op->o_req_ndn, &last, op );
 	if ( !ce ) {
 		if ( last )
 			rs->sr_matched = last->ce_entry->e_name.bv_val;
@@ -6448,8 +6570,9 @@ config_back_modrdn( Operation *op, SlapReply *rs )
 
 	/* Current behavior, subject to change as needed:
 	 *
-	 * For backends and overlays, we only allow renumbering.
 	 * For schema, we allow renaming with the same number.
+	 * For backends, overlays, we only allow renumbering.
+	 * For misc we let the co_ldmove handler decide.
 	 * Otherwise, the op is not allowed.
 	 */
 
@@ -6474,8 +6597,8 @@ config_back_modrdn( Operation *op, SlapReply *rs )
 			rs->sr_text = "schema reordering not supported";
 			goto out;
 		}
-	} else if ( ce->ce_type == Cft_Database ||
-		ce->ce_type == Cft_Overlay ) {
+	} else if ( ce->ce_type >= Cft_Database &&
+		ce->ce_type <= Cft_Misc ) {
 		char *ptr1, *ptr2, *iptr1, *iptr2;
 		int len1, len2;
 
@@ -6498,8 +6621,9 @@ config_back_modrdn( Operation *op, SlapReply *rs )
 		len1 = ptr1 - rdn.bv_val;
 		len2 = ptr2 - op->orr_newrdn.bv_val;
 
-		if ( rdn.bv_len - len1 != op->orr_newrdn.bv_len - len2 ||
-			strncmp( ptr1, ptr2, rdn.bv_len - len1 )) {
+		if ( ce->ce_type != Cft_Misc && (
+				rdn.bv_len - len1 != op->orr_newrdn.bv_len - len2 ||
+				strncmp( ptr1, ptr2, rdn.bv_len - len1 ) ) ) {
 			rs->sr_err = LDAP_UNWILLING_TO_PERFORM;
 			rs->sr_text = "changing database/overlay type not allowed";
 			goto out;
@@ -6522,7 +6646,7 @@ config_back_modrdn( Operation *op, SlapReply *rs )
 	}
 
 	/* If we have a backend, it will handle the control */
-	if ( !cfb->cb_use_ldif && op->o_preread ) {
+	if ( !cfb->cb_use_ldif && preread > SLAP_CONTROL_IGNORED ) {
 		if ( preread_ctrl == NULL ) {
 			preread_ctrl = &ctrls[num_ctrls++];
 			ctrls[num_ctrls] = NULL;
@@ -6541,12 +6665,21 @@ config_back_modrdn( Operation *op, SlapReply *rs )
 		}
 	}
 
+	/*
+	 * ITS#10045 Pre-check for abandon but be willing to handle that the
+	 * operation might be abandoned while waiting for the server to pause.
+	 */
 	if ( op->o_abandon ) {
 		rs->sr_err = SLAPD_ABANDON;
+		dopause = 0;
 		goto out;
 	}
 	if ( slap_pause_server() < 0 )
 		dopause = 0;
+	if ( op->o_abandon ) {
+		rs->sr_err = SLAPD_ABANDON;
+		goto unpause;
+	}
 
 	ldap_pvt_thread_rdwr_wlock( &cfb->cb_rwlock );
 
@@ -6556,6 +6689,8 @@ config_back_modrdn( Operation *op, SlapReply *rs )
 		Attribute *a;
 		rs->sr_err = config_rename_attr( rs, ce->ce_entry, &rdn, &a );
 		if ( rs->sr_err == LDAP_SUCCESS ) {
+			op->o_preread = preread;
+			op->o_postread = postread;
 			rs->sr_err = config_rename_one( op, rs, ce->ce_entry,
 				ce->ce_parent, a, &op->orr_newrdn, &op->orr_nnewrdn,
 				cfb->cb_use_ldif );
@@ -6564,7 +6699,7 @@ config_back_modrdn( Operation *op, SlapReply *rs )
 	} else {
 		CfEntryInfo *ce2, **cprev, **cbprev, *ceold;
 		req_modrdn_s modr = op->oq_modrdn;
-		int i;
+		int i, rc = LDAP_SUCCESS;
 
 		/* Advance to first of this type */
 		cprev = &ce->ce_parent->ce_kids;
@@ -6603,7 +6738,50 @@ config_back_modrdn( Operation *op, SlapReply *rs )
 			backend_db_move( ce->ce_be, ixnew );
 		else if ( ce->ce_type == Cft_Overlay )
 			overlay_move( ce->ce_be, (slap_overinst *)ce->ce_bi, ixnew );
-			
+		else if ( ce->ce_type == Cft_Misc ) {
+#ifdef SLAP_CONFIG_RENAME
+			/*
+			 * only Cft_Misc objects that have a co_lddel handler set in
+			 * the ConfigOCs struct can be deleted. This code also
+			 * assumes that the entry can be only have one objectclass
+			 * with co_type == Cft_Misc
+			 */
+			ConfigOCs co, *coptr;
+			Attribute *oc_at;
+
+			oc_at = attr_find( ce->ce_entry->e_attrs,
+					slap_schema.si_ad_objectClass );
+			if ( !oc_at ) {
+				rs->sr_err = LDAP_OTHER;
+				rs->sr_text = "objectclass not found";
+				goto out2;
+			}
+			for ( i=0; !BER_BVISNULL( &oc_at->a_nvals[i] ); i++ ) {
+				co.co_name = &oc_at->a_nvals[i];
+				coptr = ldap_avl_find( CfOcTree, &co, CfOc_cmp );
+				if ( coptr == NULL || coptr->co_type != Cft_Misc ) {
+					continue;
+				}
+				if ( !coptr->co_ldmove ) {
+					rs->sr_err = LDAP_UNWILLING_TO_PERFORM;
+					rs->sr_text = "No rename handler found";
+					goto out2;
+				} else if ( coptr->co_ldmove( ce, op, rs, ixold, ixnew ) ) {
+					if ( rs->sr_err == LDAP_SUCCESS ) {
+						rs->sr_err = LDAP_OTHER;
+					}
+					goto out2;
+				}
+				break;
+			}
+#else
+			rs->sr_err = LDAP_UNWILLING_TO_PERFORM;
+			goto out2;
+#endif /* SLAP_CONFIG_RENAME */
+		}
+
+		op->o_preread = preread;
+		op->o_postread = postread;
 		if ( ixold < ixnew ) {
 			rs->sr_err = config_rename_del( op, rs, ce, ceold, ixold,
 				cfb->cb_use_ldif );
@@ -6614,7 +6792,8 @@ config_back_modrdn( Operation *op, SlapReply *rs )
 		op->oq_modrdn = modr;
 	}
 
-	if ( rs->sr_err == LDAP_SUCCESS && !cfb->cb_use_ldif && op->o_postread ) {
+	if ( rs->sr_err == LDAP_SUCCESS && !cfb->cb_use_ldif &&
+			postread > SLAP_CONTROL_IGNORED ) {
 		if ( postread_ctrl == NULL ) {
 			postread_ctrl = &ctrls[num_ctrls++];
 			ctrls[num_ctrls] = NULL;
@@ -6628,8 +6807,10 @@ config_back_modrdn( Operation *op, SlapReply *rs )
 		}
 	}
 
+out2:;
 	ldap_pvt_thread_rdwr_wunlock( &cfb->cb_rwlock );
 
+unpause:
 	if ( dopause )
 		slap_unpause_server();
 out:
@@ -6643,20 +6824,23 @@ config_back_delete( Operation *op, SlapReply *rs )
 {
 #ifdef SLAP_CONFIG_DELETE
 	CfBackInfo *cfb;
-	CfEntryInfo *ce, *last, *ce2;
+	CfEntryInfo *ce, *ce2, *last = NULL;
 	int dopause = 1;
 
 	LDAPControl **preread_ctrl = NULL;
 	LDAPControl *ctrls[SLAP_MAX_RESPONSE_CONTROLS];
 	int num_ctrls = 0;
 
+	char preread = op->o_preread;
+
 	ctrls[num_ctrls] = NULL;
+	op->o_preread = SLAP_CONTROL_NONE;
 
 	cfb = (CfBackInfo *)op->o_bd->be_private;
 
 	/* If we have a backend, it will handle the control */
-	ce = config_find_base( cfb->cb_root, &op->o_req_ndn, &last );
-	if ( ce && !cfb->cb_use_ldif && op->o_preread ) {
+	ce = config_find_base( cfb->cb_root, &op->o_req_ndn, &last, op );
+	if ( ce && !cfb->cb_use_ldif && preread ) {
 		if ( preread_ctrl == NULL ) {
 			preread_ctrl = &ctrls[num_ctrls++];
 			ctrls[num_ctrls] = NULL;
@@ -6667,7 +6851,7 @@ config_back_delete( Operation *op, SlapReply *rs )
 			Debug( LDAP_DEBUG_ANY, "config_back_delete: "
 					"pre-read failed \"%s\"\n",
 					ce->ce_entry->e_name.bv_val );
-			if ( op->o_preread & SLAP_CONTROL_CRITICAL ) {
+			if ( preread & SLAP_CONTROL_CRITICAL ) {
 				/* FIXME: is it correct to abort
 				 * operation if control fails? */
 				goto out;
@@ -6693,6 +6877,11 @@ config_back_delete( Operation *op, SlapReply *rs )
 			dopause = 0;
 
 		ldap_pvt_thread_rdwr_wlock( &cfb->cb_rwlock );
+
+		if ( op->o_abandon ) {
+			rs->sr_err = SLAPD_ABANDON;
+			goto out2;
+		}
 
 		if ( ce->ce_type == Cft_Overlay ){
 			overlay_remove( ce->ce_be, (slap_overinst *)ce->ce_bi, op );
@@ -6760,7 +6949,7 @@ config_back_delete( Operation *op, SlapReply *rs )
 		/* remove from underlying database */
 		if ( cfb->cb_use_ldif ) {
 			BackendDB *be = op->o_bd;
-			slap_callback sc = { NULL, slap_null_cb, NULL, NULL }, *scp;
+			slap_callback sc = { NULL, config_copy_controls, NULL, rs->sr_ctrls }, *scp;
 			struct berval dn, ndn, req_dn, req_ndn;
 
 			op->o_bd = &cfb->cb_db;
@@ -6777,6 +6966,9 @@ config_back_delete( Operation *op, SlapReply *rs )
 
 			scp = op->o_callback;
 			op->o_callback = &sc;
+			op->o_preread = preread;
+			rs->sr_ctrls = NULL;
+
 			op->o_bd->be_delete( op, rs );
 			op->o_bd = be;
 			op->o_callback = scp;
@@ -6784,7 +6976,11 @@ config_back_delete( Operation *op, SlapReply *rs )
 			op->o_ndn = ndn;
 			op->o_req_dn = req_dn;
 			op->o_req_ndn = req_ndn;
+
+			rs->sr_ctrls = sc.sc_private;
+			rs->sr_flags |= REP_CTRLS_MUSTBEFREED;
 		}
+		op->o_preread = SLAP_CONTROL_NONE;
 
 		/* renumber siblings */
 		iptr = ber_bvchr( &op->o_req_ndn, '{' ) + 1;
@@ -6817,13 +7013,20 @@ static int
 config_back_search( Operation *op, SlapReply *rs )
 {
 	CfBackInfo *cfb;
-	CfEntryInfo *ce, *last;
+	CfEntryInfo *ce, *last = NULL;
 	slap_mask_t mask;
+	int paused = 0;
 
 	cfb = (CfBackInfo *)op->o_bd->be_private;
 
-	ldap_pvt_thread_rdwr_rlock( &cfb->cb_rwlock );
-	ce = config_find_base( cfb->cb_root, &op->o_req_ndn, &last );
+	if ( ldap_pvt_thread_pool_query( &connection_pool,
+			LDAP_PVT_THREAD_POOL_PARAM_PAUSED, &paused ) ) {
+		return -1;
+	}
+	if ( !paused ) {
+		ldap_pvt_thread_rdwr_rlock( &cfb->cb_rwlock );
+	}
+	ce = config_find_base( cfb->cb_root, &op->o_req_ndn, &last, op );
 	if ( !ce ) {
 		if ( last )
 			rs->sr_matched = last->ce_entry->e_name.bv_val;
@@ -6857,12 +7060,12 @@ config_back_search( Operation *op, SlapReply *rs )
 	}
 
 out:
-	ldap_pvt_thread_rdwr_runlock( &cfb->cb_rwlock );
+	if ( !paused )
+		ldap_pvt_thread_rdwr_runlock( &cfb->cb_rwlock );
 	send_ldap_result( op, rs );
 	return rs->sr_err;
 }
 
-/* no-op, we never free entries */
 int config_entry_release(
 	Operation *op,
 	Entry *e,
@@ -6882,6 +7085,8 @@ int config_entry_release(
 		} else {
 			entry_free( e );
 		}
+	} else {
+		entry_free( e );
 	}
 	return rc;
 }
@@ -6897,22 +7102,35 @@ int config_back_entry_get(
 	Entry **ent )
 {
 	CfBackInfo *cfb;
-	CfEntryInfo *ce, *last;
-	int rc = LDAP_NO_SUCH_OBJECT;
+	CfEntryInfo *ce, *last = NULL;
+	Entry *e = NULL;
+	int paused = 0, rc = LDAP_NO_SUCH_OBJECT;
 
 	cfb = (CfBackInfo *)op->o_bd->be_private;
 
-	ce = config_find_base( cfb->cb_root, ndn, &last );
+	if ( ldap_pvt_thread_pool_query( &connection_pool,
+			LDAP_PVT_THREAD_POOL_PARAM_PAUSED, &paused ) ) {
+		return -1;
+	}
+	if ( !paused ) {
+		ldap_pvt_thread_rdwr_rlock( &cfb->cb_rwlock );
+	}
+	ce = config_find_base( cfb->cb_root, ndn, &last, op );
 	if ( ce ) {
-		*ent = ce->ce_entry;
-		if ( *ent ) {
+		e = ce->ce_entry;
+		if ( e ) {
 			rc = LDAP_SUCCESS;
-			if ( oc && !is_entry_objectclass_or_sub( *ent, oc ) ) {
+			if ( oc && !is_entry_objectclass_or_sub( e, oc ) ) {
 				rc = LDAP_NO_SUCH_ATTRIBUTE;
-				*ent = NULL;
+				e = NULL;
 			}
 		}
 	}
+	if ( e ) {
+		*ent = entry_dup( e );
+	}
+	if ( !paused )
+		ldap_pvt_thread_rdwr_runlock( &cfb->cb_rwlock );
 
 	return rc;
 }
@@ -7196,7 +7414,7 @@ config_check_schema(Operation *op, CfBackInfo *cfb)
 {
 	struct berval schema_dn = BER_BVC(SCHEMA_RDN "," CONFIG_RDN);
 	ConfigArgs c = {0};
-	CfEntryInfo *ce, *last;
+	CfEntryInfo *ce, *last = NULL;
 	Entry *e;
 
 	/* If there's no root entry, we must be in the midst of converting */
@@ -7204,7 +7422,7 @@ config_check_schema(Operation *op, CfBackInfo *cfb)
 		return 0;
 
 	/* Make sure the main schema entry exists */
-	ce = config_find_base( cfb->cb_root, &schema_dn, &last );
+	ce = config_find_base( cfb->cb_root, &schema_dn, &last, op );
 	if ( ce ) {
 		Attribute *a;
 		struct berval *bv;
@@ -7319,7 +7537,12 @@ config_back_db_open( BackendDB *be, ConfigReply *cr )
 	 */
 	save_access = be->bd_self->be_acl;
 	be->bd_self->be_acl = NULL;
-	parse_acl(be->bd_self, "config_back_db_open", 0, 6, (char **)defacl, 0 );
+	c.be = be->bd_self;
+	c.fname = "config_back_db_open";
+	c.lineno = 0;
+	c.argc = 6;
+	c.argv = (char **)defacl;
+	parse_acl( &c, 0 );
 	defacl_parsed = be->bd_self->be_acl;
 	if ( save_access ) {
 		be->bd_self->be_acl = save_access;
@@ -7899,9 +8122,9 @@ config_tool_entry_modify( BackendDB *be, Entry *e, struct berval *text )
 {
 	CfBackInfo *cfb = be->be_private;
 	BackendInfo *bi = cfb->cb_db.bd_info;
-	CfEntryInfo *ce, *last;
+	CfEntryInfo *ce, *last = NULL;
 
-	ce = config_find_base( cfb->cb_root, &e->e_nname, &last );
+	ce = config_find_base( cfb->cb_root, &e->e_nname, &last, NULL );
 
 	if ( ce && bi && bi->bi_tool_entry_modify )
 		return bi->bi_tool_entry_modify( &cfb->cb_db, e, text );
@@ -7914,9 +8137,9 @@ config_tool_entry_delete( BackendDB *be, struct berval *ndn, struct berval *text
 {
 	CfBackInfo *cfb = be->be_private;
 	BackendInfo *bi = cfb->cb_db.bd_info;
-	CfEntryInfo *ce, *last;
+	CfEntryInfo *ce, *last = NULL;
 
-	ce = config_find_base( cfb->cb_root, ndn, &last );
+	ce = config_find_base( cfb->cb_root, ndn, &last, NULL );
 
 	if ( ce && bi && bi->bi_tool_entry_delete )
 		return bi->bi_tool_entry_delete( &cfb->cb_db, ndn, text );

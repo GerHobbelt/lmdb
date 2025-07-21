@@ -1,5 +1,5 @@
 .TH SLAPD.CONF 5 "RELEASEDATE" "OpenLDAP LDVERSION"
-.\" Copyright 1998-2022 The OpenLDAP Foundation All Rights Reserved.
+.\" Copyright 1998-2024 The OpenLDAP Foundation All Rights Reserved.
 .\" Copying restrictions apply.  See COPYRIGHT/LICENSE.
 .\" $OpenLDAP$
 .SH NAME
@@ -618,14 +618,15 @@ see
 option description.  The default is 71.
 .TP
 .B logfile <filename>
-Specify a file for recording slapd debug messages. By default these messages
-only go to stderr, are not recorded anywhere else, and are unrelated to
-messages exposed by the
+Specify a file for recording slapd debug messages. These messages are
+unrelated to messages exposed by the
 .B loglevel
-configuration parameter. Specifying a logfile copies messages to both stderr
-and the logfile.
+configuration parameter. This setting only affects the slapd daemon and has
+no effect on the command line tools. By default these messages
+only go to stderr and are not recorded anywhere else.
+Specifying a logfile copies messages to both stderr and the logfile.
 .TP
-.B logfile-format debug | syslog-utc | syslog-localtime
+.B logfile-format debug|syslog-utc|syslog-localtime|rfc3339-utc
 Specify the prefix format for messages written to the logfile. The debug
 format is the normal format used for slapd debug messages, with a timestamp
 in hexadecimal, followed by a thread ID.  The other options are to
@@ -1133,6 +1134,7 @@ you can specify.
 Permits configuring what ciphers will be accepted and the preference order.
 <cipher-suite-spec> should be a cipher specification for the TLS library
 in use (OpenSSL or GnuTLS).
+This directive is not supported when using MbedTLS.
 Example:
 .RS
 .RS
@@ -1209,6 +1211,7 @@ actual client or server authentication and provide no protection against
 man-in-the-middle attacks.
 You should append "!ADH" to your cipher suites to ensure that these suites
 are not used.
+This directive is not supported when using MbedTLS.
 .TP
 .B TLSECName <name>
 Specify the name of the curve(s) to use for Elliptic curve Diffie-Hellman
@@ -1411,7 +1414,9 @@ will be updated. More than
 .B integer
 seconds must have passed since the last successful bind. In a
 replicated environment with frequent bind activity it may be
-useful to set this to a large value.
+useful to set this to a large value. On a backend, if set to
+.B 0
+(the default), the value set on the frontend is used.
 .TP
 .B limits <selector> <limit> [<limit> [...]]
 Specify time and size limits based on the operation's initiator or
@@ -2066,7 +2071,8 @@ log format, or "changelog" if the log conforms
 to the obsolete \fIchangelog\fP format. If the
 .B syncdata
 parameter is omitted or set to "default" then the log parameters are
-ignored.
+ignored. If \fBmultiprovider\fP is being used, the same \fBlogbase\fP
+database must be configured on all of the providers.
 
 The
 .B lazycommit

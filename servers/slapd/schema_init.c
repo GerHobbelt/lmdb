@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1823,6 +1823,8 @@ UTF8StringValidate(
 	for( ; u < end; u += len ) {
 		/* get the length indicated by the first byte */
 		len = LDAP_UTF8_CHARLEN2( u, len );
+		if ( u + len > end )
+			return LDAP_INVALID_SYNTAX;
 
 		/* very basic checks */
 		switch( len ) {
@@ -6157,7 +6159,7 @@ firstComponentNormalize(
 	struct berval comp;
 	ber_len_t len;
 
-	if( SLAP_MR_IS_VALUE_OF_ASSERTION_SYNTAX( usage )) {
+	if( normalized && SLAP_MR_IS_VALUE_OF_ASSERTION_SYNTAX( usage )) {
 		ber_dupbv_x( normalized, val, ctx );
 		return LDAP_SUCCESS;
 	}

@@ -1,7 +1,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * Portions Copyright 2007 by Howard Chu, Symas Corporation.
  * All rights reserved.
  *
@@ -41,8 +41,8 @@
 
 #include "ldap_rq.h"
 
-#ifdef HAVE_SYSTEMD_SD_DAEMON_H
-#include <systemd/sd-daemon.h>
+#ifdef HAVE_SYSTEMD
+#include "sd-notify.h"
 #endif
 
 #ifdef HAVE_POLL
@@ -1299,22 +1299,17 @@ slap_free_listener_addresses( struct sockaddr **sal )
 static int
 get_url_perms(
 	char 	**exts,
-	mode_t	*perms,
-	int	*crit )
+	mode_t	*perms )
 {
 	int	i;
 
 	assert( exts != NULL );
 	assert( perms != NULL );
-	assert( crit != NULL );
 
-	*crit = 0;
 	for ( i = 0; exts[ i ]; i++ ) {
 		char	*type = exts[ i ];
-		int	c = 0;
 
 		if ( type[ 0 ] == '!' ) {
-			c = 1;
 			type++;
 		}
 
@@ -1365,7 +1360,6 @@ get_url_perms(
 				return LDAP_OTHER;
 			} 
 
-			*crit = c;
 			*perms = p;
 
 			return LDAP_SUCCESS;
@@ -1523,13 +1517,6 @@ slap_open_listener(
 	ber_socket_t s;
 	char ebuf[128];
 
-#if defined(LDAP_PF_LOCAL) || defined(SLAP_X_LISTENER_MOD)
-	/*
-	 * use safe defaults
-	 */
-	int	crit = 1;
-#endif /* LDAP_PF_LOCAL || SLAP_X_LISTENER_MOD */
-
 	rc = ldap_url_parse_ext( url, &lud, LDAP_PVT_URL_PARSE_DEF_PORT );
 
 	if( rc != LDAP_URL_SUCCESS ) {
@@ -1561,6 +1548,7 @@ slap_open_listener(
 	l.sl_tcp_rmem = 0;
 	l.sl_tcp_wmem = 0;
 #endif /* LDAP_TCP_BUFFER */
+	ldap_pvt_mp_init( l.sl_n_conns_opened );
 
 	port = (unsigned short) lud->lud_port;
 
@@ -1595,7 +1583,7 @@ slap_open_listener(
 
 #if defined(LDAP_PF_LOCAL) || defined(SLAP_X_LISTENER_MOD)
 	if ( lud->lud_exts ) {
-		err = get_url_perms( lud->lud_exts, &l.sl_perms, &crit );
+		err = get_url_perms( lud->lud_exts, &l.sl_perms );
 	} else {
 		l.sl_perms = S_IRWXU | S_IRWXO;
 	}
@@ -2270,9 +2258,9 @@ slap_listener(
 					STRLENOF( "gidNumber=4294967295+uidNumber=4294967295,"
 					"cn=peercred,cn=external,cn=auth" ) + 1 );
 				authid.bv_len = sprintf( authid.bv_val,
-					"gidNumber=%d+uidNumber=%d,"
+					"gidNumber=%u+uidNumber=%u,"
 					"cn=peercred,cn=external,cn=auth",
-					(int) gid, (int) uid );
+					gid, uid );
 				assert( authid.bv_len <=
 					STRLENOF( "gidNumber=4294967295+uidNumber=4294967295,"
 					"cn=peercred,cn=external,cn=auth" ) );
@@ -2788,11 +2776,13 @@ loop:
 			ldap_pvt_thread_mutex_lock( &slapd_rq.rq_mutex );
 			rtask = ldap_pvt_runqueue_next_sched( &slapd_rq, &cat );
 			while ( rtask && cat.tv_sec && cat.tv_sec <= now ) {
+				/* ITS#9878 If interval == 0, this task was meant to be one-shot */
+				int defer = !rtask->interval.tv_sec;
 				if ( ldap_pvt_runqueue_isrunning( &slapd_rq, rtask )) {
-					ldap_pvt_runqueue_resched( &slapd_rq, rtask, 0 );
+					ldap_pvt_runqueue_resched( &slapd_rq, rtask, defer );
 				} else {
 					ldap_pvt_runqueue_runtask( &slapd_rq, rtask );
-					ldap_pvt_runqueue_resched( &slapd_rq, rtask, 0 );
+					ldap_pvt_runqueue_resched( &slapd_rq, rtask, defer );
 					ldap_pvt_thread_mutex_unlock( &slapd_rq.rq_mutex );
 					ldap_pvt_thread_pool_submit2( &connection_pool,
 						slapd_rtask_trampoline, (void *) rtask, &rtask->pool_cookie );

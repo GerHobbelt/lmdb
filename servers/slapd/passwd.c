@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -291,6 +291,8 @@ old_good:
 	} else {
 		slap_callback **sc;
 
+		cb.sc_next = op->o_callback;
+
 		op->o_tag = LDAP_REQ_MODIFY;
 		op->o_callback = &cb;
 		op->orm_modlist = qpw->rs_mods;
@@ -570,25 +572,26 @@ slap_passwd_hash_type(
 	new->bv_len = 0;
 	new->bv_val = NULL;
 
+	if ( hash == NULL ) {
+		if ( default_passwd_hash ) {
+			hash = default_passwd_hash[0];
+		}
+		if ( !hash ) {
+			hash = (char *)defhash[0];
+		}
+	}
 	assert( hash != NULL );
 
 	lutil_passwd_hash( cred , hash, new, text );
 }
+
 void
 slap_passwd_hash(
 	struct berval * cred,
 	struct berval * new,
 	const char **text )
 {
-	char *hash = NULL;
-	if ( default_passwd_hash ) {
-		hash = default_passwd_hash[0];
-	}
-	if ( !hash ) {
-		hash = (char *)defhash[0];
-	}
-
-	slap_passwd_hash_type( cred, new, hash, text );
+	slap_passwd_hash_type( cred, new, NULL, text );
 }
 
 #ifdef SLAPD_CRYPT

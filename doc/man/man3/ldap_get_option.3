@@ -1,6 +1,6 @@
 .TH LDAP_GET_OPTION 3 "RELEASEDATE" "OpenLDAP LDVERSION"
 .\" $OpenLDAP$
-.\" Copyright 1998-2022 The OpenLDAP Foundation All Rights Reserved.
+.\" Copyright 1998-2024 The OpenLDAP Foundation All Rights Reserved.
 .\" Copying restrictions apply.  See COPYRIGHT/LICENSE.
 .SH NAME
 ldap_get_option, ldap_set_option \- LDAP option handling routines
@@ -295,10 +295,17 @@ or
 .BR outvalue
 must be
 .BR "int *" .
-.\".TP
-.\".B LDAP_OPT_REFHOPLIMIT
-.\"This option is OpenLDAP specific.
-.\"It is not currently implemented.
+.TP
+.B LDAP_OPT_REFHOPLIMIT
+Set the maximum number of referrals to chase for a request.
+.BR invalue
+must be
+.BR "const int *" ;
+.BR outvalue
+must be a
+.BR "int *" .
+They cannot be NULL.
+This option is OpenLDAP specific.
 .TP
 .B LDAP_OPT_RESTART
 Determines whether the library should implicitly restart connections (FIXME).
@@ -692,6 +699,7 @@ and its contents need to be freed by the caller using
 .TP
 .B LDAP_OPT_X_TLS_CIPHER_SUITE
 Sets/gets the allowed cipher suite.
+This directive is not supported when using MbedTLS.
 .BR invalue
 must be
 .BR "const char *" ;
@@ -762,6 +770,7 @@ manipulate this structure.
 .B LDAP_OPT_X_TLS_DHFILE
 Gets/sets the full-path of the file containing the parameters
 for Diffie-Hellman ephemeral key exchange.
+This directive is not supported when using MbedTLS.
 .BR invalue
 must be
 .BR "const char *" ;

@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2000-2022 The OpenLDAP Foundation.
+ * Copyright 2000-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,6 +49,8 @@ static AttributeDescription *ad_olmMDBReadersMax,
 	*ad_olmMDBReadersUsed;
 
 static AttributeDescription *ad_olmMDBEntries;
+
+static AttributeDescription *ad_olmMDBPageSize;
 
 /*
  * NOTE: there's some confusion in monitor OID arc;
@@ -143,6 +145,14 @@ static struct {
 		"NO-USER-MODIFICATION "
 		"USAGE dSAOperation )",
 		&ad_olmMDBEntries },
+
+	{ "( olmMDBAttributes:7 "
+		"NAME ( 'olmMDBPageSize' ) "
+		"DESC 'DB page size' "
+		"SUP monitorCounter "
+		"NO-USER-MODIFICATION "
+		"USAGE dSAOperation )",
+		&ad_olmMDBPageSize },
 	{ NULL }
 };
 
@@ -162,6 +172,7 @@ static struct {
 #endif /* MDB_MONITOR_IDX */
 			"$ olmMDBPagesMax $ olmMDBPagesUsed $ olmMDBPagesFree "
 			"$ olmMDBReadersMax $ olmMDBReadersUsed $ olmMDBEntries "
+			"$ olmMDBPageSize "
 			") )",
 		&oc_olmMDBDatabase },
 
@@ -214,6 +225,12 @@ mdb_monitor_update(
 	assert( a != NULL );
 	bv.bv_val = buf;
 	bv.bv_len = snprintf( buf, sizeof( buf ), "%u", mei.me_numreaders );
+	ber_bvreplace( &a->a_vals[ 0 ], &bv );
+
+	a = attr_find( e->e_attrs, ad_olmMDBPageSize );
+	assert( a != NULL );
+	bv.bv_val = buf;
+	bv.bv_len = snprintf( buf, sizeof( buf ), "%u", mst.ms_psize );
 	ber_bvreplace( &a->a_vals[ 0 ], &bv );
 
 	rc = mdb_txn_begin( mdb->mi_dbenv, NULL, MDB_RDONLY, &txn );
@@ -436,7 +453,7 @@ mdb_monitor_db_open( BackendDB *be )
 	}
 
 	/* alloc as many as required (plus 1 for objectClass) */
-	a = attrs_alloc( 1 + 7 );
+	a = attrs_alloc( 1 + 8 );
 	if ( a == NULL ) {
 		rc = 1;
 		goto cleanup;
@@ -470,6 +487,10 @@ mdb_monitor_db_open( BackendDB *be )
 		next = next->a_next;
 
 		next->a_desc = ad_olmMDBEntries;
+		attr_valadd( next, &bv, NULL, 1 );
+		next = next->a_next;
+
+		next->a_desc = ad_olmMDBPageSize;
 		attr_valadd( next, &bv, NULL, 1 );
 		next = next->a_next;
 	}

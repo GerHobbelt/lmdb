@@ -1,7 +1,6 @@
 # with first backend
 dn: cn=Load Balancer,cn=Backends,cn=Monitor
 objectClass: olmBalancer
-olmIncomingConnections: 0
 olmOutgoingConnections: 4
 
 dn: cn=Incoming Connections,cn=Load Balancer,cn=Backends,cn=Monitor
@@ -48,6 +47,8 @@ dn: cn=Connection 1,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -58,6 +59,8 @@ dn: cn=Connection 2,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -68,6 +71,8 @@ dn: cn=Connection 3,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -78,6 +83,8 @@ dn: cn=Connection 4,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -87,7 +94,6 @@ olmFailedOps: 0
 # second backend and a rejected search, paged search (19 times x 1 entry), pwmod
 dn: cn=Load Balancer,cn=Backends,cn=Monitor
 objectClass: olmBalancer
-olmIncomingConnections: 0
 olmOutgoingConnections: 13
 
 dn: cn=Incoming Connections,cn=Load Balancer,cn=Backends,cn=Monitor
@@ -134,6 +140,8 @@ dn: cn=Connection 1,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 19
 olmCompletedOps: 19
@@ -144,6 +152,8 @@ dn: cn=Connection 2,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 1
 olmCompletedOps: 1
@@ -154,6 +164,8 @@ dn: cn=Connection 3,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 1
 olmCompletedOps: 1
@@ -164,6 +176,8 @@ dn: cn=Connection 4,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -185,6 +199,8 @@ dn: cn=Connection 5,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -195,6 +211,8 @@ dn: cn=Connection 6,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 1
 olmCompletedOps: 1
@@ -205,6 +223,8 @@ dn: cn=Connection 7,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -215,6 +235,8 @@ dn: cn=Connection 8,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -225,6 +247,8 @@ dn: cn=Connection 9,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -235,6 +259,8 @@ dn: cn=Connection 10,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 1
 olmCompletedOps: 1
@@ -245,6 +271,8 @@ dn: cn=Connection 11,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -255,6 +283,8 @@ dn: cn=Connection 12,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -265,6 +295,8 @@ dn: cn=Connection 13,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -274,7 +306,6 @@ olmFailedOps: 0
 # two runs of modifies (with and without TXN)
 dn: cn=Load Balancer,cn=Backends,cn=Monitor
 objectClass: olmBalancer
-olmIncomingConnections: 0
 olmOutgoingConnections: 13
 
 dn: cn=Incoming Connections,cn=Load Balancer,cn=Backends,cn=Monitor
@@ -321,6 +352,8 @@ dn: cn=Connection 1,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 20
 olmCompletedOps: 20
@@ -331,6 +364,8 @@ dn: cn=Connection 2,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 1
 olmCompletedOps: 1
@@ -341,6 +376,8 @@ dn: cn=Connection 3,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 2
 olmCompletedOps: 2
@@ -351,6 +388,8 @@ dn: cn=Connection 4,cn=backend,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=B
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT2@
 olmPendingOps: 0
 olmReceivedOps: 1
 olmCompletedOps: 1
@@ -372,6 +411,8 @@ dn: cn=Connection 5,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 1
 olmCompletedOps: 1
@@ -382,6 +423,8 @@ dn: cn=Connection 6,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 1
 olmCompletedOps: 1
@@ -392,6 +435,8 @@ dn: cn=Connection 7,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 5
 olmCompletedOps: 5
@@ -402,6 +447,8 @@ dn: cn=Connection 8,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -412,6 +459,8 @@ dn: cn=Connection 9,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn=
 objectClass: olmBalancerConnection
 olmConnectionType: regular
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -422,6 +471,8 @@ dn: cn=Connection 10,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 1
 olmCompletedOps: 1
@@ -432,6 +483,8 @@ dn: cn=Connection 11,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 1
 olmCompletedOps: 1
@@ -442,6 +495,8 @@ dn: cn=Connection 12,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0
@@ -452,6 +507,8 @@ dn: cn=Connection 13,cn=server 2,cn=first,cn=Backend Tiers,cn=Load Balancer,cn
 objectClass: olmBalancerConnection
 olmConnectionType: bind
 olmConnectionState: ready
+olmConnectionLocalAddress: IP=localhost:port
+olmConnectionPeerAddress: IP=localhost:@PORT3@
 olmPendingOps: 0
 olmReceivedOps: 0
 olmCompletedOps: 0

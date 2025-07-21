@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2000-2022 The OpenLDAP Foundation.
+ * Copyright 2000-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -71,6 +71,13 @@ struct mdb_info {
 	char		*mi_dbenv_home;
 	unsigned	mi_dbenv_flags;
 	int			mi_dbenv_mode;
+
+#ifdef MDB_ENCRYPT
+	char		*mi_dbenv_crypto;
+	char		*mi_dbenv_enckey;
+	void		*mi_dbenv_encmodule;
+	void		*mi_dbenv_encfuncs;
+#endif	/* MDB_ENCRYPT */
 
 	size_t		mi_mapsize;
 	ID			mi_nextid;

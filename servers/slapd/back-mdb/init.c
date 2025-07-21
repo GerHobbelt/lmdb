@@ -2,7 +2,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 2000-2022 The OpenLDAP Foundation.
+ * Copyright 2000-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -126,6 +126,12 @@ mdb_db_open( BackendDB *be, ConfigReply *cr )
 		goto fail;
 	}
 
+#ifdef MDB_ENCRYPT
+	if ( mdb->mi_dbenv_encfuncs ) {
+		mdb_modsetup( mdb->mi_dbenv, mdb->mi_dbenv_encfuncs, mdb->mi_dbenv_enckey );
+	}
+#endif
+
 	if ( mdb->mi_readers ) {
 		rc = mdb_env_set_maxreaders( mdb->mi_dbenv, mdb->mi_readers );
 		if( rc != 0 ) {
@@ -182,7 +188,7 @@ mdb_db_open( BackendDB *be, ConfigReply *cr )
 	if ( rc ) {
 		Debug( LDAP_DEBUG_ANY,
 			LDAP_XSTRING(mdb_db_open) ": database \"%s\" cannot be opened: %s (%d). "
-			"Restore from backup!\n",
+			"Administrator intervention needed!\n",
 			be->be_suffix[0].bv_val, mdb_strerror(rc), rc );
 		goto fail;
 	}
@@ -191,7 +197,7 @@ mdb_db_open( BackendDB *be, ConfigReply *cr )
 	if ( rc ) {
 		Debug( LDAP_DEBUG_ANY,
 			LDAP_XSTRING(mdb_db_open) ": database \"%s\" cannot be opened: %s (%d). "
-			"Restore from backup!\n",
+			"Administrator intervention needed!\n",
 			be->be_suffix[0].bv_val, mdb_strerror(rc), rc );
 		goto fail;
 	}
@@ -313,7 +319,7 @@ mdb_db_open( BackendDB *be, ConfigReply *cr )
 	mdb->mi_flags |= MDB_IS_OPEN;
 
 	if ( do_index )
-		mdb_start_index_task( be );
+		mdb_start_index_task( be->bd_self );
 
 	return 0;
 
@@ -371,6 +377,13 @@ mdb_db_close( BackendDB *be, ConfigReply *cr )
 
 		mdb_env_close( mdb->mi_dbenv );
 		mdb->mi_dbenv = NULL;
+#ifdef MDB_ENCRYPT
+		if ( mdb->mi_dbenv_encmodule ) {
+			mdb_modunload( mdb->mi_dbenv_encmodule );
+			mdb->mi_dbenv_encmodule = NULL;
+			mdb->mi_dbenv_encfuncs = NULL;
+		}
+#endif
 	}
 
 	return 0;

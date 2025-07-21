@@ -1,7 +1,7 @@
 /* $OpenLDAP$ */
 /* This work is part of OpenLDAP Software <http://www.openldap.org/>.
  *
- * Copyright 1998-2022 The OpenLDAP Foundation.
+ * Copyright 1998-2024 The OpenLDAP Foundation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -827,12 +827,6 @@ unhandled_option:;
         slapd_args_file_unlink = 1;
     }
 
-    /*
-     * FIXME: moved here from lloadd_daemon_task()
-     * because back-monitor db_open() needs it
-     */
-    time( &starttime );
-
     Debug( LDAP_DEBUG_ANY, "lloadd starting\n" );
 
 #ifndef HAVE_WINSOCK
@@ -870,6 +864,7 @@ destroy:
         (void)loglevel_print( stdout );
     }
     /* remember an error during destroy */
+    rc |= lload_global_destroy();
     rc |= lload_destroy();
 
 stop:
@@ -889,10 +884,6 @@ stop:
     lloadd_daemon_destroy();
 
 #ifdef HAVE_TLS
-    if ( lload_tls_ld ) {
-        ldap_pvt_tls_ctx_free( lload_tls_ctx );
-        ldap_unbind_ext( lload_tls_ld, NULL, NULL );
-    }
     ldap_pvt_tls_destroy();
 #endif
 
