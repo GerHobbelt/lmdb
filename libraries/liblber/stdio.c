@@ -20,7 +20,9 @@
 #include <ac/string.h>
 #include <ac/ctype.h>
 #include <lutil.h>
+#if !defined(_WIN32)
 #include <unistd.h>
+#endif
 
 #if !defined(HAVE_VSNPRINTF) && !defined(HAVE_EBCDIC)
 /* Write at most n characters to the buffer in str, return the

@@ -16,7 +16,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#if !defined(_WIN32)
 #include <unistd.h>
+#else
+//...
+#endif
 #include <signal.h>
 #include "lmdb.h"
 

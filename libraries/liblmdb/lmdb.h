@@ -178,6 +178,7 @@ extern "C" {
 /** Unix permissions for creating files, or dummy definition for Windows */
 #ifdef _MSC_VER
 typedef	int	mdb_mode_t;
+typedef	int64_t	ssize_t;
 #else
 typedef	mode_t	mdb_mode_t;
 #endif
