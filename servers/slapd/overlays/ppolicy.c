@@ -607,7 +607,7 @@ static ConfigTable ppolicycfg[] = {
 	  "SINGLE-VALUE )", NULL, NULL },
 
 	/* slapd.conf compatibility */
-	{ "ppolicy_rules", "rule", 3, 0, 0,
+	{ "ppolicy_rules", "rule", 2, 0, 0,
 	  ARG_MAGIC|PPOLICY_DEFAULT_RULES,
 	  ppolicy_cf_rule,
 	  NULL, NULL, NULL },
@@ -3085,31 +3085,51 @@ ppolicy_bind_response( Operation *op, SlapReply *rs )
 			/*
 			 * Check if we're expected to rewrite the stored hash
 			 */
-			if ( ppb->pp.pwdRehashOnBind && op->o_tag == LDAP_REQ_BIND &&
-					op->orb_method == LDAP_AUTH_SIMPLE &&
+			struct berval newpw = BER_BVNULL;
+
+			if ( op->o_tag == LDAP_REQ_COMPARE ) {
+				/* Compare of userPassword not currently implemented, but the
+				 * draft mentions it, have it ready once it is */
+				newpw = op->orc_ava->aa_value;
+			} else if ( op->o_tag == LDAP_REQ_BIND &&
+					op->orb_method == LDAP_AUTH_SIMPLE ) {
+				newpw = op->orb_cred;
+			}
+
+			if ( ppb->pp.pwdRehashOnBind && !BER_BVISNULL( &newpw ) &&
 					!BER_BVISNULL( &ppb->pp.pwdDefaultHash ) &&
 					ber_bvstrcasecmp( &scheme, &ppb->pp.pwdDefaultHash ) ) {
-				struct berval newpw = BER_BVNULL, newhash = BER_BVNULL;
+				struct berval newhash = BER_BVNULL;
+				const char *txt;
 
-				if ( op->o_tag == LDAP_REQ_COMPARE ) {
-					newpw = op->orc_ava->aa_value;
-				} else if ( op->o_tag == LDAP_REQ_BIND &&
-						op->orb_method == LDAP_AUTH_SIMPLE ) {
-					newpw = op->orb_cred;
-				}
-
-				if ( !BER_BVISNULL( &newpw ) ) {
-					const char *txt;
-					slap_passwd_hash_type( &newpw, &newhash,
-							ppb->pp.pwdDefaultHash.bv_val, &txt );
-					if ( BER_BVISNULL( &newhash ) ) {
-						Debug( LDAP_DEBUG_ANY, "ppolicy_bind_response: "
-								"rehashing password for user %s failed: %s\n",
-								op->o_req_dn.bv_val, txt );
+				Debug(LDAP_DEBUG_ANY, "%s rehashing password with %s\n",
+						op->o_log_prefix, ppb->pp.pwdDefaultHash.bv_val );
+				slap_passwd_hash_type( &newpw, &newhash,
+						ppb->pp.pwdDefaultHash.bv_val, &txt );
+				if ( BER_BVISNULL( &newhash ) ) {
+					Debug( LDAP_DEBUG_ANY, "ppolicy_bind_response: "
+							"rehashing password for user %s failed: %s\n",
+							op->o_req_dn.bv_val, txt );
+				} else {
+					/*
+					 * Rehashing is a password change by an administrator, but
+					 * we don't want it to change pwdReset state.
+					 */
+					if ( ppb->pp.pwdMustChange ) {
+						/*
+						 * Earlier we chose this branch because the reset state
+						 * is not TRUE.
+						 */
+						m = ch_calloc( sizeof(Modifications), 1 );
+						m->sml_op = LDAP_MOD_REPLACE;
+						m->sml_flags = SLAP_MOD_INTERNAL;
+						m->sml_type = ad_pwdReset->ad_cname;
+						m->sml_desc = ad_pwdReset;
+						m->sml_next = mod;
+						m->sml_numvals = 0;
+						mod = m;
 					}
-				}
 
-				if ( !BER_BVISNULL( &newhash ) ) {
 					m = ch_calloc( sizeof(Modifications), 1 );
 					m->sml_op = LDAP_MOD_ADD;
 					m->sml_flags = SLAP_MOD_INTERNAL;
@@ -3127,6 +3147,7 @@ ppolicy_bind_response( Operation *op, SlapReply *rs )
 					m->sml_flags = SLAP_MOD_INTERNAL;
 					m->sml_desc = ppb->pp.ad;
 					m->sml_type = ppb->pp.ad->ad_cname;
+					m->sml_next = mod;
 					m->sml_numvals = 1;
 					m->sml_values = ch_calloc( sizeof( struct berval ), 2 );
 					ber_dupbv( &m->sml_values[0], &oldpw );
