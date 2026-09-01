@@ -862,6 +862,7 @@ tlso_session_connect( LDAP *ld, tls_session *sess, const char *name_in )
 			return -1;
 	}
 #endif
+	ERR_clear_error();
 	/* Caller expects 0 = success, OpenSSL returns 1 = success */
 	rc = SSL_connect( s ) - 1;
 	return rc;
@@ -873,6 +874,7 @@ tlso_session_accept( tls_session *sess )
 	tlso_session *s = (tlso_session *)sess;
 
 	/* Caller expects 0 = success, OpenSSL returns 1 = success */
+	ERR_clear_error();
 	return SSL_accept( s ) - 1;
 }
 
@@ -1620,6 +1622,7 @@ tlso_sb_read( Sockbuf_IO_Desc *sbiod, void *buf, ber_len_t len)
 
 	p = (struct tls_data *)sbiod->sbiod_pvt;
 
+	ERR_clear_error();
 	ret = SSL_read( p->session, (char *)buf, len );
 #ifdef HAVE_WINSOCK
 	errno = WSAGetLastError();
@@ -1646,6 +1649,7 @@ tlso_sb_write( Sockbuf_IO_Desc *sbiod, void *buf, ber_len_t len)
 
 	p = (struct tls_data *)sbiod->sbiod_pvt;
 
+	ERR_clear_error();
 	ret = SSL_write( p->session, (char *)buf, len );
 #ifdef HAVE_WINSOCK
 	errno = WSAGetLastError();
