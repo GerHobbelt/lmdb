@@ -3,6 +3,7 @@ OpenLDAP 2.6 Change Log
 OpenLDAP 2.6.15 Engineering
 	Fixed libldap request leak on malformed BER response (ITS#10577)
 	Fixed libldap error stack handling with OpenSSL < 4.0 (ITS#10578)
+	Fixed lload non-blocking BIO handling in SSL renegotiations (ITS#10579)
 	Fixed slapo-ppolicy handling of old passwords (ITS#10565)
 	Documentation
 		slapo-pcache added note about referral chasing (ITS#10560)
